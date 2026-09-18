@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import { getBatchByToken } from "@/lib/approval/repository";
 import { isBatchLinkActive } from "@/lib/approval/constants";
-import { SwipeApproval } from "@/components/approval/SwipeApproval";
+import { ApprovalFlow } from "@/components/approval/ApprovalFlow";
 
 export const dynamic = "force-dynamic";
 
@@ -14,7 +14,7 @@ export default async function ApprovalLinkPage({
   const batch = await getBatchByToken(token);
   if (!batch) notFound();
   if (!isBatchLinkActive(batch)) return <ExpiredLink client={batch.client} />;
-  return <SwipeApproval batch={batch} />;
+  return <ApprovalFlow batch={batch} />;
 }
 
 function ExpiredLink({ client }: { client: string }) {
