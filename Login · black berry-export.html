@@ -1,0 +1,208 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <script>
+      tailwind = { config: { corePlugins: { preflight: false } } };
+    </script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter%3Awght%40100..900&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      *, ::before, ::after {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+      }
+    </style>
+
+    <style>
+      body {
+        min-height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+    </style>
+  </head>
+  <body style="background-color: #000000">
+    <div
+      data-pencil-name="Login · black berry"
+      class="box-border w-[1440px] h-[900px] flex flex-col gap-0 justify-center items-center bg-[#000000] overflow-hidden"
+    >
+      <div
+        data-pencil-name="Login Card"
+        class="box-border w-[400px] h-fit shrink-0 flex flex-col gap-[24px] p-[40px] justify-start items-start bg-[#141414] [border:1px_solid_#2b2b2b] rounded-[24px]"
+      >
+        <div
+          data-pencil-name="Brand Mark"
+          class="box-border w-[44px] h-[44px] shrink-0 flex flex-row gap-0 justify-center items-center bg-[#e8e8e8] rounded-[6px]"
+        >
+          <div
+            data-pencil-name="Brand Initial"
+            class="text-[20px]/[normal] box-border text-[#000000] font-[Inter,system-ui,sans-serif] font-bold text-left [white-space:nowrap]"
+          >
+            B
+          </div>
+        </div>
+        <div
+          data-pencil-name="Header"
+          class="box-border w-full h-fit shrink-0 flex flex-col gap-[8px] justify-start items-start"
+        >
+          <div
+            data-pencil-name="Title"
+            class="text-[20px]/[normal] box-border w-full text-[#ffffff] font-[Inter,system-ui,sans-serif] font-semibold text-left"
+          >
+            Bem-vindo de volta
+          </div>
+          <div
+            data-pencil-name="Subtitle"
+            class="text-[13px]/[normal] box-border w-full text-[#898989] font-[Inter,system-ui,sans-serif] font-normal text-left"
+          >
+            Acesse sua conta para continuar no black berry
+          </div>
+        </div>
+        <div
+          data-pencil-name="Form"
+          class="box-border w-full h-fit shrink-0 flex flex-col gap-[20px] justify-start items-start"
+        >
+          <div
+            data-pencil-name="Email Field"
+            class="box-border w-full h-fit shrink-0 flex flex-col gap-[8px] justify-start items-start"
+          >
+            <div
+              data-pencil-name="Email Label"
+              class="text-[12px]/[normal] box-border text-[#acacac] font-[Inter,system-ui,sans-serif] font-medium text-left [white-space:nowrap]"
+            >
+              E-mail
+            </div>
+            <div
+              data-pencil-name="Email Input"
+              class="box-border w-full h-fit shrink-0 flex flex-row gap-0 p-[12px_16px] justify-start items-center bg-[#000000] [border:1px_solid_#414141] rounded-[24px]"
+            >
+              <div
+                data-pencil-name="Email Placeholder"
+                class="text-[13px]/[normal] box-border text-[#898989] font-[Inter,system-ui,sans-serif] font-normal text-left [white-space:nowrap]"
+              >
+                voce@empresa.com
+              </div>
+            </div>
+          </div>
+          <div
+            data-pencil-name="Password Field"
+            class="box-border w-full h-fit shrink-0 flex flex-col gap-[8px] justify-start items-start"
+          >
+            <div
+              data-pencil-name="Password Label Row"
+              class="box-border w-full h-fit shrink-0 flex flex-row gap-0 justify-between items-center"
+            >
+              <div
+                data-pencil-name="Password Label"
+                class="text-[12px]/[normal] box-border text-[#acacac] font-[Inter,system-ui,sans-serif] font-medium text-left [white-space:nowrap]"
+              >
+                Senha
+              </div>
+              <div
+                data-pencil-name="Forgot Link"
+                class="text-[12px]/[normal] box-border text-[#e8e8e8] font-[Inter,system-ui,sans-serif] font-medium text-left [white-space:nowrap]"
+              >
+                Esqueceu a senha?
+              </div>
+            </div>
+            <div
+              data-pencil-name="Password Input"
+              class="box-border w-full h-fit shrink-0 flex flex-row gap-0 p-[12px_16px] justify-start items-center bg-[#000000] [border:1px_solid_#414141] rounded-[24px]"
+            >
+              <div
+                data-pencil-name="Password Placeholder"
+                class="text-[13px]/[normal] box-border text-[#898989] font-[Inter,system-ui,sans-serif] font-normal text-left [white-space:nowrap]"
+              >
+                ••••••••
+              </div>
+            </div>
+          </div>
+          <div
+            data-pencil-name="Remember Row"
+            class="box-border w-full h-fit shrink-0 flex flex-row gap-[8px] justify-start items-center"
+          >
+            <div
+              data-pencil-name="Checkbox"
+              class="box-border w-[16px] shrink-0 h-[16px] flex flex-row gap-0 justify-start items-start [outline:1px_solid_#414141] [outline-offset:-0.5px] rounded-[6px]"
+            ></div>
+            <div
+              data-pencil-name="Remember Label"
+              class="text-[13px]/[normal] box-border text-[#e8e8e8] font-[Inter,system-ui,sans-serif] font-normal text-left [white-space:nowrap]"
+            >
+              Lembrar de mim
+            </div>
+          </div>
+          <div
+            data-pencil-name="Submit Button"
+            class="box-border w-full h-fit shrink-0 flex flex-row gap-0 p-[10px_16px] justify-center items-center bg-[#e8e8e8] rounded-[24px]"
+          >
+            <div
+              data-pencil-name="Text"
+              class="text-[14px]/[normal] box-border text-[#141414] font-[Inter,system-ui,sans-serif] font-medium text-left [white-space:nowrap]"
+            >
+              Entrar
+            </div>
+          </div>
+        </div>
+        <div
+          data-pencil-name="Divider Row"
+          class="box-border w-full h-fit shrink-0 flex flex-row gap-[12px] justify-start items-center"
+        >
+          <div
+            data-pencil-name="Line Left"
+            class="box-border [flex:1_1_0] h-[1px] flex flex-row gap-0 justify-start items-start bg-[#2b2b2b]"
+          ></div>
+          <div
+            data-pencil-name="Divider Text"
+            class="text-[12px]/[normal] box-border text-[#898989] font-[Inter,system-ui,sans-serif] font-normal text-left [white-space:nowrap]"
+          >
+            ou
+          </div>
+          <div
+            data-pencil-name="Line Right"
+            class="box-border [flex:1_1_0] h-[1px] flex flex-row gap-0 justify-start items-start bg-[#2b2b2b]"
+          ></div>
+        </div>
+        <div
+          data-pencil-name="SSO Button"
+          class="box-border w-full h-fit shrink-0 flex flex-row gap-0 p-[10px_16px] justify-center items-center bg-[#141414] [border:1px_solid_#2b2b2b] rounded-[24px]"
+        >
+          <div
+            data-pencil-name="Text"
+            class="text-[14px]/[normal] box-border text-[#e8e8e8] font-[Inter,system-ui,sans-serif] font-medium text-left [white-space:nowrap]"
+          >
+            Continuar com SSO
+          </div>
+        </div>
+        <div
+          data-pencil-name="Footer"
+          class="box-border w-full h-fit shrink-0 flex flex-row gap-[4px] justify-center items-start"
+        >
+          <div
+            data-pencil-name="Footer Text"
+            class="text-[13px]/[normal] box-border text-[#898989] font-[Inter,system-ui,sans-serif] font-normal text-left [white-space:nowrap]"
+          >
+            Não tem uma conta?
+          </div>
+          <div
+            data-pencil-name="Footer Link"
+            class="text-[13px]/[normal] box-border text-[#ffffff] font-[Inter,system-ui,sans-serif] font-semibold text-left [white-space:nowrap]"
+          >
+            Criar conta
+          </div>
+        </div>
+      </div>
+    </div>
+  </body>
+</html>
