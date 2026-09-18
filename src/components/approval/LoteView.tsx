@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import type { Batch, Piece, PieceStatus } from "@/lib/approval/types";
 import { batchLinkStatus, batchProgress, progressCaption } from "@/lib/approval/constants";
 import { formatPieceDate } from "@/lib/format";
@@ -16,6 +17,7 @@ type Filter = "todas" | PieceStatus;
 
 export function LoteView({ initialBatch }: { initialBatch: Batch }) {
   const { toast } = useToast();
+  const router = useRouter();
   const [batch, setBatch] = useState<Batch>(initialBatch);
   const [filter, setFilter] = useState<Filter>("todas");
   const [selectedId, setSelectedId] = useState<string>(
@@ -252,7 +254,9 @@ export function LoteView({ initialBatch }: { initialBatch: Batch }) {
             <DetailPanel
               piece={selected}
               onRedo={() => markRedone(selected)}
-              onEditor={() => toast("Editor abrirá aqui em breve.", "info")}
+              onEditor={() =>
+                router.push(`/social/${batch.id}/editor?peca=${selected.id}`)
+              }
             />
           ) : (
             <div className="flex flex-1 items-center justify-center p-6 text-center text-[13px] text-muted">

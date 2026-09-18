@@ -1,4 +1,10 @@
-import type { Batch, PieceStatus } from "./types";
+import type {
+  Batch,
+  Piece,
+  PieceChannel,
+  PieceFormat,
+  PieceStatus,
+} from "./types";
 
 export type PieceStatusMeta = {
   id: PieceStatus;
@@ -13,6 +19,50 @@ export const PIECE_STATUS: Record<PieceStatus, PieceStatusMeta> = {
   aprovado: { id: "aprovado", label: "Aprovado", badgeBg: "#4b4b4b", badgeFg: "#ffffff" },
   ajuste: { id: "ajuste", label: "Ajuste pedido", badgeBg: "#e8e8e8", badgeFg: "#141414" },
 };
+
+/* --- Editor de lote (export "Clínica Aurora - Editor de Lote") --- */
+
+export const PIECE_FORMATS: { id: PieceFormat; label: string; size: string }[] = [
+  { id: "feed", label: "Feed", size: "1080 x 1080" },
+  { id: "stories", label: "Stories", size: "1080 x 1920" },
+  { id: "carrossel", label: "Carrossel", size: "1080 x 1350" },
+  { id: "reels", label: "Reels", size: "1080 x 1920" },
+];
+
+export const PIECE_CHANNELS: { id: PieceChannel; label: string }[] = [
+  { id: "instagram", label: "Instagram" },
+  { id: "tiktok", label: "TikTok" },
+  { id: "facebook", label: "Facebook" },
+];
+
+/** Limite de caracteres da legenda no Instagram — usado no contador do editor. */
+export const CAPTION_LIMIT = 2200;
+
+/**
+ * Peças antigas só têm `kind` livre ("Story · sequência de 2"). O editor lê o
+ * formato daí enquanto o campo novo não é preenchido.
+ */
+export function pieceFormat(piece: Piece): PieceFormat {
+  if (piece.format) return piece.format;
+  const k = piece.kind.toLowerCase();
+  if (k.includes("reels")) return "reels";
+  if (k.includes("story") || k.includes("stories")) return "stories";
+  if (k.includes("carrossel")) return "carrossel";
+  return "feed";
+}
+
+export function pieceFormatLabel(piece: Piece): string {
+  const id = pieceFormat(piece);
+  return PIECE_FORMATS.find((f) => f.id === id)?.label ?? "Feed";
+}
+
+export function pieceChannel(piece: Piece): PieceChannel {
+  return piece.channel ?? "instagram";
+}
+
+export function batchStage(batch: Batch) {
+  return batch.stage ?? "em-aprovacao";
+}
 
 export function batchProgress(batch: Batch) {
   const total = batch.pieces.length;

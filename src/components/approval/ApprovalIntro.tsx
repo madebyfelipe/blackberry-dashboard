@@ -1,0 +1,332 @@
+"use client";
+
+import { useState } from "react";
+import type { Batch, Piece } from "@/lib/approval/types";
+import { batchProgress } from "@/lib/approval/constants";
+import { formatPieceDate } from "@/lib/format";
+import { cn } from "@/lib/cn";
+import {
+  ArrowRightIcon,
+  ChevronLeftIcon,
+  ChevronRightIcon,
+  ImageIcon,
+  LockIcon,
+  SparklesIcon,
+} from "@/components/icons";
+
+/*
+ * Abertura do link público — fiel ao export "Clínica Aurora - Aprovação
+ * (início)": topo com o selo de link privado, hero com o carrossel de peças e
+ * as duas chamadas (começar / ver resumo).
+ *
+ * No celular o carrossel mostra só a peça central; as laterais aparecem a
+ * partir de sm, como no desenho de 1440.
+ */
+
+const MONTHS = [
+  "janeiro",
+  "fevereiro",
+  "março",
+  "abril",
+  "maio",
+  "junho",
+  "julho",
+  "agosto",
+  "setembro",
+  "outubro",
+  "novembro",
+  "dezembro",
+];
+
+/** "Lote setembro · 01-30 set" → "setembro" */
+function monthFromLabel(label: string): string | null {
+  const lower = label.toLowerCase();
+  return MONTHS.find((m) => lower.includes(m)) ?? null;
+}
+
+const STATUS_LABEL: Record<Piece["status"], string> = {
+  pendente: "Aguardando",
+  aprovado: "Aprovada",
+  ajuste: "Ajuste pedido",
+};
+
+export function ApprovalIntro({
+  batch,
+  onStart,
+}: {
+  batch: Batch;
+  onStart: () => void;
+}) {
+  const pieces = batch.pieces;
+  const firstPending = Math.max(
+    0,
+    pieces.findIndex((p) => p.status === "pendente"),
+  );
+  const [index, setIndex] = useState(firstPending);
+  const [summary, setSummary] = useState(false);
+  const month = monthFromLabel(batch.label);
+  const progress = batchProgress(batch);
+
+  const go = (delta: number) =>
+    setIndex((i) => Math.min(pieces.length - 1, Math.max(0, i + delta)));
+
+  return (
+    <main className="flex min-h-screen flex-col bg-bg">
+      {/* Top bar */}
+      <header className="flex flex-wrap items-center justify-between gap-3 px-5 py-5 sm:px-8">
+        <div className="flex items-center gap-2.5">
+          <span className="flex h-7 w-7 items-center justify-center rounded-mark bg-dim text-[15px] font-bold text-fg">
+            b
+          </span>
+          <span className="text-[16px] font-semibold text-fg-soft">black berry</span>
+        </div>
+        <span className="flex items-center gap-2 rounded-pill border border-border bg-surface-2 px-4 py-2 text-[13px] text-fg-2">
+          <LockIcon size={14} className="text-fg-3" />
+          Link privado · {batch.client}
+        </span>
+      </header>
+
+      {/* Hero */}
+      <div className="flex flex-1 flex-col items-center justify-center gap-8 px-5 py-8">
+        <span className="flex items-center gap-2 rounded-pill border border-border bg-surface-2 px-4 py-2 text-[13px] text-fg-2">
+          <SparklesIcon size={14} className="text-fg-3" />
+          {batch.label} · {pieces.length} {pieces.length === 1 ? "peça" : "peças"}
+        </span>
+
+        <div className="flex flex-col items-center gap-3.5">
+          <h1 className="text-center text-[32px] font-semibold leading-tight text-fg-soft sm:text-[42px]">
+            {month
+              ? `Seus criativos de ${month} estão prontos ✨`
+              : "Seus criativos estão prontos ✨"}
+          </h1>
+          <p className="max-w-[560px] text-center text-[16px]/[24px] text-muted">
+            Revise cada peça em poucos segundos: aprove, comente ou peça ajustes. Sem
+            e-mail, sem bagunça — tudo em um só lugar.
+          </p>
+        </div>
+
+        {summary ? (
+          <Summary batch={batch} onBack={() => setSummary(false)} />
+        ) : (
+          <>
+            {/* Slider */}
+            <div className="flex items-center gap-4 sm:gap-6">
+              <SliderBtn
+                label="Peça anterior"
+                disabled={index === 0}
+                onClick={() => go(-1)}
+              >
+                <ChevronLeftIcon size={18} />
+              </SliderBtn>
+
+              {pieces[index - 1] && (
+                <PeekCard piece={pieces[index - 1]} className="hidden sm:flex" />
+              )}
+              {pieces[index] && <MainCard piece={pieces[index]} />}
+              {pieces[index + 1] && (
+                <PeekCard piece={pieces[index + 1]} className="hidden sm:flex" />
+              )}
+
+              <SliderBtn
+                label="Próxima peça"
+                disabled={index === pieces.length - 1}
+                onClick={() => go(1)}
+              >
+                <ChevronRightIcon size={18} />
+              </SliderBtn>
+            </div>
+
+            {/* Dots */}
+            <div className="flex items-center gap-2">
+              {pieces.map((p, i) => (
+                <button
+                  key={p.id}
+                  type="button"
+                  aria-label={`Ir para ${p.name}`}
+                  onClick={() => setIndex(i)}
+                  className={cn(
+                    "h-1.5 rounded-pill transition-all",
+                    i === index ? "w-6 bg-primary" : "w-1.5 bg-border hover:bg-border-strong",
+                  )}
+                />
+              ))}
+            </div>
+          </>
+        )}
+
+        {/* CTA */}
+        <div className="flex flex-wrap items-center justify-center gap-3">
+          <button
+            type="button"
+            onClick={onStart}
+            className="flex items-center gap-2.5 rounded-pill bg-primary px-7 py-4 text-[15px] font-semibold text-on-primary transition-opacity hover:opacity-90"
+          >
+            {progress.decided > 0 ? "Continuar aprovação" : "Começar aprovação"}
+            <ArrowRightIcon size={16} />
+          </button>
+          <button
+            type="button"
+            onClick={() => setSummary((s) => !s)}
+            className="rounded-pill border border-border px-7 py-4 text-[15px] font-medium text-fg-soft transition-colors hover:bg-surface-2"
+          >
+            {summary ? "Ver as peças" : "Ver resumo do lote"}
+          </button>
+        </div>
+
+        <p className="text-center text-[12px] text-dim">
+          Leva cerca de {Math.max(1, Math.round(pieces.length * 0.4))} minutos · Não
+          precisa de senha
+        </p>
+      </div>
+
+      {/* Footer */}
+      <footer className="flex flex-wrap items-center justify-between gap-2 px-5 py-5 sm:px-8">
+        <span className="text-[12px] text-dim">black berry · aprovação de criativos</span>
+        <span className="text-[12px] text-muted">
+          Precisa de ajuda? Fale com a agência →
+        </span>
+      </footer>
+    </main>
+  );
+}
+
+function MainCard({ piece }: { piece: Piece }) {
+  return (
+    <article className="flex h-[310px] w-[250px] shrink-0 flex-col gap-2.5 rounded-card border-[1.5px] border-dim bg-surface-2 p-3.5">
+      <CardHead size="lg" />
+      <div className="flex flex-1 flex-col items-center justify-center gap-2 rounded-panel border border-border bg-surface text-dim">
+        <ImageIcon size={20} />
+        <span className="text-[12px]">{piece.size.replace(" x ", " × ")}</span>
+      </div>
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-[13px] font-semibold text-fg-2">{piece.name}</span>
+        <span className="flex items-center gap-1.5 rounded-pill border border-border bg-surface px-2.5 py-1">
+          <span
+            className={cn(
+              "h-1.5 w-1.5 rounded-full",
+              piece.status === "pendente" ? "bg-primary" : "bg-dim",
+            )}
+          />
+          <span className="text-[10px] text-fg-soft">{STATUS_LABEL[piece.status]}</span>
+        </span>
+      </div>
+    </article>
+  );
+}
+
+function PeekCard({ piece, className }: { piece: Piece; className?: string }) {
+  return (
+    <article
+      className={cn(
+        "flex h-[230px] w-[170px] shrink-0 flex-col gap-2.5 rounded-card border border-border bg-surface-2 p-3.5 opacity-40",
+        className,
+      )}
+    >
+      <CardHead size="sm" />
+      <div className="flex flex-1 flex-col items-center justify-center gap-2 rounded-panel border border-border bg-surface text-dim">
+        <ImageIcon size={16} />
+        <span className="text-[10px]">{piece.size.replace(" x ", " × ")}</span>
+      </div>
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-[11px] font-semibold text-fg-2">{piece.name}</span>
+        <span className="text-[10px] text-dim">{formatPieceDate(piece.date)}</span>
+      </div>
+    </article>
+  );
+}
+
+/** Cabeçalho "de post" do card: avatar + duas linhas, como no desenho. */
+function CardHead({ size }: { size: "sm" | "lg" }) {
+  const lg = size === "lg";
+  return (
+    <div className="flex items-center gap-2">
+      <span
+        className={cn(
+          "shrink-0 rounded-full bg-border-strong",
+          lg ? "h-[22px] w-[22px]" : "h-4 w-4",
+        )}
+      />
+      <span className="flex flex-1 flex-col gap-1">
+        <span
+          className={cn(
+            "h-1.5 rounded-[3px] bg-border-strong",
+            lg ? "w-[70px]" : "w-12",
+          )}
+        />
+        <span
+          className={cn("h-[5px] rounded-[3px] bg-border", lg ? "w-11" : "w-[30px]")}
+        />
+      </span>
+    </div>
+  );
+}
+
+function SliderBtn({
+  children,
+  label,
+  disabled,
+  onClick,
+}: {
+  children: React.ReactNode;
+  label: string;
+  disabled?: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      aria-label={label}
+      disabled={disabled}
+      onClick={onClick}
+      className="flex h-11 w-11 shrink-0 items-center justify-center rounded-pill border border-border bg-surface-2 text-fg-soft transition-colors hover:bg-surface disabled:opacity-30"
+    >
+      {children}
+    </button>
+  );
+}
+
+function Summary({ batch, onBack }: { batch: Batch; onBack: () => void }) {
+  const progress = batchProgress(batch);
+  return (
+    <section className="w-full max-w-[560px] overflow-hidden rounded-card border border-border bg-surface-2">
+      <header className="flex items-center justify-between gap-3 border-b border-border px-5 py-4">
+        <h2 className="text-[12px] font-semibold tracking-[0.3px] text-muted">
+          /RESUMO DO LOTE
+        </h2>
+        <span className="text-[12px] text-fg-2">
+          {progress.decided} de {progress.total} decididas
+        </span>
+      </header>
+      <div className="h-1.5 w-full bg-border">
+        <div
+          className="h-1.5 bg-primary transition-all duration-500"
+          style={{ width: `${progress.pct}%` }}
+        />
+      </div>
+      <ul className="max-h-[260px] divide-y divide-border overflow-y-auto">
+        {batch.pieces.map((p) => (
+          <li key={p.id} className="flex items-center justify-between gap-3 px-5 py-3">
+            <span className="flex min-w-0 flex-col">
+              <span className="truncate text-[13px] font-medium text-fg-soft">
+                {p.name}
+              </span>
+              <span className="truncate text-[11px] text-muted">
+                {p.kind} · {formatPieceDate(p.date)}
+              </span>
+            </span>
+            <span className="shrink-0 rounded-pill border border-border bg-surface px-2.5 py-1 text-[11px] text-fg-2">
+              {STATUS_LABEL[p.status]}
+            </span>
+          </li>
+        ))}
+      </ul>
+      <button
+        type="button"
+        onClick={onBack}
+        className="w-full border-t border-border px-5 py-3 text-[12px] text-muted transition-colors hover:text-fg-soft"
+      >
+        Voltar para as peças
+      </button>
+    </section>
+  );
+}

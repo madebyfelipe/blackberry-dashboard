@@ -2,26 +2,28 @@
 
 /*
  * black berry — design tokens
- * Source of truth: pen.dev exports (Design System · black berry).
- * Monochrome / dark. Do not introduce accent hues without confirming the design.
+ * Source of truth: pen.dev exports — "2. Design System · black berry" (v2,
+ * com gradiente). Os nomes bb-* do export estão anotados ao lado de cada token.
+ * Monocromático / escuro. Não introduzir matizes sem confirmar o design.
  */
 @theme {
   /* Surfaces */
-  --color-bg: #000000;
-  --color-surface: #141414;
-  --color-surface-2: #1b1b1b;
+  --color-bg: #000000; /* bb-bg */
+  --color-surface: #141414; /* bb-surface */
+  --color-surface-2: #1b1b1b; /* bb-surface-raised */
 
   /* Borders */
-  --color-border: #2b2b2b;
-  --color-border-strong: #414141;
+  --color-border: #2b2b2b; /* bb-surface-strong (também serve de borda) */
+  --color-border-strong: #414141; /* bb-border-strong */
 
   /* Text */
-  --color-fg: #ffffff;
-  --color-fg-soft: #e8e8e8;
-  --color-fg-2: #c9c9c9;
-  --color-fg-3: #acacac;
-  --color-muted: #898989;
-  --color-faint: #565656;
+  --color-fg: #ffffff; /* bb-text */
+  --color-fg-soft: #e8e8e8; /* bb-text-high */
+  --color-fg-2: #c9c9c9; /* bb-status-progress, texto secundário */
+  --color-fg-3: #acacac; /* bb-text-nav */
+  --color-muted: #898989; /* bb-text-muted */
+  --color-dim: #616161; /* cinza de apoio das telas novas (marca, legendas) */
+  --color-faint: #565656; /* bb-status-done */
 
   /* Inverted primary (buttons/active chips) */
   --color-primary: #e8e8e8;
@@ -39,10 +41,20 @@
   --radius-field: 24px;
   --radius-pill: 999px;
   --radius-card: 24px;
-  --radius-mark: 6px;
+  --radius-panel: 16px; /* painéis internos / dropzone / preview */
+  --radius-menu: 10px; /* menus flutuantes (Filtros) */
+  --radius-mark: 6px; /* marca, chips de menu, linhas de menu */
 
   /* Type family */
   --font-sans: var(--font-inter), Inter, system-ui, sans-serif;
+}
+
+/*
+ * bb-sidebar-gradient — fundo da sidebar no design system v2.
+ */
+.bg-sidebar-gradient {
+  background-color: #141414;
+  background-image: linear-gradient(0deg, #0f0f0f 0%, #212121 100%);
 }
 
 html,

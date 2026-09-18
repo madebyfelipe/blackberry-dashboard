@@ -34,11 +34,11 @@ export function Sidebar() {
   const pathname = usePathname();
 
   return (
-    <aside className="flex w-64 shrink-0 flex-col rounded-card border border-border bg-surface-2">
+    <aside className="bg-sidebar-gradient flex w-64 shrink-0 flex-col rounded-card border border-border">
       {/* Header */}
       <div className="flex items-center justify-between p-6">
         <Link href="/tarefas" className="flex items-center gap-2.5">
-          <span className="flex h-7 w-7 items-center justify-center rounded-mark bg-[#616161] text-[15px] font-bold text-fg">
+          <span className="flex h-7 w-7 items-center justify-center rounded-mark bg-dim text-[15px] font-bold text-fg">
             b
           </span>
           <span className="text-[16px] font-semibold text-fg-soft">
