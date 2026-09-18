@@ -1,8 +1,18 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { Task, TaskStatus } from "@/lib/tasks/types";
 import { STATUSES } from "@/lib/tasks/constants";
+import {
+  applyFilters,
+  countActiveFilters,
+  groupTasks,
+  sortTasks,
+  DEFAULT_DISPLAY,
+  EMPTY_FILTERS,
+  type Display,
+  type Filters,
+} from "@/lib/tasks/view";
 import { Breadcrumb } from "@/components/ui/Breadcrumb";
 import { Button } from "@/components/ui/Button";
 import {
@@ -17,37 +27,59 @@ import { cn } from "@/lib/cn";
 import { TaskTable } from "./TaskTable";
 import { TaskBoard } from "./TaskBoard";
 import { TaskModal, type TaskModalState } from "./TaskModal";
-import {
-  apiCreateTask,
-  apiDeleteTask,
-  apiUpdateTask,
-} from "./api";
+import { FilterMenu } from "./FilterMenu";
+import { DisplayMenu } from "./DisplayMenu";
+import { apiCreateTask, apiDeleteTask, apiUpdateTask } from "./api";
 
-type View = "lista" | "board";
 type Tab = TaskStatus | "todas";
+type OpenMenu = "filtros" | "visualizacao" | null;
 
 export function TasksView({ initialTasks }: { initialTasks: Task[] }) {
   const { toast } = useToast();
   const [tasks, setTasks] = useState<Task[]>(initialTasks);
-  const [view, setView] = useState<View>("lista");
+  const [display, setDisplay] = useState<Display>(DEFAULT_DISPLAY);
+  const [filters, setFilters] = useState<Filters>(EMPTY_FILTERS);
+  const [menu, setMenu] = useState<OpenMenu>(null);
   const [tab, setTab] = useState<Tab>("todas");
   const [search, setSearch] = useState("");
   const [showSearch, setShowSearch] = useState(false);
   const [drawer, setDrawer] = useState<TaskModalState | null>(null);
   const [saving, setSaving] = useState(false);
+  const searchRef = useRef<HTMLInputElement>(null);
 
-  const filtered = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    return tasks.filter((t) => {
-      if (view === "lista" && tab !== "todas" && t.status !== tab) return false;
-      if (!q) return true;
-      return (
-        t.title.toLowerCase().includes(q) ||
-        t.client.toLowerCase().includes(q) ||
-        t.assignee.toLowerCase().includes(q)
-      );
-    });
-  }, [tasks, tab, search, view]);
+  const isLista = display.view === "lista";
+
+  // "F" abre o menu de filtros, como o atalho desenhado no export.
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      const el = e.target as HTMLElement | null;
+      const typing =
+        el?.tagName === "INPUT" ||
+        el?.tagName === "TEXTAREA" ||
+        el?.isContentEditable;
+      if (typing || e.metaKey || e.ctrlKey || e.altKey) return;
+      if (e.key === "f" || e.key === "F") {
+        e.preventDefault();
+        setMenu((m) => (m === "filtros" ? null : "filtros"));
+      } else if (e.key === "Escape") {
+        setMenu(null);
+      }
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+
+  const visible = useMemo(() => {
+    const base = applyFilters(tasks, filters, search, display);
+    const byTab =
+      isLista && tab !== "todas" ? base.filter((t) => t.status === tab) : base;
+    return sortTasks(byTab, display);
+  }, [tasks, filters, search, display, tab, isLista]);
+
+  const groups = useMemo(
+    () => groupTasks(visible, display.group, { showEmpty: display.showEmptyGroups }),
+    [visible, display.group, display.showEmptyGroups],
+  );
 
   const counts = useMemo(() => {
     const m = new Map<Tab, number>();
@@ -56,6 +88,8 @@ export function TasksView({ initialTasks }: { initialTasks: Task[] }) {
     for (const t of tasks) m.set(t.status, (m.get(t.status) ?? 0) + 1);
     return m;
   }, [tasks]);
+
+  const activeFilters = countActiveFilters(filters);
 
   // ---- mutations (optimistic) ----
 
@@ -82,9 +116,7 @@ export function TasksView({ initialTasks }: { initialTasks: Task[] }) {
         await apiDeleteTask(task.id);
       } catch (e) {
         setTasks((ts) =>
-          ts.some((t) => t.id === task.id)
-            ? ts
-            : insertAt(ts, index, task),
+          ts.some((t) => t.id === task.id) ? ts : insertAt(ts, index, task),
         );
         toast(errMsg(e), "error");
       }
@@ -139,8 +171,8 @@ export function TasksView({ initialTasks }: { initialTasks: Task[] }) {
 
       {/* Header row */}
       <div className="flex flex-wrap items-center justify-between gap-3">
-        {/* Left: tabs (list) or title (board) */}
-        {view === "lista" ? (
+        {/* Left: tabs (lista) or title (grade) */}
+        {isLista ? (
           <div className="flex items-center gap-2 overflow-x-auto">
             <Tab
               active={tab === "todas"}
@@ -161,14 +193,15 @@ export function TasksView({ initialTasks }: { initialTasks: Task[] }) {
         ) : (
           <div className="flex items-center gap-2 text-[15px] font-semibold text-fg-soft">
             <SquareCheckIcon size={18} className="text-muted" />
-            Board · {tasks.length} tarefas
+            Grade · {visible.length} tarefas
           </div>
         )}
 
-        {/* Right: actions */}
+        {/* Right: busca + os dois menus + criar */}
         <div className="flex items-center gap-2">
           {showSearch && (
             <input
+              ref={searchRef}
               autoFocus
               value={search}
               onChange={(e) => setSearch(e.target.value)}
@@ -178,16 +211,6 @@ export function TasksView({ initialTasks }: { initialTasks: Task[] }) {
             />
           )}
 
-          {/* View toggle */}
-          <div className="flex items-center rounded-pill bg-surface p-1">
-            <Seg active={view === "lista"} onClick={() => setView("lista")}>
-              Lista
-            </Seg>
-            <Seg active={view === "board"} onClick={() => setView("board")}>
-              Board
-            </Seg>
-          </div>
-
           <IconBtn
             label="Buscar"
             onClick={() => setShowSearch((s) => !s)}
@@ -195,17 +218,53 @@ export function TasksView({ initialTasks }: { initialTasks: Task[] }) {
           >
             <SearchIcon size={16} />
           </IconBtn>
-          <IconBtn label="Filtros" onClick={() => toast("Filtros avançados em breve.", "info")}>
-            <SlidersIcon size={16} />
-          </IconBtn>
-          <IconBtn label="Colunas" onClick={() => toast("Configuração de colunas em breve.", "info")}>
-            <Settings2Icon size={16} />
-          </IconBtn>
 
-          <Button
-            className="w-fit"
-            onClick={() => setDrawer({ mode: "create" })}
+          {/* Filtros — export "Filtros · Menu" */}
+          <Popover
+            open={menu === "filtros"}
+            onClose={() => setMenu(null)}
+            trigger={
+              <IconBtn
+                label="Filtros"
+                onClick={() => setMenu((m) => (m === "filtros" ? null : "filtros"))}
+                active={menu === "filtros" || activeFilters > 0}
+                badge={activeFilters || undefined}
+              >
+                <SlidersIcon size={16} />
+              </IconBtn>
+            }
           >
+            <FilterMenu
+              tasks={tasks}
+              filters={filters}
+              onChange={setFilters}
+              onUnavailable={(label) =>
+                toast(`O filtro "${label}" chega junto com o campo na tarefa.`, "info")
+              }
+              onClose={() => setMenu(null)}
+            />
+          </Popover>
+
+          {/* Visualização — export "Menu de Filtros" */}
+          <Popover
+            open={menu === "visualizacao"}
+            onClose={() => setMenu(null)}
+            trigger={
+              <IconBtn
+                label="Visualização"
+                onClick={() =>
+                  setMenu((m) => (m === "visualizacao" ? null : "visualizacao"))
+                }
+                active={menu === "visualizacao"}
+              >
+                <Settings2Icon size={16} />
+              </IconBtn>
+            }
+          >
+            <DisplayMenu display={display} onChange={setDisplay} />
+          </Popover>
+
+          <Button className="w-fit" onClick={() => setDrawer({ mode: "create" })}>
             <span className="flex items-center gap-1.5">
               <PlusIcon size={16} /> Adicionar tarefa
             </span>
@@ -215,18 +274,28 @@ export function TasksView({ initialTasks }: { initialTasks: Task[] }) {
 
       {/* Body */}
       <div className="min-h-0 flex-1">
-        {filtered.length === 0 ? (
-          <EmptyState onAdd={() => setDrawer({ mode: "create" })} />
-        ) : view === "lista" ? (
+        {visible.length === 0 ? (
+          <EmptyState
+            onAdd={() => setDrawer({ mode: "create" })}
+            filtered={activeFilters > 0 || !!search.trim()}
+            onClear={() => {
+              setFilters(EMPTY_FILTERS);
+              setSearch("");
+            }}
+          />
+        ) : isLista ? (
           <TaskTable
-            tasks={filtered}
+            groups={groups}
+            subgroupKey={display.subgroup}
+            columns={display.columns}
+            perGroup={display.perGroup}
             onOpen={(t) => setDrawer({ mode: "edit", task: t })}
             onStatusChange={changeStatus}
             onDelete={remove}
           />
         ) : (
           <TaskBoard
-            tasks={filtered}
+            tasks={visible}
             onOpen={(t) => setDrawer({ mode: "edit", task: t })}
             onStatusChange={changeStatus}
             onDelete={remove}
@@ -241,6 +310,31 @@ export function TasksView({ initialTasks }: { initialTasks: Task[] }) {
         onSubmit={submitDrawer}
         saving={saving}
       />
+    </div>
+  );
+}
+
+/** Ancora um menu flutuante ao botão que o abriu. */
+function Popover({
+  open,
+  onClose,
+  trigger,
+  children,
+}: {
+  open: boolean;
+  onClose: () => void;
+  trigger: React.ReactNode;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="relative">
+      {trigger}
+      {open && (
+        <>
+          <div className="fixed inset-0 z-40" onClick={onClose} />
+          <div className="absolute right-0 top-[calc(100%+8px)] z-50">{children}</div>
+        </>
+      )}
     </div>
   );
 }
@@ -275,39 +369,18 @@ function Tab({
   );
 }
 
-function Seg({
-  active,
-  onClick,
-  children,
-}: {
-  active: boolean;
-  onClick: () => void;
-  children: React.ReactNode;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={cn(
-        "rounded-pill px-4 py-1.5 text-[13px] transition-colors",
-        active ? "bg-border-strong text-fg" : "text-muted hover:text-fg-soft",
-      )}
-    >
-      {children}
-    </button>
-  );
-}
-
 function IconBtn({
   children,
   label,
   onClick,
   active,
+  badge,
 }: {
   children: React.ReactNode;
   label: string;
   onClick: () => void;
   active?: boolean;
+  badge?: number;
 }) {
   return (
     <button
@@ -316,18 +389,31 @@ function IconBtn({
       title={label}
       onClick={onClick}
       className={cn(
-        "flex h-9 w-9 items-center justify-center rounded-full transition-colors",
+        "relative flex h-9 w-9 items-center justify-center rounded-full transition-colors",
         active
           ? "bg-border-strong text-fg"
           : "bg-surface text-fg-soft hover:bg-surface-2",
       )}
     >
       {children}
+      {!!badge && (
+        <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-pill bg-primary px-1 text-[10px] font-semibold text-on-primary">
+          {badge}
+        </span>
+      )}
     </button>
   );
 }
 
-function EmptyState({ onAdd }: { onAdd: () => void }) {
+function EmptyState({
+  onAdd,
+  filtered,
+  onClear,
+}: {
+  onAdd: () => void;
+  filtered: boolean;
+  onClear: () => void;
+}) {
   return (
     <div className="flex h-full flex-col items-center justify-center gap-4 rounded-card border border-border bg-surface-2 text-center">
       <div className="flex h-12 w-12 items-center justify-center rounded-full bg-border text-muted">
@@ -338,14 +424,26 @@ function EmptyState({ onAdd }: { onAdd: () => void }) {
           Nenhuma tarefa por aqui
         </p>
         <p className="max-w-xs text-[13px] text-muted">
-          Ajuste os filtros ou crie uma nova peça de conteúdo para começar.
+          {filtered
+            ? "Nenhuma tarefa corresponde aos filtros aplicados."
+            : "Crie uma nova peça de conteúdo para começar."}
         </p>
       </div>
-      <Button className="w-fit" onClick={onAdd}>
-        <span className="flex items-center gap-1.5">
-          <PlusIcon size={16} /> Adicionar tarefa
-        </span>
-      </Button>
+      {filtered ? (
+        <button
+          type="button"
+          onClick={onClear}
+          className="rounded-pill border border-border px-4 py-2 text-[13px] text-fg-soft transition-colors hover:bg-surface"
+        >
+          Limpar filtros
+        </button>
+      ) : (
+        <Button className="w-fit" onClick={onAdd}>
+          <span className="flex items-center gap-1.5">
+            <PlusIcon size={16} /> Adicionar tarefa
+          </span>
+        </Button>
+      )}
     </div>
   );
 }
