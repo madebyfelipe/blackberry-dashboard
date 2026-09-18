@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { AuroraBackdrop } from "@/components/auth/AuroraBackdrop";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 
@@ -20,8 +21,15 @@ export default function LoginPage() {
   }
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-bg p-4">
-      <div className="flex w-full max-w-[400px] flex-col gap-6 rounded-card border border-border bg-surface p-10">
+    <main className="relative flex min-h-screen items-center justify-center px-4 py-10">
+      <AuroraBackdrop />
+
+      {/*
+       * Card black berry sobre o fundo iridescente: mesmas cores do design
+       * system, porém translúcidas + backdrop-blur, para a fita de luz passar
+       * por trás como vidro (é o que sustenta o fundo da referência).
+       */}
+      <div className="relative z-10 flex w-full max-w-[400px] flex-col gap-6 rounded-card border border-white/10 bg-surface/70 p-8 shadow-[0_24px_80px_-20px_rgba(0,0,0,0.9)] backdrop-blur-2xl sm:p-10">
         {/* Brand mark */}
         <div className="flex h-11 w-11 items-center justify-center rounded-mark bg-primary">
           <span className="text-[20px] font-bold text-on-primary">B</span>
@@ -50,6 +58,7 @@ export default function LoginPage() {
               placeholder="voce@empresa.com"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
+              className="border-white/15 bg-black/45"
             />
           </div>
 
@@ -75,6 +84,7 @@ export default function LoginPage() {
               placeholder="••••••••"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
+              className="border-white/15 bg-black/45"
             />
           </div>
 
@@ -93,13 +103,17 @@ export default function LoginPage() {
 
         {/* Divider */}
         <div className="flex items-center gap-3">
-          <span className="h-px flex-1 bg-border" />
+          <span className="h-px flex-1 bg-white/12" />
           <span className="text-[12px] text-muted">ou</span>
-          <span className="h-px flex-1 bg-border" />
+          <span className="h-px flex-1 bg-white/12" />
         </div>
 
         {/* SSO */}
-        <Button variant="secondary" type="button">
+        <Button
+          variant="secondary"
+          type="button"
+          className="border-white/12 bg-white/5 hover:bg-white/10"
+        >
           Continuar com SSO
         </Button>
 
