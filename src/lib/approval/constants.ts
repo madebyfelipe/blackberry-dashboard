@@ -12,12 +12,32 @@ export type PieceStatusMeta = {
   /** badge background + text, from the Lote export */
   badgeBg: string;
   badgeFg: string;
+  /** cor do ponto da pílula de status (export "Clínica Aurora · Lote") */
+  dot: string;
 };
 
 export const PIECE_STATUS: Record<PieceStatus, PieceStatusMeta> = {
-  pendente: { id: "pendente", label: "Pendente", badgeBg: "#3a3a3a", badgeFg: "#ffffff" },
-  aprovado: { id: "aprovado", label: "Aprovado", badgeBg: "#4b4b4b", badgeFg: "#ffffff" },
-  ajuste: { id: "ajuste", label: "Ajuste pedido", badgeBg: "#e8e8e8", badgeFg: "#141414" },
+  pendente: {
+    id: "pendente",
+    label: "Pendente",
+    badgeBg: "#3a3a3a",
+    badgeFg: "#ffffff",
+    dot: "#c9c9c9",
+  },
+  aprovado: {
+    id: "aprovado",
+    label: "Aprovado",
+    badgeBg: "#4b4b4b",
+    badgeFg: "#ffffff",
+    dot: "#e8e8e8",
+  },
+  ajuste: {
+    id: "ajuste",
+    label: "Ajuste pedido",
+    badgeBg: "#e8e8e8",
+    badgeFg: "#141414",
+    dot: "#888888",
+  },
 };
 
 /* --- Editor de lote (export "Clínica Aurora - Editor de Lote") --- */

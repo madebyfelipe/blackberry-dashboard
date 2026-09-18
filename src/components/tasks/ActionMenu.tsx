@@ -14,9 +14,12 @@ export type MenuItem = {
 export function ActionMenu({
   items,
   align = "right",
+  triggerClassName,
 }: {
   items: MenuItem[];
   align?: "left" | "right";
+  /** sobrescreve o tamanho/fundo do gatilho (ex.: botão redondo de 40px) */
+  triggerClassName?: string;
 }) {
   const [open, setOpen] = useState(false);
   return (
@@ -28,7 +31,10 @@ export function ActionMenu({
           e.stopPropagation();
           setOpen((o) => !o);
         }}
-        className="flex h-7 w-7 items-center justify-center rounded-full text-muted transition-colors hover:bg-border hover:text-fg-soft"
+        className={cn(
+          "flex h-7 w-7 items-center justify-center rounded-full text-muted transition-colors hover:bg-border hover:text-fg-soft",
+          triggerClassName,
+        )}
       >
         <EllipsisIcon size={18} />
       </button>

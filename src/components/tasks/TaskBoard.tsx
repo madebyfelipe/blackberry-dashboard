@@ -34,14 +34,14 @@ export function TaskBoard({
   }
 
   return (
-    <div className="flex h-full min-h-0 gap-4 overflow-x-auto pb-1">
+    <div className="flex h-full min-h-0 gap-4 overflow-x-auto overflow-y-auto pb-1">
       {STATUSES.map((col) => {
         const items = tasks.filter((t) => t.status === col.id);
         const isOver = overCol === col.id;
         return (
           <div
             key={col.id}
-            className="group/column flex w-[300px] shrink-0 flex-col gap-3"
+            className="group/column flex min-w-[260px] flex-1 flex-col gap-3"
             onDragOver={(e) => {
               e.preventDefault();
               if (overCol !== col.id) setOverCol(col.id);
@@ -53,7 +53,7 @@ export function TaskBoard({
             }}
             onDrop={() => handleDrop(col.id)}
           >
-            <div className="flex items-center gap-2 px-1">
+            <div className="flex items-center gap-2">
               <span className="text-[15px] font-semibold text-fg-soft">
                 {col.label}
               </span>
@@ -64,8 +64,10 @@ export function TaskBoard({
 
             <div
               className={cn(
-                "flex min-h-[80px] flex-1 flex-col gap-2 rounded-[20px] p-1 transition-colors",
-                isOver ? "bg-[#050407] outline outline-1 outline-dashed outline-border-strong" : "",
+                "flex min-h-[80px] flex-1 flex-col gap-3 rounded-card transition-colors",
+                isOver
+                  ? "outline outline-1 outline-dashed outline-border-strong"
+                  : "",
               )}
             >
               {items.map((t) => (
@@ -79,7 +81,7 @@ export function TaskBoard({
                   }}
                   onClick={() => onOpen(t)}
                   className={cn(
-                    "group flex cursor-pointer flex-col gap-2.5 rounded-card border border-border bg-surface-2 p-5 transition-all hover:border-border-strong active:cursor-grabbing",
+                    "group flex cursor-pointer flex-col gap-2.5 rounded-card border border-border bg-transparent p-5 transition-all hover:border-border-strong hover:bg-surface-2/60 active:cursor-grabbing",
                     draggingId === t.id ? "opacity-40" : "opacity-100",
                   )}
                 >
@@ -97,7 +99,7 @@ export function TaskBoard({
                         {t.title}
                       </span>
                     </div>
-                    <div className="opacity-0 transition-opacity group-hover:opacity-100">
+                    <div className="opacity-60 transition-opacity group-hover:opacity-100">
                       <ActionMenu
                         items={[
                           {
@@ -124,7 +126,7 @@ export function TaskBoard({
               <button
                 type="button"
                 onClick={() => onAdd(col.id)}
-                className="flex items-center justify-center gap-2 rounded-card border border-border px-4 py-3 text-[13px] text-muted opacity-0 transition-all hover:border-border-strong hover:text-fg-soft focus-visible:opacity-100 group-hover/column:opacity-100"
+                className="flex items-center justify-center gap-2 rounded-card border border-border px-4 py-3 text-[13px] text-muted transition-colors hover:border-border-strong hover:text-fg-soft"
               >
                 <PlusIcon size={16} />
                 Adicionar tarefa

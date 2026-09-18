@@ -13,6 +13,7 @@ export function PieceThumb({
   status,
   src,
   showBadge = true,
+  plain = false,
   className,
   children,
 }: {
@@ -20,13 +21,18 @@ export function PieceThumb({
   status?: PieceStatus;
   src?: string;
   showBadge?: boolean;
+  /** grade do export "Clínica Aurora · Lote": sem borda, cantos 12px, só ícone */
+  plain?: boolean;
   className?: string;
   children?: React.ReactNode;
 }) {
   return (
     <div
       className={cn(
-        "relative flex items-center justify-center overflow-hidden rounded-card border border-border bg-surface",
+        "relative flex items-center justify-center overflow-hidden",
+        plain
+          ? "rounded-[12px] bg-surface-2"
+          : "rounded-card border border-border bg-surface",
         className,
       )}
     >
@@ -35,8 +41,8 @@ export function PieceThumb({
         <img src={src} alt="" className="h-full w-full object-cover" />
       ) : (
         <div className="flex flex-col items-center gap-2 text-faint">
-          <ImageIcon size={22} />
-          <span className="text-[11px]">{size}</span>
+          <ImageIcon size={plain ? 24 : 22} />
+          {!plain && <span className="text-[11px]">{size}</span>}
         </div>
       )}
       {showBadge && status && (

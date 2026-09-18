@@ -1,6 +1,6 @@
 # Roadmap — black berry
 
-Documento vivo. Marca o que já existe, o que falta **desenhar** (você) e o que falta **construir** (Claude), até o fim do projeto. Última atualização: **18 set 2026** (menus de filtro/visualização, editor de lote, abertura do link público, design system v2).
+Documento vivo. Marca o que já existe, o que falta **desenhar** (você) e o que falta **construir** (Claude), até o fim do projeto. Última atualização: **18 set 2026** (telas novas: Quadro/Kanban e Lote redesenhado).
 
 Legenda: ✅ pronto · 🟡 parcial/placeholder · ⬜ não começado · 🎨 precisa de tela sua antes de eu construir
 
@@ -15,7 +15,8 @@ Legenda: ✅ pronto · 🟡 parcial/placeholder · ⬜ não começado · 🎨 pr
 - ✅ Sistema de toasts + animações (fade/drawer/pop) + `prefers-reduced-motion`
 
 ## Fase 1 — Aprovação de conteúdo (prioridade absoluta)
-- ✅ Lote (visão agência): grade de peças, chips de filtro, painel de decisão, histórico, link público, "marcar como refeita" (`/social/[id]`)
+- ✅ Lote (visão agência) **redesenhado** conforme o export "Clínica Aurora · Lote": título + ações redondas (filtro por formato, busca, menu do link, "Copiar link"), chips `Todas · 12`, grade de peças 190px e painel de detalhe encostado na borda direita (meta, histórico, "Aprovar peça" / "Marcar como refeita" / "Abrir no editor") (`/social/[id]`)
+- ✅ **Aprovação pela agência** (`POST /api/batches/[id]/pieces/[pieceId]/approve`) — registra "Aprovada pela agência" no histórico, separada da decisão do cliente pelo link público
 - ✅ Lista de lotes (`/social`) com progresso
 - ✅ **Link público por swipe** (`/a/[token]`): arrastar p/ aprovar, reprovar com motivo, progresso, tela final
 - 🟡 Peças usam **thumb placeholder** (`PieceThumb`) — troca direta por mídia real depois
@@ -30,7 +31,9 @@ Legenda: ✅ pronto · 🟡 parcial/placeholder · ⬜ não começado · 🎨 pr
 - 🎨 Tela pública: estados de **carrossel/vídeo** e visual de "mockup de feed Instagram" — falta desenho (o preview do editor já é uma primeira versão)
 
 ## Fase 2 — Operação / Tarefas
-- ✅ Lista + Grade (Kanban) sobre os mesmos dados, CRUD, busca, tabs de status, drag-and-drop, updates otimistas
+- ✅ Lista + Quadro (Kanban) sobre os mesmos dados, CRUD, busca, tabs de status, drag-and-drop, updates otimistas
+- ✅ **Quadro fiel ao export "2. Board · Kanban"**: colunas de largura igual, cards sem fundo (só borda), contador da coluna, "Adicionar tarefa" sempre visível e alternador Lista/Quadro no header do quadro
+- ✅ Botão de busca das Tarefas: redondo e fixo — o campo abre em overlay ancorado à direita em vez de empurrar a linha
 - ✅ **Menu de filtros** (`FilterMenu`, atalho `F`) e **menu de visualização** (`DisplayMenu`) nos dois botões do header — o seletor Lista/Grade agora vive dentro do menu de visualização, junto com agrupamento, sub-agrupamento, ordenação, arquivadas, tarefas por grupo, grupos vazios e propriedades visíveis (`src/lib/tasks/view.ts`)
 - 🟡 Filtros sem campo no modelo (Agente, Prioridade, Etiquetas, Relações…) aparecem como no desenho, mas avisam em vez de filtrar
 - 🟡 Drawer de tarefa cobre campos essenciais (título, cliente, responsável, status)

@@ -188,6 +188,35 @@ function randomToken(): string {
   return out;
 }
 
+/**
+ * Agency action: aprovar a peça pela própria agência ("Aprovar peça" no painel
+ * de detalhe do export "Clínica Aurora · Lote"). Fica registrado como decisão
+ * da agência — a decisão do cliente continua vindo só pelo link público.
+ */
+export async function approvePieceByAgency(
+  batchId: string,
+  pieceId: string,
+): Promise<Piece | undefined> {
+  return transaction((batches) => {
+    const batch = batches.find((b) => b.id === batchId);
+    const piece = batch?.pieces.find((p) => p.id === pieceId);
+    if (!piece) return undefined;
+    if (piece.status === "aprovado") return { ...piece };
+    piece.status = "aprovado";
+    piece.reason = undefined;
+    piece.history = [
+      {
+        id: "h" + Math.random().toString(36).slice(2, 8),
+        title: "Aprovada pela agência",
+        who: "Estúdio Norte · " + nowStamp(),
+        snapshot: { caption: piece.caption, kind: piece.kind, size: piece.size },
+      },
+      ...piece.history,
+    ];
+    return { ...piece };
+  });
+}
+
 /** Agency action: mark an "ajuste" piece as redone → back to pendente for re-review. */
 export async function markPieceRedone(
   batchId: string,

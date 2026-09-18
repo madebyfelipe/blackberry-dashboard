@@ -191,33 +191,53 @@ export function TasksView({ initialTasks }: { initialTasks: Task[] }) {
             ))}
           </div>
         ) : (
-          <div className="flex items-center gap-2 text-[15px] font-semibold text-fg-soft">
-            <SquareCheckIcon size={18} className="text-muted" />
-            Grade · {visible.length} tarefas
+          /* Quadro — export "2. Board · Kanban": alternador Lista/Quadro */
+          <div className="flex items-center gap-2">
+            <ViewTab
+              active={false}
+              label="Lista"
+              onClick={() => setDisplay((d) => ({ ...d, view: "lista" }))}
+            />
+            <ViewTab
+              active
+              label="Quadro"
+              onClick={() => setDisplay((d) => ({ ...d, view: "grade" }))}
+            />
           </div>
         )}
 
         {/* Right: busca + os dois menus + criar */}
-        <div className="flex items-center gap-2">
-          {showSearch && (
-            <input
-              ref={searchRef}
-              autoFocus
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              onBlur={() => !search && setShowSearch(false)}
-              placeholder="Buscar tarefa, cliente…"
-              className="w-[220px] animate-fade-in rounded-pill border border-border bg-surface px-4 py-2 text-[13px] text-fg-soft placeholder:text-muted focus:border-border-strong focus:outline-none"
-            />
-          )}
-
-          <IconBtn
-            label="Buscar"
-            onClick={() => setShowSearch((s) => !s)}
-            active={showSearch}
-          >
-            <SearchIcon size={16} />
-          </IconBtn>
+        <div className="flex shrink-0 items-center gap-2">
+          {/*
+           * A busca abre por cima da linha (overlay ancorado à direita) em vez
+           * de entrar no fluxo: assim o botão continua redondo e no mesmo lugar.
+           */}
+          <div className="relative shrink-0">
+            {showSearch && (
+              <input
+                ref={searchRef}
+                autoFocus
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                onBlur={() => !search && setShowSearch(false)}
+                onKeyDown={(e) => {
+                  if (e.key === "Escape") {
+                    setSearch("");
+                    setShowSearch(false);
+                  }
+                }}
+                placeholder="Buscar tarefa, cliente…"
+                className="absolute right-0 top-1/2 h-10 w-[260px] -translate-y-1/2 animate-fade-in rounded-pill border border-border bg-surface pl-4 pr-12 text-[13px] text-fg-soft placeholder:text-muted focus:border-border-strong focus:outline-none"
+              />
+            )}
+            <IconBtn
+              label="Buscar"
+              onClick={() => setShowSearch((s) => !s)}
+              active={showSearch || !!search}
+            >
+              <SearchIcon size={16} />
+            </IconBtn>
+          </div>
 
           {/* Filtros — export "Filtros · Menu" */}
           <Popover
@@ -369,6 +389,36 @@ function Tab({
   );
 }
 
+/**
+ * Pílula Lista/Quadro do export "2. Board · Kanban" — ativa: bg #414141,
+ * texto branco e a sombra de 1px do desenho.
+ */
+function ViewTab({
+  active,
+  label,
+  onClick,
+}: {
+  active: boolean;
+  label: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={active}
+      className={cn(
+        "flex shrink-0 items-center rounded-pill px-6 py-2.5 text-[14px] transition-colors",
+        active
+          ? "bg-border-strong text-fg shadow-[0_1px_3.5px_-1px_#0000000f]"
+          : "text-muted hover:text-fg-soft",
+      )}
+    >
+      {label}
+    </button>
+  );
+}
+
 function IconBtn({
   children,
   label,
@@ -389,7 +439,8 @@ function IconBtn({
       title={label}
       onClick={onClick}
       className={cn(
-        "relative flex h-9 w-9 items-center justify-center rounded-full transition-colors",
+        // shrink-0: sem isso o flex achatava o botão (deixava de ser redondo).
+        "relative z-10 flex h-10 w-10 shrink-0 items-center justify-center rounded-full transition-colors",
         active
           ? "bg-border-strong text-fg"
           : "bg-surface text-fg-soft hover:bg-surface-2",
