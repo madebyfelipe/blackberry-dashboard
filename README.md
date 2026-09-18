@@ -25,10 +25,11 @@ npm run typecheck
 | Rota | O que é |
 | --- | --- |
 | `/login` | Tela de login (black berry) |
-| `/tarefas` | Tarefas — Lista + Board (Kanban), CRUD, drag-and-drop, busca |
+| `/tarefas` | Tarefas — Lista + Grade (Kanban), CRUD, drag-and-drop, busca, menu de filtros (`F`) e menu de visualização |
 | `/social` | Lotes de aprovação (visão agência) |
 | `/social/[id]` | Detalhe do lote — grade de peças + painel de decisão + link público |
-| `/a/[token]` | **Aprovação pública por swipe** (cliente, mobile-first, sem login) |
+| `/social/[id]/editor` | **Editor de lote** — peças, detalhes da peça (data, formato, canal, legenda, hashtags) e preview do post |
+| `/a/[token]` | **Aprovação pública** (cliente, sem login): tela de início + swipe para aprovar/pedir ajuste |
 | `/inbox`, `/clientes`, `/equipe`, `/configuracoes` | Placeholders prontos para desenhar |
 
 ## Design

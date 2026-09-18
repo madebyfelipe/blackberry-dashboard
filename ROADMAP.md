@@ -1,6 +1,6 @@
 # Roadmap — black berry
 
-Documento vivo. Marca o que já existe, o que falta **desenhar** (você) e o que falta **construir** (Claude), até o fim do projeto. Última atualização: **18 set 2026**.
+Documento vivo. Marca o que já existe, o que falta **desenhar** (você) e o que falta **construir** (Claude), até o fim do projeto. Última atualização: **18 set 2026** (menus de filtro/visualização, editor de lote, abertura do link público, design system v2).
 
 Legenda: ✅ pronto · 🟡 parcial/placeholder · ⬜ não começado · 🎨 precisa de tela sua antes de eu construir
 
@@ -9,6 +9,7 @@ Legenda: ✅ pronto · 🟡 parcial/placeholder · ⬜ não começado · 🎨 pr
 ## Fundação
 - ✅ Projeto Next.js 16 + React 19 + Tailwind v4 + TS do zero
 - ✅ Tokens do design **black berry** (`globals.css @theme`) + primitivos (`Button`, `Input`, `StatusPill`, `Avatar`, `Breadcrumb`, `Toast`)
+- ✅ **Design system v2 (gradiente)**: tokens anotados com os nomes `bb-*` do export, `--color-dim` (#616161), `--radius-panel`/`--radius-menu`, sidebar com `bg-sidebar-gradient` e corpo da lista transparente
 - ✅ Shell autenticado (sidebar completa) + rotas placeholder
 - ✅ Camada de dados com `repository`/`store` (JSON + fallback memória) e API REST
 - ✅ Sistema de toasts + animações (fade/drawer/pop) + `prefers-reduced-motion`
@@ -23,11 +24,15 @@ Legenda: ✅ pronto · 🟡 parcial/placeholder · ⬜ não começado · 🎨 pr
 - ✅ Registro de decisão com **IP + versão exata** apresentada (`snapshot` no `DecisionEvent`, captura IP via `x-forwarded-for`)
 - ✅ Token expirável/revogável + geração de link por lote (menu de ações no `/social/[id]`, expira em 30 dias ao regenerar, tela pública mostra estado "link inativo")
 - ⬜ Envio do link por WhatsApp/e-mail + lembretes automáticos
-- 🎨 Tela de **criação de lote** (upload + legenda + 1º comentário + hashtags + data) — falta desenho
-- 🎨 Tela pública: estados de **carrossel/vídeo** e visual de "mockup de feed Instagram" — falta desenho
+- ✅ **Editor de lote** (`/social/[id]/editor`): peças + detalhes (data, formato, canal, legenda com contador, hashtags) + preview do post, autosave de rascunho, "Adicionar peça" e "Enviar para aprovação"
+- ✅ **Abertura do link público** (`/a/[token]`): hero com carrossel das peças, resumo do lote e CTA para o swipe
+- 🟡 Dropzone "Subir artes" no editor está no lugar, mas o upload real ainda não existe
+- 🎨 Tela pública: estados de **carrossel/vídeo** e visual de "mockup de feed Instagram" — falta desenho (o preview do editor já é uma primeira versão)
 
 ## Fase 2 — Operação / Tarefas
-- ✅ Lista + Board (Kanban) sobre os mesmos dados, CRUD, busca, tabs de status, drag-and-drop, updates otimistas
+- ✅ Lista + Grade (Kanban) sobre os mesmos dados, CRUD, busca, tabs de status, drag-and-drop, updates otimistas
+- ✅ **Menu de filtros** (`FilterMenu`, atalho `F`) e **menu de visualização** (`DisplayMenu`) nos dois botões do header — o seletor Lista/Grade agora vive dentro do menu de visualização, junto com agrupamento, sub-agrupamento, ordenação, arquivadas, tarefas por grupo, grupos vazios e propriedades visíveis (`src/lib/tasks/view.ts`)
+- 🟡 Filtros sem campo no modelo (Agente, Prioridade, Etiquetas, Relações…) aparecem como no desenho, mas avisam em vez de filtrar
 - 🟡 Drawer de tarefa cobre campos essenciais (título, cliente, responsável, status)
 - ⬜ Campos ricos da peça: tipo, objetivo, pilar, resp. arte/texto, prazo interno, data de publicação, arquivo, versão
 - ⬜ **Calendário editorial** (lê `publishDate` do mesmo `repository`)
@@ -70,7 +75,7 @@ Agendamento/publicação automática · métricas de redes · financeiro · NF/b
 
 ### Próximos passos sugeridos (ordem)
 1. Auth real + multi-tenant (destrava tudo o resto).
-2. Upload de mídia real nas peças (troca o `PieceThumb`).
-3. Tela de **criação de lote** (depende de desenho 🎨).
-4. Campos ricos da peça + Calendário editorial.
+2. Upload de mídia real nas peças (troca o `PieceThumb` e liga a dropzone do editor).
+3. Campos ricos da peça + Calendário editorial (o editor já grava data, formato e canal).
+4. Campos que faltam para os filtros desenhados (prioridade, etiquetas, criador).
 5. Começar CRM/Health Score (Fase 3).
