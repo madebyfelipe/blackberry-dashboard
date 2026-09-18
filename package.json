@@ -1,0 +1,9 @@
+{
+  "name": "blackberry-dashboard",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Blackberry content approval MVP",
+  "scripts": {
+    "check": "node --check app.js"
+  }
+}
