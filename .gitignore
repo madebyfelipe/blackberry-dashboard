@@ -29,3 +29,6 @@ next-env.d.ts
 
 # local data (JSON store — see memory ragick-persistence-deploy)
 /data
+
+.vercel
+.env*
