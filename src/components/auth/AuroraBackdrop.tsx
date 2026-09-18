@@ -14,6 +14,14 @@
  *
  * As medidas foram calibradas em 1440×900 e convertidas para unidades de
  * viewport, então o arco acompanha a tela sem reposicionamento manual.
+ *
+ * Movimento: cada camada mora num invólucro `inset-0` só para receber a
+ * animação (`.iris-sweep`, `.iris-fan`, `.iris-rays`, `.iris-core` em
+ * globals.css) — os `transform: translate(-50%, -50%)` das camadas internas
+ * continuam intactos, e o giro acontece em torno do centro dos arcos
+ * (`transform-origin: 30% 50%`). Os keyframes terminam no neutro, então a
+ * composição calibrada aqui é sempre o estado final. Não anime blur/máscara:
+ * só transform e opacity.
  */
 
 // ---- Leque espectral (direita) --------------------------------------------
@@ -95,69 +103,76 @@ export function AuroraBackdrop() {
       className="pointer-events-none fixed inset-0 z-0 overflow-hidden bg-bg"
     >
       {/* Varredura azul, ao fundo de tudo. */}
-      <div
-        className="absolute"
-        style={{
-          ...arc,
-          width: SWEEP_SIZE,
-          height: SWEEP_SIZE,
-          backgroundImage: SWEEP_GRADIENT,
-          maskImage: SWEEP_MASK,
-          WebkitMaskImage: SWEEP_MASK,
-          filter: "blur(64px) saturate(1.15)",
-          opacity: 0.92,
-        }}
-      />
+      <div className="iris-sweep absolute inset-0">
+        <div
+          className="absolute"
+          style={{
+            ...arc,
+            width: SWEEP_SIZE,
+            height: SWEEP_SIZE,
+            backgroundImage: SWEEP_GRADIENT,
+            maskImage: SWEEP_MASK,
+            WebkitMaskImage: SWEEP_MASK,
+            filter: "blur(64px) saturate(1.15)",
+            opacity: 0.92,
+          }}
+        />
+      </div>
 
-      {/* Leque — camada difusa (o brilho que vaza para o preto). */}
-      <div
-        className="absolute"
-        style={{
-          ...arc,
-          width: FAN_SIZE,
-          height: FAN_SIZE,
-          backgroundImage: FAN_GRADIENT,
-          maskImage: FAN_MASK,
-          WebkitMaskImage: FAN_MASK,
-          filter: "blur(85px) saturate(1.1)",
-          opacity: 0.55,
-        }}
-      />
+      {/* Leque: bloom + core no mesmo invólucro, para derivarem como uma peça. */}
+      <div className="iris-fan absolute inset-0">
+        {/* Camada difusa (o brilho que vaza para o preto). */}
+        <div
+          className="absolute"
+          style={{
+            ...arc,
+            width: FAN_SIZE,
+            height: FAN_SIZE,
+            backgroundImage: FAN_GRADIENT,
+            maskImage: FAN_MASK,
+            WebkitMaskImage: FAN_MASK,
+            filter: "blur(85px) saturate(1.1)",
+            opacity: 0.55,
+          }}
+        />
 
-      {/* Leque — camada nítida (a linha de cor dentro do brilho). */}
-      <div
-        className="absolute"
-        style={{
-          ...arc,
-          width: FAN_SIZE,
-          height: FAN_SIZE,
-          backgroundImage: FAN_GRADIENT,
-          maskImage: FAN_MASK,
-          WebkitMaskImage: FAN_MASK,
-          filter: "blur(26px) saturate(1.25)",
-          opacity: 0.85,
-        }}
-      />
+        {/* Camada nítida (a linha de cor dentro do brilho). */}
+        <div
+          className="absolute"
+          style={{
+            ...arc,
+            width: FAN_SIZE,
+            height: FAN_SIZE,
+            backgroundImage: FAN_GRADIENT,
+            maskImage: FAN_MASK,
+            WebkitMaskImage: FAN_MASK,
+            filter: "blur(26px) saturate(1.25)",
+            opacity: 0.85,
+          }}
+        />
+      </div>
 
       {/* Estrias: os raios finos da dispersão, só dentro do leque. */}
-      <div
-        className="absolute"
-        style={{
-          ...arc,
-          width: FAN_SIZE,
-          height: FAN_SIZE,
-          backgroundImage:
-            "repeating-conic-gradient(from 0deg, rgba(255,255,255,0.18) 0deg 0.6deg, transparent 0.6deg 2.2deg)",
-          maskImage: RAYS_MASK,
-          WebkitMaskImage: RAYS_MASK,
-          filter: "blur(5px)",
-          opacity: 0.45,
-        }}
-      />
+      <div className="iris-rays absolute inset-0">
+        <div
+          className="absolute"
+          style={{
+            ...arc,
+            width: FAN_SIZE,
+            height: FAN_SIZE,
+            backgroundImage:
+              "repeating-conic-gradient(from 0deg, rgba(255,255,255,0.18) 0deg 0.6deg, transparent 0.6deg 2.2deg)",
+            maskImage: RAYS_MASK,
+            WebkitMaskImage: RAYS_MASK,
+            filter: "blur(5px)",
+            opacity: 0.45,
+          }}
+        />
+      </div>
 
       {/* Núcleo quente: o ponto branco de onde a luz se abre. */}
       <div
-        className="absolute inset-0"
+        className="iris-core absolute inset-0"
         style={{
           backgroundImage:
             "radial-gradient(clamp(180px, 16vw, 280px) clamp(240px, 37vh, 380px) at 66% 38%, rgba(255,248,235,0.45), rgba(255,225,180,0.10) 44%, transparent 74%)",

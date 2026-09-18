@@ -112,6 +112,159 @@ body {
   }
 }
 
+/*
+ * Íris da tela de login (AuroraBackdrop).
+ *
+ * Entrada: a luz "nasce" fora do quadro e varre até a posição final — o leque
+ * descendo pela direita, a varredura azul subindo pela esquerda, as estrias e o
+ * núcleo quente acendendo depois. Todo keyframe termina em transform/opacity
+ * neutros, então o estado final é EXATAMENTE a composição calibrada no
+ * componente — a entrada não reposiciona nada.
+ *
+ * Ambiente: deriva lenta (20–36s) de 1–2 graus e frações de opacidade. Precisa
+ * ser quase imperceptível: a íris é o único ponto de cor do produto. Só
+ * transform/opacity são animados — os blurs (até 85px) ficam estáticos para o
+ * navegador rasterizar a camada uma vez e apenas transformá-la.
+ */
+@keyframes iris-fan-in {
+  from {
+    opacity: 0;
+    transform: rotate(-12deg) scale(0.92);
+  }
+  to {
+    opacity: 1;
+    transform: rotate(0deg) scale(1);
+  }
+}
+
+@keyframes iris-fan-drift {
+  0%,
+  100% {
+    opacity: 1;
+    transform: rotate(0deg) scale(1);
+  }
+  34% {
+    opacity: 0.93;
+    transform: rotate(1.4deg) scale(1.018);
+  }
+  67% {
+    opacity: 1;
+    transform: rotate(-0.9deg) scale(0.996);
+  }
+}
+
+@keyframes iris-sweep-in {
+  from {
+    opacity: 0;
+    transform: rotate(9deg) scale(0.94);
+  }
+  to {
+    opacity: 1;
+    transform: rotate(0deg) scale(1);
+  }
+}
+
+@keyframes iris-sweep-drift {
+  0%,
+  100% {
+    opacity: 1;
+    transform: rotate(0deg) scale(1);
+  }
+  40% {
+    opacity: 0.9;
+    transform: rotate(-1.6deg) scale(1.02);
+  }
+  72% {
+    opacity: 0.97;
+    transform: rotate(0.7deg) scale(1.004);
+  }
+}
+
+@keyframes iris-rays-in {
+  from {
+    opacity: 0;
+    transform: rotate(-3deg);
+  }
+  to {
+    opacity: 1;
+    transform: rotate(0deg);
+  }
+}
+
+@keyframes iris-rays-drift {
+  0%,
+  100% {
+    opacity: 1;
+    transform: rotate(0deg);
+  }
+  50% {
+    opacity: 0.72;
+    transform: rotate(0.45deg);
+  }
+}
+
+@keyframes iris-core-in {
+  from {
+    opacity: 0;
+    transform: scale(0.9);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes iris-core-drift {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.84;
+    transform: scale(1.04);
+  }
+}
+
+/*
+ * Cada camada gira em torno do centro dos arcos (30% / 50% da viewport), o
+ * mesmo ponto usado pelo AuroraBackdrop. A deriva entra com delay igual à
+ * duração + delay da entrada, partindo do estado neutro: a emenda é invisível.
+ */
+.iris-sweep,
+.iris-fan,
+.iris-rays {
+  transform-origin: 30% 50%;
+  will-change: transform, opacity;
+}
+
+.iris-sweep {
+  animation:
+    iris-sweep-in 1.8s cubic-bezier(0.22, 1, 0.36, 1) 0.05s both,
+    iris-sweep-drift 36s ease-in-out 1.85s infinite;
+}
+
+.iris-fan {
+  animation:
+    iris-fan-in 1.5s cubic-bezier(0.22, 1, 0.36, 1) 0.12s both,
+    iris-fan-drift 28s ease-in-out 1.62s infinite;
+}
+
+.iris-rays {
+  animation:
+    iris-rays-in 1.2s cubic-bezier(0.22, 1, 0.36, 1) 0.45s both,
+    iris-rays-drift 22s ease-in-out 1.65s infinite;
+}
+
+/* O núcleo quente não é um arco: respira em torno do próprio foco. */
+.iris-core {
+  transform-origin: 66% 38%;
+  will-change: transform, opacity;
+  animation:
+    iris-core-in 1.4s cubic-bezier(0.22, 1, 0.36, 1) 0.3s both,
+    iris-core-drift 20s ease-in-out 1.7s infinite;
+}
+
 .animate-fade-in {
   animation: fade-in 0.18s ease-out;
 }
@@ -128,5 +281,18 @@ body {
   ::after {
     animation-duration: 0.001ms !important;
     transition-duration: 0.001ms !important;
+  }
+
+  /*
+   * A íris tem laços infinitos: zerar a duração deixaria o loop girando em
+   * quadro nulo. Aqui ela some de vez e, como nenhum keyframe é aplicado, as
+   * camadas ficam no transform/opacity neutros — a composição final, estática.
+   */
+  .iris-sweep,
+  .iris-fan,
+  .iris-rays,
+  .iris-core {
+    animation: none !important;
+    will-change: auto;
   }
 }
