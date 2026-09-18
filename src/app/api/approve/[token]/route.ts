@@ -33,7 +33,14 @@ export async function POST(
     );
   }
 
-  const piece = await decidePiece(token, pieceId, decision, { reason, who });
+  const ip = clientIp(req);
+  const piece = await decidePiece(token, pieceId, decision, { reason, who, ip });
+  if (piece === "inactive-link") {
+    return NextResponse.json(
+      { error: "Este link não está mais ativo. Peça um novo link à agência." },
+      { status: 410 },
+    );
+  }
   if (!piece) {
     return NextResponse.json(
       { error: "Lote ou peça não encontrados." },
@@ -41,4 +48,10 @@ export async function POST(
     );
   }
   return NextResponse.json({ piece });
+}
+
+function clientIp(req: Request): string | undefined {
+  const forwarded = req.headers.get("x-forwarded-for");
+  if (forwarded) return forwarded.split(",")[0].trim();
+  return req.headers.get("x-real-ip") ?? undefined;
 }

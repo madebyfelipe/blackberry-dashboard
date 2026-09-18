@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { Batch, Piece, PieceStatus } from "@/lib/approval/types";
 import { PieceThumb } from "./PieceThumb";
 import { StatusBadge } from "./StatusBadge";
@@ -95,6 +95,19 @@ export function SwipeApproval({ batch }: { batch: Batch }) {
     setReason({ open: false, text: "" });
     commit("ajuste", text);
   }
+
+  // Keyboard: → aprovar, ← pedir ajuste (desktop engagement).
+  useEffect(() => {
+    if (done) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (reason.open || fling) return;
+      if (e.key === "ArrowRight") commit("aprovado");
+      else if (e.key === "ArrowLeft") setReason({ open: true, text: "" });
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [done, reason.open, fling, index]);
 
   // Card transform
   const dx = fling === "right" ? 600 : fling === "left" ? -600 : drag.dx;

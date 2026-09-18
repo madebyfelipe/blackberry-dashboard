@@ -70,16 +70,39 @@ export function TasksView({ initialTasks }: { initialTasks: Task[] }) {
     }
   }
 
-  async function remove(task: Task) {
-    const prev = tasks;
+  // Delayed delete: remove from UI immediately, offer undo, and only hit the
+  // API if the toast expires without an undo.
+  function remove(task: Task) {
+    const index = tasks.findIndex((t) => t.id === task.id);
     setTasks((ts) => ts.filter((t) => t.id !== task.id));
-    try {
-      await apiDeleteTask(task.id);
-      toast("Tarefa excluída.");
-    } catch (e) {
-      setTasks(prev);
-      toast(errMsg(e), "error");
-    }
+    let undone = false;
+    const timer = setTimeout(async () => {
+      if (undone) return;
+      try {
+        await apiDeleteTask(task.id);
+      } catch (e) {
+        setTasks((ts) =>
+          ts.some((t) => t.id === task.id)
+            ? ts
+            : insertAt(ts, index, task),
+        );
+        toast(errMsg(e), "error");
+      }
+    }, 4200);
+
+    toast("Tarefa excluída.", "success", {
+      duration: 4000,
+      action: {
+        label: "Desfazer",
+        onClick: () => {
+          undone = true;
+          clearTimeout(timer);
+          setTasks((ts) =>
+            ts.some((t) => t.id === task.id) ? ts : insertAt(ts, index, task),
+          );
+        },
+      },
+    });
   }
 
   async function submitDrawer(values: {
@@ -325,6 +348,12 @@ function EmptyState({ onAdd }: { onAdd: () => void }) {
       </Button>
     </div>
   );
+}
+
+function insertAt(list: Task[], index: number, item: Task): Task[] {
+  const copy = [...list];
+  copy.splice(Math.max(0, Math.min(index, copy.length)), 0, item);
+  return copy;
 }
 
 function errMsg(e: unknown): string {

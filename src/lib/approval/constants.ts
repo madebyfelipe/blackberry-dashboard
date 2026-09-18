@@ -28,3 +28,17 @@ export function progressCaption(batch: Batch): string {
   const { aprovadas, ajuste, pendentes } = batchProgress(batch);
   return `${aprovadas} aprovadas · ${ajuste} com ajuste pedido · ${pendentes} pendentes`;
 }
+
+export type LinkStatus = "ativo" | "revogado" | "expirado";
+
+export function batchLinkStatus(batch: Batch): LinkStatus {
+  if (batch.tokenRevoked) return "revogado";
+  if (batch.tokenExpiresAt && new Date(batch.tokenExpiresAt).getTime() < Date.now()) {
+    return "expirado";
+  }
+  return "ativo";
+}
+
+export function isBatchLinkActive(batch: Batch): boolean {
+  return batchLinkStatus(batch) === "ativo";
+}

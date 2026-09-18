@@ -20,8 +20,8 @@ Legenda: ✅ pronto · 🟡 parcial/placeholder · ⬜ não começado · 🎨 pr
 - 🟡 Peças usam **thumb placeholder** (`PieceThumb`) — troca direta por mídia real depois
 - ⬜ Upload real de mídia (imagem/carrossel/vídeo/Reels) + preview leve/WebP
 - ⬜ Comentário por **áudio** + transcrição (Whisper) — spec
-- ⬜ Registro de decisão com **IP + versão exata** apresentada (hoje registra autor+data)
-- ⬜ Token expirável/revogável + geração de link por lote
+- ✅ Registro de decisão com **IP + versão exata** apresentada (`snapshot` no `DecisionEvent`, captura IP via `x-forwarded-for`)
+- ✅ Token expirável/revogável + geração de link por lote (menu de ações no `/social/[id]`, expira em 30 dias ao regenerar, tela pública mostra estado "link inativo")
 - ⬜ Envio do link por WhatsApp/e-mail + lembretes automáticos
 - 🎨 Tela de **criação de lote** (upload + legenda + 1º comentário + hashtags + data) — falta desenho
 - 🎨 Tela pública: estados de **carrossel/vídeo** e visual de "mockup de feed Instagram" — falta desenho

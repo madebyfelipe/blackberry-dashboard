@@ -10,10 +10,12 @@ export default function LoginPage() {
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [loading, setLoading] = useState(false);
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     // Foundation stage: no real auth yet. Land on the app shell.
+    setLoading(true);
     router.push("/tarefas");
   }
 
@@ -84,7 +86,9 @@ export default function LoginPage() {
             <span className="text-[13px] text-fg-soft">Lembrar de mim</span>
           </label>
 
-          <Button type="submit">Entrar</Button>
+          <Button type="submit" disabled={loading}>
+            {loading ? "Entrando…" : "Entrar"}
+          </Button>
         </form>
 
         {/* Divider */}

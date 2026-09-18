@@ -11,10 +11,20 @@ import {
 import { CheckIcon, XIcon } from "@/components/icons";
 
 type ToastKind = "success" | "error" | "info";
-type Toast = { id: number; message: string; kind: ToastKind };
+type ToastAction = { label: string; onClick: () => void };
+type Toast = {
+  id: number;
+  message: string;
+  kind: ToastKind;
+  action?: ToastAction;
+};
 
 type ToastCtx = {
-  toast: (message: string, kind?: ToastKind) => void;
+  toast: (
+    message: string,
+    kind?: ToastKind,
+    opts?: { action?: ToastAction; duration?: number },
+  ) => void;
 };
 
 const Ctx = createContext<ToastCtx | null>(null);
@@ -33,11 +43,11 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
     setToasts((t) => t.filter((x) => x.id !== id));
   }, []);
 
-  const toast = useCallback(
-    (message: string, kind: ToastKind = "success") => {
+  const toast = useCallback<ToastCtx["toast"]>(
+    (message, kind = "success", opts) => {
       const id = ++seq.current;
-      setToasts((t) => [...t, { id, message, kind }]);
-      setTimeout(() => remove(id), 3200);
+      setToasts((t) => [...t, { id, message, kind, action: opts?.action }]);
+      setTimeout(() => remove(id), opts?.duration ?? 3200);
     },
     [remove],
   );
@@ -65,6 +75,18 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
               {t.kind === "error" ? <XIcon size={11} /> : <CheckIcon size={11} />}
             </span>
             {t.message}
+            {t.action && (
+              <button
+                type="button"
+                onClick={() => {
+                  t.action?.onClick();
+                  remove(t.id);
+                }}
+                className="ml-1 rounded-pill px-2 py-0.5 text-[13px] font-semibold text-fg underline-offset-2 hover:underline"
+              >
+                {t.action.label}
+              </button>
+            )}
           </div>
         ))}
       </div>

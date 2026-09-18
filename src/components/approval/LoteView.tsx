@@ -2,13 +2,14 @@
 
 import { useMemo, useState } from "react";
 import type { Batch, Piece, PieceStatus } from "@/lib/approval/types";
-import { batchProgress, progressCaption } from "@/lib/approval/constants";
+import { batchLinkStatus, batchProgress, progressCaption } from "@/lib/approval/constants";
 import { formatPieceDate } from "@/lib/format";
 import { Breadcrumb } from "@/components/ui/Breadcrumb";
 import { Button } from "@/components/ui/Button";
 import { PieceThumb } from "./PieceThumb";
 import { useToast } from "@/components/ui/Toast";
-import { CopyIcon, RotateIcon, ExternalLinkIcon } from "@/components/icons";
+import { ActionMenu } from "@/components/tasks/ActionMenu";
+import { CopyIcon, RotateIcon, ExternalLinkIcon, XIcon } from "@/components/icons";
 import { cn } from "@/lib/cn";
 
 type Filter = "todas" | PieceStatus;
@@ -25,6 +26,7 @@ export function LoteView({ initialBatch }: { initialBatch: Batch }) {
 
   const progress = batchProgress(batch);
   const publicUrl = `https://app.blackberry.com.br/a/${batch.token}`;
+  const linkStatus = batchLinkStatus(batch);
 
   const filtered = useMemo(() => {
     if (filter === "todas") return batch.pieces;
@@ -39,6 +41,28 @@ export function LoteView({ initialBatch }: { initialBatch: Batch }) {
       toast("Link copiado.");
     } catch {
       toast("Não foi possível copiar.", "error");
+    }
+  }
+
+  async function manageLink(action: "regenerate" | "revoke" | "reactivate") {
+    try {
+      const res = await fetch(`/api/batches/${batch.id}/token`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ action }),
+      });
+      if (!res.ok) throw new Error();
+      const { batch: updated } = await res.json();
+      setBatch((b) => ({ ...b, ...updated }));
+      toast(
+        action === "regenerate"
+          ? "Novo link gerado."
+          : action === "revoke"
+            ? "Link desativado."
+            : "Link reativado.",
+      );
+    } catch {
+      toast("Não foi possível atualizar o link.", "error");
     }
   }
 
@@ -123,14 +147,44 @@ export function LoteView({ initialBatch }: { initialBatch: Batch }) {
 
         {/* Copy link */}
         <div className="flex items-center gap-2">
+          <LinkStatusPill status={linkStatus} />
           <div className="max-w-[280px] truncate rounded-field border border-border bg-surface px-4 py-2.5 text-[13px] text-fg-2">
             {publicUrl}
           </div>
-          <Button className="w-fit" onClick={copyLink}>
+          <Button className="w-fit" onClick={copyLink} disabled={linkStatus !== "ativo"}>
             <span className="flex items-center gap-2">
               <CopyIcon size={16} /> Copiar link
             </span>
           </Button>
+          <a
+            href={`/a/${batch.token}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex w-fit items-center gap-2 rounded-field border border-border bg-surface px-4 py-2.5 text-[14px] font-medium text-fg-soft transition-colors hover:bg-surface-2"
+          >
+            <ExternalLinkIcon size={16} /> Abrir
+          </a>
+          <ActionMenu
+            items={[
+              {
+                label: "Gerar novo link",
+                icon: <RotateIcon size={15} />,
+                onSelect: () => manageLink("regenerate"),
+              },
+              linkStatus === "revogado"
+                ? {
+                    label: "Reativar link",
+                    icon: <ExternalLinkIcon size={15} />,
+                    onSelect: () => manageLink("reactivate"),
+                  }
+                : {
+                    label: "Desativar link",
+                    icon: <XIcon size={15} />,
+                    danger: true,
+                    onSelect: () => manageLink("revoke"),
+                  },
+            ]}
+          />
         </div>
       </div>
 
@@ -211,6 +265,15 @@ export function LoteView({ initialBatch }: { initialBatch: Batch }) {
   );
 }
 
+function LinkStatusPill({ status }: { status: ReturnType<typeof batchLinkStatus> }) {
+  if (status === "ativo") return null;
+  return (
+    <span className="rounded-pill bg-border-strong px-3 py-1.5 text-[12px] font-medium text-fg-soft">
+      Link {status}
+    </span>
+  );
+}
+
 function DetailPanel({
   piece,
   onRedo,
@@ -258,7 +321,10 @@ function DetailPanel({
                 <span className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-border-strong" />
                 <div className="flex flex-col">
                   <span className="text-[13px] text-fg-soft">{h.title}</span>
-                  <span className="text-[12px] text-muted">{h.who}</span>
+                  <span className="text-[12px] text-muted">
+                    {h.who}
+                    {h.ip ? ` · IP ${h.ip}` : ""}
+                  </span>
                 </div>
               </div>
             ))}
