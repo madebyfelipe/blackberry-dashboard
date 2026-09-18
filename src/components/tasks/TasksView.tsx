@@ -16,7 +16,7 @@ import { useToast } from "@/components/ui/Toast";
 import { cn } from "@/lib/cn";
 import { TaskTable } from "./TaskTable";
 import { TaskBoard } from "./TaskBoard";
-import { TaskDrawer, type DrawerState } from "./TaskDrawer";
+import { TaskModal, type TaskModalState } from "./TaskModal";
 import {
   apiCreateTask,
   apiDeleteTask,
@@ -33,7 +33,7 @@ export function TasksView({ initialTasks }: { initialTasks: Task[] }) {
   const [tab, setTab] = useState<Tab>("todas");
   const [search, setSearch] = useState("");
   const [showSearch, setShowSearch] = useState(false);
-  const [drawer, setDrawer] = useState<DrawerState | null>(null);
+  const [drawer, setDrawer] = useState<TaskModalState | null>(null);
   const [saving, setSaving] = useState(false);
 
   const filtered = useMemo(() => {
@@ -235,7 +235,7 @@ export function TasksView({ initialTasks }: { initialTasks: Task[] }) {
         )}
       </div>
 
-      <TaskDrawer
+      <TaskModal
         state={drawer}
         onClose={() => setDrawer(null)}
         onSubmit={submitDrawer}

@@ -247,3 +247,63 @@ export function ImageIcon(p: IconProps) {
     </Svg>
   );
 }
+
+export function Maximize2Icon(p: IconProps) {
+  return (
+    <Svg {...p}>
+      <polyline points="15 3 21 3 21 9" />
+      <polyline points="9 21 3 21 3 15" />
+      <line x1="21" x2="14" y1="3" y2="10" />
+      <line x1="3" x2="10" y1="21" y2="14" />
+    </Svg>
+  );
+}
+
+export function SignalIcon(p: IconProps) {
+  return (
+    <Svg {...p}>
+      <path d="M2 20h.01" />
+      <path d="M7 20v-4" />
+      <path d="M12 20v-8" />
+      <path d="M17 20V8" />
+      <path d="M22 4v16" />
+    </Svg>
+  );
+}
+
+export function UserCircleIcon(p: IconProps) {
+  return (
+    <Svg {...p}>
+      <path d="M18 20a6 6 0 0 0-12 0" />
+      <circle cx="12" cy="10" r="4" />
+      <circle cx="12" cy="12" r="10" />
+    </Svg>
+  );
+}
+
+export function BoxIcon(p: IconProps) {
+  return (
+    <Svg {...p}>
+      <path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z" />
+      <path d="m3.3 7 8.7 5 8.7-5" />
+      <path d="M12 22V12" />
+    </Svg>
+  );
+}
+
+export function TagIcon(p: IconProps) {
+  return (
+    <Svg {...p}>
+      <path d="M12.586 2.586A2 2 0 0 0 11.172 2H4a2 2 0 0 0-2 2v7.172a2 2 0 0 0 .586 1.414l8.704 8.704a2.426 2.426 0 0 0 3.42 0l6.58-6.58a2.426 2.426 0 0 0 0-3.42z" />
+      <circle cx="7.5" cy="7.5" r=".5" fill="currentColor" />
+    </Svg>
+  );
+}
+
+export function PaperclipIcon(p: IconProps) {
+  return (
+    <Svg {...p}>
+      <path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l8.57-8.57A4 4 0 1 1 18 8.84l-8.59 8.57a2 2 0 0 1-2.83-2.83l8.49-8.48" />
+    </Svg>
+  );
+}

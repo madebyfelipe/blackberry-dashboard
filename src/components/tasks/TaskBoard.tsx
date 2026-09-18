@@ -41,7 +41,7 @@ export function TaskBoard({
         return (
           <div
             key={col.id}
-            className="flex w-[300px] shrink-0 flex-col gap-3"
+            className="group/column flex w-[300px] shrink-0 flex-col gap-3"
             onDragOver={(e) => {
               e.preventDefault();
               if (overCol !== col.id) setOverCol(col.id);
@@ -124,7 +124,7 @@ export function TaskBoard({
               <button
                 type="button"
                 onClick={() => onAdd(col.id)}
-                className="flex items-center justify-center gap-2 rounded-card border border-border px-4 py-3 text-[13px] text-muted transition-colors hover:border-border-strong hover:text-fg-soft"
+                className="flex items-center justify-center gap-2 rounded-card border border-border px-4 py-3 text-[13px] text-muted opacity-0 transition-all hover:border-border-strong hover:text-fg-soft focus-visible:opacity-100 group-hover/column:opacity-100"
               >
                 <PlusIcon size={16} />
                 Adicionar tarefa
