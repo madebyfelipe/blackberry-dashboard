@@ -169,16 +169,24 @@ export function TasksView({ initialTasks }: { initialTasks: Task[] }) {
   }
 
   return (
-    <div className="flex h-full min-h-0 flex-col gap-5 py-6 pl-2 pr-6">
+    <div className="flex h-full min-h-0 flex-col gap-5 px-1 py-5 md:py-6 md:pl-2 md:pr-6">
       <Breadcrumb
         items={[{ label: "black berry", href: "/tarefas" }, { label: "Tarefas" }]}
       />
 
-      {/* Header row */}
-      <div className="flex flex-wrap items-center justify-between gap-3">
+      {/*
+       * Header row — uma linha só, sempre.
+       *
+       * Com `flex-wrap`, as abas de status empurravam os botões para uma
+       * segunda linha encostada na esquerda; como o painel dos menus abre
+       * ancorado à direita do botão (`right-0`) e o `<main>` tem
+       * `overflow-hidden`, 168px dos 264px do painel ficavam fora da área
+       * visível. Abas rolam na horizontal, botões ficam fixos à direita.
+       */}
+      <div className="flex min-w-0 flex-nowrap items-center justify-between gap-3">
         {/* Left: tabs (lista) or title (grade) */}
         {isLista ? (
-          <div className="flex items-center gap-2 overflow-x-auto">
+          <div className="flex min-w-0 items-center gap-2 overflow-x-auto">
             <Tab
               active={tab === "todas"}
               onClick={() => setTab("todas")}
@@ -197,7 +205,7 @@ export function TasksView({ initialTasks }: { initialTasks: Task[] }) {
           </div>
         ) : (
           /* Quadro — export "2. Board · Kanban": alternador Lista/Quadro */
-          <div className="flex items-center gap-2">
+          <div className="flex min-w-0 items-center gap-2 overflow-x-auto">
             <ViewTab
               active={false}
               label="Lista"
@@ -289,9 +297,18 @@ export function TasksView({ initialTasks }: { initialTasks: Task[] }) {
             <DisplayMenu display={display} onChange={setDisplay} />
           </Popover>
 
-          <Button className="w-fit" onClick={() => setDrawer({ mode: "create" })}>
+          {/*
+           * No celular o rótulo sai e sobra o "+": a linha do cabeçalho tem
+           * ~390px e precisa caber busca, os dois menus e o criar.
+           */}
+          <Button
+            aria-label="Adicionar tarefa"
+            className="w-fit shrink-0 max-sm:h-10 max-sm:w-10 max-sm:rounded-full max-sm:px-0"
+            onClick={() => setDrawer({ mode: "create" })}
+          >
             <span className="flex items-center gap-1.5">
-              <PlusIcon size={16} /> Adicionar tarefa
+              <PlusIcon size={16} />
+              <span className="max-sm:hidden">Adicionar tarefa</span>
             </span>
           </Button>
         </div>

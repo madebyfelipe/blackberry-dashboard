@@ -26,7 +26,7 @@ const ROLE_LABEL: Record<PublicUser["role"], string> = {
 
 export function SettingsView({ user }: { user: PublicUser }) {
   return (
-    <div className="flex h-full min-h-0 flex-col gap-5 overflow-y-auto py-6 pl-2 pr-6">
+    <div className="flex h-full min-h-0 flex-col gap-5 overflow-y-auto px-1 py-5 md:py-6 md:pl-2 md:pr-6">
       <Breadcrumb
         items={[{ label: "black berry", href: "/tarefas" }, { label: "Configurações" }]}
       />
@@ -242,7 +242,7 @@ function PasswordCard() {
     <Card
       index={1}
       title="Senha"
-      note="Mínimo de 8 caracteres. A sessão atual continua ativa após a troca."
+      note="Mínimo de 8 caracteres. Este aparelho segue conectado; os outros são desconectados."
       icon={<LockIcon size={18} />}
     >
       <form className="flex flex-col gap-5" onSubmit={submit}>

@@ -10,7 +10,7 @@ export default async function SocialPage() {
   const batches = await listBatches();
 
   return (
-    <div className="flex h-full min-h-0 flex-col gap-5 overflow-y-auto py-6 pl-2 pr-6">
+    <div className="flex h-full min-h-0 flex-col gap-5 overflow-y-auto px-1 py-5 md:py-6 md:pl-2 md:pr-6">
       <Breadcrumb items={[{ label: "black berry", href: "/tarefas" }, { label: "Social media" }]} />
 
       <div className="flex items-center justify-between">

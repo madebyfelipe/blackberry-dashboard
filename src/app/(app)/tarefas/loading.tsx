@@ -4,7 +4,7 @@
  */
 export default function LoadingTarefas() {
   return (
-    <div className="flex h-full min-h-0 flex-col gap-5 py-6 pl-2 pr-6">
+    <div className="flex h-full min-h-0 flex-col gap-5 px-1 py-5 md:py-6 md:pl-2 md:pr-6">
       <div className="skeleton h-4 w-40 rounded-pill" />
 
       <div className="flex flex-wrap items-center justify-between gap-3">

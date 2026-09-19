@@ -651,3 +651,11 @@ export function SignalHighIcon(p: IconProps) {
     </Svg>
   );
 }
+
+export function MenuIcon(p: IconProps) {
+  return (
+    <Svg {...p}>
+      <path d="M4 6h16M4 12h16M4 18h16" />
+    </Svg>
+  );
+}
