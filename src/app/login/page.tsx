@@ -1,130 +1,151 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { Suspense, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { AuroraBackdrop } from "@/components/auth/AuroraBackdrop";
+import { AuthError, AuthField, AuthShell } from "@/components/auth/AuthShell";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
+import { Spinner } from "@/components/ui/Spinner";
 
 export default function LoginPage() {
+  return (
+    <Suspense fallback={null}>
+      <LoginForm />
+    </Suspense>
+  );
+}
+
+function LoginForm() {
   const router = useRouter();
+  const params = useSearchParams();
+  /** Para onde o proxy queria levar a pessoa antes de exigir login. */
+  const next = safeNext(params.get("next"));
+
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    // Foundation stage: no real auth yet. Land on the app shell.
     setLoading(true);
-    router.push("/tarefas");
+    setError(null);
+    try {
+      const res = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ email, password }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data?.error ?? "Não foi possível entrar.");
+      router.replace(next);
+      // O shell é renderizado no servidor e lê a sessão: precisa revalidar.
+      router.refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Não foi possível entrar.");
+      setLoading(false);
+    }
   }
 
   return (
-    <main className="relative flex min-h-screen items-center justify-center px-4 py-10">
-      <AuroraBackdrop />
-
-      {/*
-       * Card black berry sobre o fundo iridescente: mesmas cores do design
-       * system, porém translúcidas + backdrop-blur, para a fita de luz passar
-       * por trás como vidro (é o que sustenta o fundo da referência).
-       */}
-      <div className="relative z-10 flex w-full max-w-[400px] flex-col gap-6 rounded-card border border-white/10 bg-surface/70 p-8 shadow-[0_24px_80px_-20px_rgba(0,0,0,0.9)] backdrop-blur-2xl sm:p-10">
-        {/* Brand mark */}
-        <div className="flex h-11 w-11 items-center justify-center rounded-mark bg-primary">
-          <span className="text-[20px] font-bold text-on-primary">B</span>
-        </div>
-
-        {/* Header */}
-        <header className="flex flex-col gap-2">
-          <h1 className="text-[20px] font-semibold text-fg">
-            Bem-vindo de volta
-          </h1>
-          <p className="text-[13px] text-muted">
-            Acesse sua conta para continuar no black berry
-          </p>
-        </header>
-
-        {/* Form */}
-        <form className="flex flex-col gap-5" onSubmit={handleSubmit}>
-          <div className="flex flex-col gap-2">
-            <label htmlFor="email" className="text-[12px] font-medium text-fg-3">
-              E-mail
-            </label>
-            <Input
-              id="email"
-              type="email"
-              autoComplete="email"
-              placeholder="voce@empresa.com"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className="border-white/15 bg-black/45"
-            />
-          </div>
-
-          <div className="flex flex-col gap-2">
-            <div className="flex items-center justify-between">
-              <label
-                htmlFor="password"
-                className="text-[12px] font-medium text-fg-3"
-              >
-                Senha
-              </label>
-              <Link
-                href="/recuperar-senha"
-                className="text-[12px] font-medium text-fg-soft hover:text-fg"
-              >
-                Esqueceu a senha?
-              </Link>
-            </div>
-            <Input
-              id="password"
-              type="password"
-              autoComplete="current-password"
-              placeholder="••••••••"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="border-white/15 bg-black/45"
-            />
-          </div>
-
-          <label className="flex items-center gap-2 select-none">
-            <input
-              type="checkbox"
-              className="h-4 w-4 appearance-none rounded-mark border border-border-strong bg-transparent checked:bg-primary checked:border-primary"
-            />
-            <span className="text-[13px] text-fg-soft">Lembrar de mim</span>
-          </label>
-
-          <Button type="submit" disabled={loading}>
-            {loading ? "Entrando…" : "Entrar"}
-          </Button>
-        </form>
-
-        {/* Divider */}
-        <div className="flex items-center gap-3">
-          <span className="h-px flex-1 bg-white/12" />
-          <span className="text-[12px] text-muted">ou</span>
-          <span className="h-px flex-1 bg-white/12" />
-        </div>
-
-        {/* SSO */}
-        <Button
-          variant="secondary"
-          type="button"
-          className="border-white/12 bg-white/5 hover:bg-white/10"
-        >
-          Continuar com SSO
-        </Button>
-
-        {/* Footer */}
+    <AuthShell
+      title="Bem-vindo de volta"
+      subtitle="Acesse sua conta para continuar no black berry"
+      footer={
         <p className="flex justify-center gap-1 text-[13px]">
           <span className="text-muted">Não tem uma conta?</span>
-          <Link href="/criar-conta" className="font-semibold text-fg">
+          <Link
+            href="/criar-conta"
+            className="font-semibold text-fg underline-offset-4 hover:underline"
+          >
             Criar conta
           </Link>
         </p>
+      }
+    >
+      <form className="flex flex-col gap-5" onSubmit={handleSubmit}>
+        {error && <AuthError message={error} />}
+
+        <AuthField label="E-mail" htmlFor="email">
+          <Input
+            id="email"
+            type="email"
+            required
+            autoComplete="email"
+            placeholder="voce@empresa.com"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            className="border-white/15 bg-black/45"
+          />
+        </AuthField>
+
+        <AuthField
+          label="Senha"
+          htmlFor="password"
+          right={
+            <Link
+              href="/recuperar-senha"
+              className="text-[12px] font-medium text-fg-soft hover:text-fg"
+            >
+              Esqueceu a senha?
+            </Link>
+          }
+        >
+          <Input
+            id="password"
+            type="password"
+            required
+            autoComplete="current-password"
+            placeholder="••••••••"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            className="border-white/15 bg-black/45"
+          />
+        </AuthField>
+
+        <label className="flex cursor-pointer items-center gap-2 select-none">
+          <input
+            type="checkbox"
+            name="lembrar"
+            defaultChecked
+            className="h-4 w-4 appearance-none rounded-mark border border-border-strong bg-transparent transition-colors checked:border-primary checked:bg-primary"
+          />
+          <span className="text-[13px] text-fg-soft">Lembrar de mim</span>
+        </label>
+
+        <Button type="submit" disabled={loading} className="tap">
+          {loading ? (
+            <span className="flex items-center gap-2">
+              <Spinner /> Entrando…
+            </span>
+          ) : (
+            "Entrar"
+          )}
+        </Button>
+      </form>
+
+      <div className="flex items-center gap-3">
+        <span className="h-px flex-1 bg-white/12" />
+        <span className="text-[12px] text-muted">ou</span>
+        <span className="h-px flex-1 bg-white/12" />
       </div>
-    </main>
+
+      <Button
+        variant="secondary"
+        type="button"
+        disabled
+        title="SSO entra junto com o multi-tenant."
+        className="tap border-white/12 bg-white/5 hover:bg-white/10"
+      >
+        Continuar com SSO
+      </Button>
+    </AuthShell>
   );
+}
+
+/** Só aceita caminho interno — evita redirect aberto via ?next=. */
+function safeNext(value: string | null): string {
+  if (!value || !value.startsWith("/") || value.startsWith("//")) return "/tarefas";
+  return value;
 }

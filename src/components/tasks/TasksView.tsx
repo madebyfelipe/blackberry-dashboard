@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import type { Task, TaskStatus } from "@/lib/tasks/types";
 import { STATUSES } from "@/lib/tasks/constants";
 import {
@@ -26,7 +27,7 @@ import { useToast } from "@/components/ui/Toast";
 import { cn } from "@/lib/cn";
 import { TaskTable } from "./TaskTable";
 import { TaskBoard } from "./TaskBoard";
-import { TaskModal, type TaskModalState } from "./TaskModal";
+import { TaskModal, type TaskModalState, type TaskModalValues } from "./TaskModal";
 import { FilterMenu } from "./FilterMenu";
 import { DisplayMenu } from "./DisplayMenu";
 import { apiCreateTask, apiDeleteTask, apiUpdateTask } from "./api";
@@ -36,6 +37,8 @@ type OpenMenu = "filtros" | "visualizacao" | null;
 
 export function TasksView({ initialTasks }: { initialTasks: Task[] }) {
   const { toast } = useToast();
+  const router = useRouter();
+  const params = useSearchParams();
   const [tasks, setTasks] = useState<Task[]>(initialTasks);
   const [display, setDisplay] = useState<Display>(DEFAULT_DISPLAY);
   const [filters, setFilters] = useState<Filters>(EMPTY_FILTERS);
@@ -48,6 +51,13 @@ export function TasksView({ initialTasks }: { initialTasks: Task[] }) {
   const searchRef = useRef<HTMLInputElement>(null);
 
   const isLista = display.view === "lista";
+
+  // O lápis da sidebar leva para /tarefas?novo=1 — abre o modal e limpa a URL.
+  useEffect(() => {
+    if (params.get("novo") !== "1") return;
+    setDrawer({ mode: "create" });
+    router.replace("/tarefas");
+  }, [params, router]);
 
   // "F" abre o menu de filtros, como o atalho desenhado no export.
   useEffect(() => {
@@ -137,12 +147,7 @@ export function TasksView({ initialTasks }: { initialTasks: Task[] }) {
     });
   }
 
-  async function submitDrawer(values: {
-    title: string;
-    client: string;
-    assignee: string;
-    status: TaskStatus;
-  }) {
+  async function submitDrawer(values: TaskModalValues) {
     if (!drawer) return;
     setSaving(true);
     try {

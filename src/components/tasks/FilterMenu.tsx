@@ -1,13 +1,17 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import type { Task, TaskStatus } from "@/lib/tasks/types";
+import type { Task, TaskPriority, TaskStatus } from "@/lib/tasks/types";
 import { STATUSES } from "@/lib/tasks/constants";
+import { PRIORITIES } from "@/lib/tasks/priority";
 import {
   DATE_OPTIONS,
+  DUE_OPTIONS,
   distinct,
+  distinctLabels,
   toggleIn,
   type DateRange,
+  type DueRange,
   type Filters,
 } from "@/lib/tasks/view";
 import {
@@ -41,9 +45,10 @@ import { cn } from "@/lib/cn";
  * Menu de filtros — fiel ao export "Filtros · Menu" (painel de 264px, linhas de
  * 13px com ícone à esquerda e chevron à direita).
  *
- * As linhas que o design lista e que ainda não têm campo no modelo de tarefas
- * (Agente, Prioridade, Etiquetas…) continuam visíveis, como no desenho, mas
- * avisam em vez de fingir que filtram.
+ * Status, Responsável, Prioridade, Etiquetas, Criador, Datas e Cliente filtram
+ * de verdade. As linhas do desenho que dependem de recursos que ainda não
+ * existem no produto (Agente, Sessão do agente, Relações…) continuam visíveis,
+ * como no export, mas avisam em vez de fingir que filtram.
  */
 
 type RowId =
@@ -73,7 +78,14 @@ type Row = {
   label: string;
   Icon: (p: { size?: number; className?: string }) => React.ReactNode;
   /** Linhas com submenu abrem uma lista de valores; as demais avisam. */
-  submenu?: "status" | "assignee" | "cliente" | "datas";
+  submenu?:
+    | "status"
+    | "assignee"
+    | "cliente"
+    | "datas"
+    | "prioridade"
+    | "etiquetas"
+    | "criador";
   chevron?: boolean;
   /** Divisor acima da linha, como no export. */
   divider?: boolean;
@@ -86,9 +98,9 @@ const ROWS: Row[] = [
   { id: "assignee", label: "Responsável", Icon: UserIcon, submenu: "assignee", chevron: true },
   { id: "agente", label: "Agente", Icon: BotIcon, chevron: true },
   { id: "sessao", label: "Sessão do agente", Icon: SquareTerminalIcon, chevron: true },
-  { id: "criador", label: "Criador", Icon: UserPenIcon, chevron: true },
-  { id: "prioridade", label: "Prioridade", Icon: ChartColumnIcon, chevron: true },
-  { id: "etiquetas", label: "Etiquetas", Icon: TagIcon, chevron: true },
+  { id: "criador", label: "Criador", Icon: UserPenIcon, submenu: "criador", chevron: true },
+  { id: "prioridade", label: "Prioridade", Icon: ChartColumnIcon, submenu: "prioridade", chevron: true },
+  { id: "etiquetas", label: "Etiquetas", Icon: TagIcon, submenu: "etiquetas", chevron: true },
   { id: "relacoes", label: "Relações", Icon: FlagIcon, chevron: true },
   { id: "etiqueta-sugerida", label: "Etiqueta sugerida", Icon: TagsIcon, chevron: true },
   { id: "datas", label: "Datas", Icon: CalendarIcon, submenu: "datas", chevron: true },
@@ -129,6 +141,8 @@ export function FilterMenu({
 
   const assignees = useMemo(() => distinct(tasks, "assignee"), [tasks]);
   const clients = useMemo(() => distinct(tasks, "client"), [tasks]);
+  const creators = useMemo(() => distinct(tasks, "creator"), [tasks]);
+  const labels = useMemo(() => distinctLabels(tasks), [tasks]);
 
   return (
     <div className="w-[264px] animate-pop-in overflow-hidden rounded-menu border border-border bg-surface p-1.5 shadow-[0_8px_24px_rgba(0,0,0,0.5)]">
@@ -140,6 +154,8 @@ export function FilterMenu({
           onBack={() => setSub(null)}
           assignees={assignees}
           clients={clients}
+          creators={creators}
+          labels={labels}
         />
       ) : (
         <>
@@ -161,8 +177,8 @@ export function FilterMenu({
           </div>
 
           <div className="max-h-[420px] overflow-y-auto">
-            {rows.map((row) => (
-              <div key={row.id}>
+            {rows.map((row, i) => (
+              <div key={row.id} style={{ ["--d" as string]: i }} className="stagger-item">
                 {row.divider && <Divider />}
                 <MenuRow
                   label={row.label}
@@ -192,9 +208,24 @@ function countFor(id: RowId, f: Filters): number {
   if (id === "status") return f.status.length;
   if (id === "assignee") return f.assignee.length;
   if (id === "cliente") return f.client.length;
-  if (id === "datas") return f.created === "qualquer" ? 0 : 1;
+  if (id === "prioridade") return f.priority.length;
+  if (id === "etiquetas") return f.labels.length;
+  if (id === "criador") return f.creator.length;
+  if (id === "datas") {
+    return (f.created === "qualquer" ? 0 : 1) + (f.due === "qualquer" ? 0 : 1);
+  }
   return 0;
 }
+
+const SUB_TITLE: Record<NonNullable<Row["submenu"]>, string> = {
+  status: "Status",
+  assignee: "Responsável",
+  cliente: "Cliente",
+  datas: "Datas",
+  prioridade: "Prioridade",
+  etiquetas: "Etiquetas",
+  criador: "Criador",
+};
 
 function SubMenu({
   kind,
@@ -203,6 +234,8 @@ function SubMenu({
   onBack,
   assignees,
   clients,
+  creators,
+  labels,
 }: {
   kind: NonNullable<Row["submenu"]>;
   filters: Filters;
@@ -210,15 +243,10 @@ function SubMenu({
   onBack: () => void;
   assignees: string[];
   clients: string[];
+  creators: string[];
+  labels: string[];
 }) {
-  const title =
-    kind === "status"
-      ? "Status"
-      : kind === "assignee"
-        ? "Responsável"
-        : kind === "cliente"
-          ? "Cliente"
-          : "Datas";
+  const title = SUB_TITLE[kind];
 
   return (
     <>
@@ -272,17 +300,78 @@ function SubMenu({
             />
           ))}
 
-        {kind === "datas" &&
-          DATE_OPTIONS.map((d) => (
+        {kind === "prioridade" &&
+          PRIORITIES.map((p) => (
             <OptionRow
-              key={d.id}
-              label={d.label}
-              selected={filters.created === d.id}
+              key={p.id}
+              label={p.label}
+              selected={filters.priority.includes(p.id)}
               onClick={() =>
-                onChange({ ...filters, created: d.id as DateRange })
+                onChange({
+                  ...filters,
+                  priority: toggleIn<TaskPriority>(filters.priority, p.id),
+                })
               }
             />
           ))}
+
+        {kind === "criador" &&
+          (creators.length === 0 ? (
+            <EmptySub note="Nenhum criador registrado ainda." />
+          ) : (
+            creators.map((c) => (
+              <OptionRow
+                key={c}
+                label={c}
+                selected={filters.creator.includes(c)}
+                onClick={() =>
+                  onChange({ ...filters, creator: toggleIn(filters.creator, c) })
+                }
+              />
+            ))
+          ))}
+
+        {kind === "etiquetas" &&
+          (labels.length === 0 ? (
+            <EmptySub note="Nenhuma etiqueta em uso. Crie uma na tarefa." />
+          ) : (
+            labels.map((l) => (
+              <OptionRow
+                key={l}
+                label={"#" + l}
+                selected={filters.labels.includes(l)}
+                onClick={() =>
+                  onChange({ ...filters, labels: toggleIn(filters.labels, l) })
+                }
+              />
+            ))
+          ))}
+
+        {kind === "datas" && (
+          <>
+            <SubHeading>Criação</SubHeading>
+            {DATE_OPTIONS.map((d) => (
+              <OptionRow
+                key={d.id}
+                label={d.label}
+                selected={filters.created === d.id}
+                onClick={() =>
+                  onChange({ ...filters, created: d.id as DateRange })
+                }
+              />
+            ))}
+            <Divider />
+            <SubHeading>Prazo interno</SubHeading>
+            {DUE_OPTIONS.map((d) => (
+              <OptionRow
+                key={d.id}
+                label={d.label}
+                selected={filters.due === d.id}
+                onClick={() => onChange({ ...filters, due: d.id as DueRange })}
+              />
+            ))}
+          </>
+        )}
       </div>
     </>
   );
@@ -357,6 +446,18 @@ function OptionRow({
       />
     </button>
   );
+}
+
+function SubHeading({ children }: { children: string }) {
+  return (
+    <p className="px-2.5 pb-1 pt-1.5 text-[10px] font-semibold tracking-[0.4px] text-faint">
+      {children.toUpperCase()}
+    </p>
+  );
+}
+
+function EmptySub({ note }: { note: string }) {
+  return <p className="px-2.5 py-3 text-[12px] text-muted">{note}</p>;
 }
 
 function Divider() {

@@ -4,10 +4,32 @@ import {
   updateTask,
   ValidationError,
 } from "@/lib/tasks/repository";
+import type { TaskPatch } from "@/lib/tasks/types";
 
 export const dynamic = "force-dynamic";
 
 type Ctx = { params: Promise<{ id: string }> };
+
+/** Só estes campos podem vir do cliente — `creator` e `createdAt` não. */
+const EDITABLE = [
+  "title",
+  "client",
+  "status",
+  "assignee",
+  "description",
+  "priority",
+  "labels",
+  "dueDate",
+] as const;
+
+function pickPatch(body: unknown): TaskPatch {
+  const input = (body ?? {}) as Record<string, unknown>;
+  const patch: Record<string, unknown> = {};
+  for (const key of EDITABLE) {
+    if (input[key] !== undefined) patch[key] = input[key];
+  }
+  return patch as TaskPatch;
+}
 
 export async function PATCH(req: Request, { params }: Ctx) {
   const { id } = await params;
@@ -18,7 +40,7 @@ export async function PATCH(req: Request, { params }: Ctx) {
     return NextResponse.json({ error: "JSON inválido." }, { status: 400 });
   }
   try {
-    const task = await updateTask(id, (body ?? {}) as never);
+    const task = await updateTask(id, pickPatch(body));
     if (!task) {
       return NextResponse.json({ error: "Tarefa não encontrada." }, { status: 404 });
     }

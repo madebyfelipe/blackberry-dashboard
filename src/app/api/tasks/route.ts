@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createTask, listTasks, ValidationError } from "@/lib/tasks/repository";
+import { currentUser } from "@/lib/auth/session";
 
 export const dynamic = "force-dynamic";
 
@@ -15,16 +16,31 @@ export async function POST(req: Request) {
   } catch {
     return NextResponse.json({ error: "JSON inválido." }, { status: 400 });
   }
-  const { title, client, status, assignee } = (body ?? {}) as Record<
-    string,
-    unknown
-  >;
+  const {
+    title,
+    client,
+    status,
+    assignee,
+    description,
+    priority,
+    labels,
+    dueDate,
+  } = (body ?? {}) as Record<string, unknown>;
+
+  // O criador vem da sessão, nunca do corpo da requisição.
+  const user = await currentUser();
+
   try {
     const task = await createTask({
       title: String(title ?? ""),
       client: String(client ?? ""),
       status: status as never,
       assignee: assignee === undefined ? undefined : String(assignee),
+      description: description === undefined ? undefined : String(description),
+      priority: priority as never,
+      labels: labels as never,
+      creator: user?.name,
+      dueDate: dueDate as never,
     });
     return NextResponse.json({ task }, { status: 201 });
   } catch (err) {

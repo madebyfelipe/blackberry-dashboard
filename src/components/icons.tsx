@@ -615,3 +615,39 @@ export function LockIcon(p: IconProps) {
     </Svg>
   );
 }
+
+export function LogOutIcon(p: IconProps) {
+  return (
+    <Svg {...p}>
+      <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+      <path d="m16 17 5-5-5-5M21 12H9" />
+    </Svg>
+  );
+}
+
+export function FilmIcon(p: IconProps) {
+  return (
+    <Svg {...p}>
+      <rect width="18" height="18" x="3" y="3" rx="2" />
+      <path d="M7 3v18M17 3v18M3 7.5h4M3 12h18M3 16.5h4M17 7.5h4M17 16.5h4" />
+    </Svg>
+  );
+}
+
+export function ReplaceIcon(p: IconProps) {
+  return (
+    <Svg {...p}>
+      <path d="M14 4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v4a2 2 0 0 1-2 2" />
+      <path d="M10 20a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2v-4a2 2 0 0 1 2-2" />
+      <path d="M3 7.5 5.5 5 3 2.5M21 16.5 18.5 19l2.5 2.5" />
+    </Svg>
+  );
+}
+
+export function SignalHighIcon(p: IconProps) {
+  return (
+    <Svg {...p}>
+      <path d="M4 20v-3M10 20v-7M16 20V8M22 20V4" />
+    </Svg>
+  );
+}

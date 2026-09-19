@@ -3,12 +3,21 @@
 import { useState } from "react";
 import type { Task, TaskStatus } from "@/lib/tasks/types";
 import { STATUS_BY_ID } from "@/lib/tasks/constants";
-import { groupTasks, type ColumnKey, type Group, type GroupKey } from "@/lib/tasks/view";
+import {
+  groupTasks,
+  isOverdue,
+  type ColumnKey,
+  type Group,
+  type GroupKey,
+} from "@/lib/tasks/view";
+import { PRIORITY_BY_ID, isRealPriority } from "@/lib/tasks/priority";
 import { formatShortDate } from "@/lib/format";
 import { Avatar } from "@/components/ui/Avatar";
 import { StatusMenu } from "./StatusMenu";
 import { ActionMenu } from "./ActionMenu";
+import { PriorityBars } from "./TaskModal";
 import { TrashIcon, ExternalLinkIcon } from "@/components/icons";
+import { cn } from "@/lib/cn";
 
 /*
  * Lista · tabela. O corpo é transparente desde o design system v2 (o export
@@ -54,6 +63,21 @@ export function TaskTable({
         {has("assignee") && (
           <div className="w-[130px] shrink-0 text-[12px] font-semibold tracking-[0.3px] text-muted">
             RESPONSÁVEL
+          </div>
+        )}
+        {has("priority") && (
+          <div className="w-[110px] shrink-0 text-[12px] font-semibold tracking-[0.3px] text-muted">
+            PRIORIDADE
+          </div>
+        )}
+        {has("labels") && (
+          <div className="w-[150px] shrink-0 text-[12px] font-semibold tracking-[0.3px] text-muted">
+            ETIQUETAS
+          </div>
+        )}
+        {has("dueDate") && (
+          <div className="w-[90px] shrink-0 text-[12px] font-semibold tracking-[0.3px] text-muted">
+            PRAZO
           </div>
         )}
         {has("createdAt") && (
@@ -139,11 +163,12 @@ function Rows({
 
   return (
     <>
-      {visible.map((t) => (
+      {visible.map((t, i) => (
         <div
           key={t.id}
           onClick={() => onOpen(t)}
-          className="group flex cursor-pointer items-center gap-4 border-b border-border px-4 py-3.5 transition-colors last:border-b-0 hover:bg-surface"
+          style={{ ["--d" as string]: i }}
+          className="stagger-item group flex cursor-pointer items-center gap-4 border-b border-border px-4 py-3.5 transition-colors last:border-b-0 hover:bg-surface"
         >
           <div className="flex min-w-0 flex-1 items-center gap-3">
             <span
@@ -174,6 +199,50 @@ function Rows({
           {has("assignee") && (
             <div className="w-[130px] shrink-0">
               <Avatar initial={t.assignee} />
+            </div>
+          )}
+          {has("priority") && (
+            <div className="flex w-[110px] shrink-0 items-center gap-2">
+              {isRealPriority(t.priority) ? (
+                <>
+                  <PriorityBars bars={PRIORITY_BY_ID[t.priority].bars} />
+                  <span className="truncate text-[13px] text-fg-2">
+                    {PRIORITY_BY_ID[t.priority].label}
+                  </span>
+                </>
+              ) : (
+                <span className="text-[13px] text-faint">—</span>
+              )}
+            </div>
+          )}
+          {has("labels") && (
+            <div className="flex w-[150px] shrink-0 flex-wrap gap-1 overflow-hidden">
+              {t.labels.length === 0 ? (
+                <span className="text-[13px] text-faint">—</span>
+              ) : (
+                t.labels.slice(0, 2).map((l) => (
+                  <span
+                    key={l}
+                    className="rounded-pill bg-border px-2 py-0.5 text-[11px] text-fg-3"
+                  >
+                    #{l}
+                  </span>
+                ))
+              )}
+              {t.labels.length > 2 && (
+                <span className="text-[11px] text-faint">+{t.labels.length - 2}</span>
+              )}
+            </div>
+          )}
+          {has("dueDate") && (
+            <div
+              className={cn(
+                "w-[90px] shrink-0 text-[13px]",
+                isOverdue(t) ? "font-semibold text-fg" : "text-muted",
+              )}
+              title={isOverdue(t) ? "Prazo vencido" : undefined}
+            >
+              {t.dueDate ? formatShortDate(t.dueDate) : "—"}
             </div>
           )}
           {has("createdAt") && (
