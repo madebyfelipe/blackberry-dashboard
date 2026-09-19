@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { updatePieceDraft } from "@/lib/approval/repository";
 import { PIECE_CHANNELS, PIECE_FORMATS } from "@/lib/approval/constants";
 import type { PieceChannel, PieceDraftPatch, PieceFormat } from "@/lib/approval/types";
+import { requireUser, unauthorized } from "@/lib/auth/session";
 
 export const dynamic = "force-dynamic";
 
@@ -12,6 +13,7 @@ export async function PATCH(
   req: Request,
   { params }: { params: Promise<{ id: string; pieceId: string }> },
 ) {
+  if (!(await requireUser())) return unauthorized("Faça login para editar o lote.");
   const { id, pieceId } = await params;
 
   let body: Record<string, unknown>;

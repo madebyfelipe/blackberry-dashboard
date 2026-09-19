@@ -1,15 +1,20 @@
 import { NextResponse } from "next/server";
 import { createTask, listTasks, ValidationError } from "@/lib/tasks/repository";
-import { currentUser } from "@/lib/auth/session";
+import { requireUser, unauthorized } from "@/lib/auth/session";
 
 export const dynamic = "force-dynamic";
 
 export async function GET() {
+  if (!(await requireUser())) return unauthorized();
   const tasks = await listTasks();
   return NextResponse.json({ tasks });
 }
 
 export async function POST(req: Request) {
+  // O criador vem da sessão, nunca do corpo da requisição.
+  const user = await requireUser();
+  if (!user) return unauthorized();
+
   let body: unknown;
   try {
     body = await req.json();
@@ -27,9 +32,6 @@ export async function POST(req: Request) {
     dueDate,
   } = (body ?? {}) as Record<string, unknown>;
 
-  // O criador vem da sessão, nunca do corpo da requisição.
-  const user = await currentUser();
-
   try {
     const task = await createTask({
       title: String(title ?? ""),
@@ -39,7 +41,7 @@ export async function POST(req: Request) {
       description: description === undefined ? undefined : String(description),
       priority: priority as never,
       labels: labels as never,
-      creator: user?.name,
+      creator: user.name,
       dueDate: dueDate as never,
     });
     return NextResponse.json({ task }, { status: 201 });

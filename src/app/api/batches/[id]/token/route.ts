@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { regenerateBatchToken, setBatchLinkRevoked } from "@/lib/approval/repository";
+import { requireUser, unauthorized } from "@/lib/auth/session";
 
 export const dynamic = "force-dynamic";
 
@@ -10,6 +11,8 @@ export async function POST(
   req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
+  // Gerar/revogar link é ação da agência — nunca de quem tem só o link.
+  if (!(await requireUser())) return unauthorized("Faça login para gerenciar o link.");
   const { id } = await params;
   let body: Record<string, unknown>;
   try {

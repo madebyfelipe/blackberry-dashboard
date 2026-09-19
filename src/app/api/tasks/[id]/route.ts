@@ -5,6 +5,7 @@ import {
   ValidationError,
 } from "@/lib/tasks/repository";
 import type { TaskPatch } from "@/lib/tasks/types";
+import { requireUser, unauthorized } from "@/lib/auth/session";
 
 export const dynamic = "force-dynamic";
 
@@ -32,6 +33,7 @@ function pickPatch(body: unknown): TaskPatch {
 }
 
 export async function PATCH(req: Request, { params }: Ctx) {
+  if (!(await requireUser())) return unauthorized();
   const { id } = await params;
   let body: unknown;
   try {
@@ -54,6 +56,7 @@ export async function PATCH(req: Request, { params }: Ctx) {
 }
 
 export async function DELETE(_req: Request, { params }: Ctx) {
+  if (!(await requireUser())) return unauthorized();
   const { id } = await params;
   const ok = await deleteTask(id);
   if (!ok) {

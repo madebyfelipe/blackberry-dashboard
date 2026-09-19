@@ -1,4 +1,5 @@
 import { cookies } from "next/headers";
+import { NextResponse } from "next/server";
 import { getUserById } from "./repository";
 import { SESSION_COOKIE, SESSION_MAX_AGE, signSession, verifySession } from "./token";
 import type { PublicUser } from "./types";
@@ -36,8 +37,17 @@ export async function currentUser(): Promise<PublicUser | undefined> {
 
 /**
  * Para rotas de API que exigem login. Devolve o usuário ou `null` — quem
- * chama responde 401. (As telas autenticadas já são barradas pelo proxy.)
+ * chama responde com `unauthorized()`.
+ *
+ * O `proxy.ts` barra as telas, mas não as rotas de API (o matcher deixa
+ * `/api` de fora de propósito: `/api/approve/<token>` e `/api/media/<id>`
+ * são públicas por desenho). Então cada rota da agência checa aqui.
  */
 export async function requireUser(): Promise<PublicUser | null> {
   return (await currentUser()) ?? null;
+}
+
+/** Resposta padrão para quem chamou a API sem sessão. */
+export function unauthorized(message = "Faça login para continuar."): NextResponse {
+  return NextResponse.json({ error: message }, { status: 401 });
 }
