@@ -16,6 +16,9 @@ import {
 } from "@/lib/approval/constants";
 import { Breadcrumb } from "@/components/ui/Breadcrumb";
 import { PieceThumb } from "./PieceThumb";
+import { Popover } from "./Popover";
+import { RoundIconButton } from "./RoundIconButton";
+import { ScreenHeader } from "./ScreenHeader";
 import { useToast } from "@/components/ui/Toast";
 import { ActionMenu } from "@/components/tasks/ActionMenu";
 import {
@@ -38,6 +41,11 @@ type Filter = "todas" | PieceStatus;
  * Lote (visão agência) — export "Clínica Aurora · Lote".
  * Cabeçalho com título + ações redondas, chips de status, grade de peças à
  * esquerda e painel de detalhe encostado na borda direita.
+ *
+ * O cabeçalho, o botão redondo e o menu flutuante são os mesmos objetos do
+ * editor (`ScreenHeader`, `RoundIconButton`, `Popover`): as duas telas
+ * precisavam da mesma altura e da mesma escala de título, e compartilhar os
+ * componentes é o que impede que voltem a divergir.
  */
 export function LoteView({ initialBatch }: { initialBatch: Batch }) {
   const { toast } = useToast();
@@ -182,146 +190,142 @@ export function LoteView({ initialBatch }: { initialBatch: Batch }) {
       />
 
       {/* Header Row */}
-      <div className="flex flex-wrap items-center justify-between gap-4">
-        <div className="flex flex-col gap-1.5">
-          <h1 className="text-[24px] font-bold text-fg">{batch.label}</h1>
-          <p className="text-[13px] text-muted">
+      <ScreenHeader
+        title={batch.label}
+        subtitle={
+          <>
             {batch.client} · {progress.total}{" "}
-            {progress.total === 1 ? "peça" : "peças"} ·{" "}
-            {progress.pendentes} aguardando aprovação
-          </p>
-        </div>
+            {progress.total === 1 ? "peça" : "peças"} · {progress.pendentes}{" "}
+            aguardando aprovação
+          </>
+        }
+      >
+        {linkStatus !== "ativo" && (
+          <span className="rounded-pill bg-border-strong px-3 py-1.5 text-[12px] font-medium text-fg-soft">
+            Link {linkStatus}
+          </span>
+        )}
 
-        <div className="flex shrink-0 items-center gap-2">
-          {linkStatus !== "ativo" && (
-            <span className="rounded-pill bg-border-strong px-3 py-1.5 text-[12px] font-medium text-fg-soft">
-              Link {linkStatus}
-            </span>
-          )}
-
-          {/* Filtro por formato */}
-          <div className="relative shrink-0">
-            <RoundBtn
+        {/* Filtro por formato */}
+        <Popover
+          open={showFormats}
+          onClose={() => setShowFormats(false)}
+          trigger={
+            <RoundIconButton
               label="Filtrar por formato"
               onClick={() => setShowFormats((v) => !v)}
               active={showFormats || formatFilter.length > 0}
+              expanded={showFormats}
+              badge={formatFilter.length || undefined}
             >
               <SlidersIcon size={18} />
-            </RoundBtn>
-            {showFormats && (
-              <>
-                <div
-                  className="fixed inset-0 z-40"
-                  onClick={() => setShowFormats(false)}
-                />
-                <div className="absolute right-0 top-[calc(100%+8px)] z-50 w-[200px] animate-pop-in rounded-[16px] border border-border bg-surface-2 p-1.5 shadow-[0_16px_40px_rgba(0,0,0,0.55)]">
-                  {PIECE_FORMATS.map((f) => {
-                    const on = formatFilter.includes(f.label);
-                    return (
-                      <button
-                        key={f.id}
-                        type="button"
-                        onClick={() =>
-                          setFormatFilter((list) =>
-                            on
-                              ? list.filter((l) => l !== f.label)
-                              : [...list, f.label],
-                          )
-                        }
-                        className="flex w-full items-center justify-between rounded-[12px] px-2.5 py-2 text-left text-[13px] text-fg-soft hover:bg-border"
-                      >
-                        <span>{f.label}</span>
-                        {on && <CheckIcon size={14} />}
-                      </button>
-                    );
-                  })}
-                </div>
-              </>
-            )}
-          </div>
-
-          {/* Busca — abre por cima, o botão não sai do lugar */}
-          <div className="relative shrink-0">
-            {showSearch && (
-              <input
-                autoFocus
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                onBlur={() => !search && setShowSearch(false)}
-                onKeyDown={(e) => {
-                  if (e.key === "Escape") {
-                    setSearch("");
-                    setShowSearch(false);
+            </RoundIconButton>
+          }
+        >
+          <div className="w-[200px] animate-pop-in rounded-[16px] border border-border bg-surface-2 p-1.5 shadow-[0_16px_40px_rgba(0,0,0,0.55)]">
+            {PIECE_FORMATS.map((f) => {
+              const on = formatFilter.includes(f.label);
+              return (
+                <button
+                  key={f.id}
+                  type="button"
+                  aria-pressed={on}
+                  onClick={() =>
+                    setFormatFilter((list) =>
+                      on ? list.filter((l) => l !== f.label) : [...list, f.label],
+                    )
                   }
-                }}
-                placeholder="Buscar peça…"
-                className="absolute right-0 top-1/2 h-10 w-[240px] -translate-y-1/2 animate-fade-in rounded-pill border border-border bg-surface pl-4 pr-12 text-[13px] text-fg-soft placeholder:text-muted focus:border-border-strong focus:outline-none"
-              />
-            )}
-            <RoundBtn
-              label="Buscar peça"
-              onClick={() => setShowSearch((v) => !v)}
-              active={showSearch || !!search}
-            >
-              <SearchIcon size={18} />
-            </RoundBtn>
+                  className="flex w-full items-center justify-between rounded-[12px] px-2.5 py-2 text-left text-[13px] text-fg-soft hover:bg-border"
+                >
+                  <span>{f.label}</span>
+                  {on && <CheckIcon size={14} />}
+                </button>
+              );
+            })}
           </div>
+        </Popover>
 
-          <ActionMenu
-            triggerClassName="h-10 w-10 bg-surface text-fg-soft hover:bg-surface-2"
-            menuClassName="w-[208px]"
-            items={[
-              {
-                label: "Enviar por WhatsApp",
-                icon: <MessageCircleIcon size={15} />,
-                onSelect: () => share("whatsapp"),
-              },
-              {
-                label: "Enviar por e-mail",
-                icon: <InboxIcon size={15} />,
-                onSelect: () => share("email"),
-              },
-              {
-                label: "Copiar mensagem",
-                icon: <SendIcon size={15} />,
-                onSelect: copyMessage,
-              },
-              {
-                label: "Abrir link público",
-                icon: <ExternalLinkIcon size={15} />,
-                divider: true,
-                onSelect: () => window.open(`/a/${batch.token}`, "_blank"),
-              },
-              {
-                label: "Gerar novo link",
-                icon: <RotateIcon size={15} />,
-                onSelect: () => manageLink("regenerate"),
-              },
-              linkStatus === "revogado"
-                ? {
-                    label: "Reativar link",
-                    icon: <ExternalLinkIcon size={15} />,
-                    onSelect: () => manageLink("reactivate"),
-                  }
-                : {
-                    label: "Desativar link",
-                    icon: <XIcon size={15} />,
-                    danger: true,
-                    onSelect: () => manageLink("revoke"),
-                  },
-            ]}
-          />
-
-          <button
-            type="button"
-            onClick={copyLink}
-            disabled={linkStatus !== "ativo"}
-            className="flex h-10 shrink-0 items-center gap-2 rounded-pill bg-primary px-5 text-[14px] font-semibold text-[#111111] transition-colors hover:bg-white disabled:cursor-not-allowed disabled:opacity-50"
+        {/* Busca — abre por cima, o botão não sai do lugar */}
+        <div className="relative shrink-0">
+          {showSearch && (
+            <input
+              autoFocus
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              onBlur={() => !search && setShowSearch(false)}
+              onKeyDown={(e) => {
+                if (e.key === "Escape") {
+                  setSearch("");
+                  setShowSearch(false);
+                }
+              }}
+              placeholder="Buscar peça…"
+              className="absolute right-0 top-1/2 h-10 w-[240px] -translate-y-1/2 animate-fade-in rounded-pill border border-border bg-surface pl-4 pr-12 text-[13px] text-fg-soft placeholder:text-muted focus:border-border-strong focus:outline-none"
+            />
+          )}
+          <RoundIconButton
+            label="Buscar peça"
+            onClick={() => setShowSearch((v) => !v)}
+            active={showSearch || !!search}
           >
-            <CopyIcon size={16} /> Copiar link
-          </button>
+            <SearchIcon size={18} />
+          </RoundIconButton>
         </div>
-      </div>
+
+        <ActionMenu
+          triggerClassName="h-10 w-10 bg-surface text-fg-soft hover:bg-surface-2"
+          menuClassName="w-[208px]"
+          items={[
+            {
+              label: "Enviar por WhatsApp",
+              icon: <MessageCircleIcon size={15} />,
+              onSelect: () => share("whatsapp"),
+            },
+            {
+              label: "Enviar por e-mail",
+              icon: <InboxIcon size={15} />,
+              onSelect: () => share("email"),
+            },
+            {
+              label: "Copiar mensagem",
+              icon: <SendIcon size={15} />,
+              onSelect: copyMessage,
+            },
+            {
+              label: "Abrir link público",
+              icon: <ExternalLinkIcon size={15} />,
+              divider: true,
+              onSelect: () => window.open(`/a/${batch.token}`, "_blank"),
+            },
+            {
+              label: "Gerar novo link",
+              icon: <RotateIcon size={15} />,
+              onSelect: () => manageLink("regenerate"),
+            },
+            linkStatus === "revogado"
+              ? {
+                  label: "Reativar link",
+                  icon: <ExternalLinkIcon size={15} />,
+                  onSelect: () => manageLink("reactivate"),
+                }
+              : {
+                  label: "Desativar link",
+                  icon: <XIcon size={15} />,
+                  danger: true,
+                  onSelect: () => manageLink("revoke"),
+                },
+          ]}
+        />
+
+        <button
+          type="button"
+          onClick={copyLink}
+          disabled={linkStatus !== "ativo"}
+          className="tap flex h-10 shrink-0 items-center gap-2 rounded-pill bg-primary px-5 text-[14px] font-semibold text-[#111111] transition-colors hover:bg-white disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          <CopyIcon size={16} /> Copiar link
+        </button>
+      </ScreenHeader>
 
       {/* Chips */}
       <div className="flex flex-wrap items-center gap-2">
@@ -342,10 +346,14 @@ export function LoteView({ initialBatch }: { initialBatch: Batch }) {
         ))}
       </div>
 
-      {/* Body */}
-      <div className="flex min-h-0 flex-1 flex-col gap-6 lg:flex-row lg:gap-0">
+      {/*
+       * Body — no desktop as duas colunas rolam por dentro; no celular elas
+       * empilham e quem rola é o corpo inteiro (com `flex-1` em cada uma, a
+       * grade era espremida até sumir numa tela de 390px).
+       */}
+      <div className="flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto lg:flex-row lg:gap-0 lg:overflow-hidden">
         {/* Grade de peças */}
-        <div className="min-h-0 flex-1 overflow-y-auto pt-1 lg:pr-6">
+        <div className="shrink-0 pt-1 lg:min-h-0 lg:flex-1 lg:overflow-y-auto lg:pr-6">
           {filtered.length === 0 ? (
             <p className="py-10 text-center text-[13px] text-muted">
               Nenhuma peça com esses filtros.
@@ -385,7 +393,7 @@ export function LoteView({ initialBatch }: { initialBatch: Batch }) {
         </div>
 
         {/* Painel de detalhe */}
-        <aside className="flex min-h-0 w-full shrink-0 flex-col gap-[18px] overflow-y-auto pt-1 lg:w-[300px] lg:border-l lg:border-border lg:pl-6">
+        <aside className="flex w-full shrink-0 flex-col gap-[18px] pt-1 lg:min-h-0 lg:w-[300px] lg:overflow-y-auto lg:border-l lg:border-border lg:pl-6">
           {selected ? (
             <DetailPanel
               piece={selected}
@@ -404,34 +412,6 @@ export function LoteView({ initialBatch }: { initialBatch: Batch }) {
         </aside>
       </div>
     </div>
-  );
-}
-
-function RoundBtn({
-  children,
-  label,
-  onClick,
-  active,
-}: {
-  children: React.ReactNode;
-  label: string;
-  onClick: () => void;
-  active?: boolean;
-}) {
-  return (
-    <button
-      type="button"
-      aria-label={label}
-      title={label}
-      onClick={onClick}
-      className={cn(
-        // shrink-0 mantém o botão redondo mesmo quando a linha aperta.
-        "relative z-10 flex h-10 w-10 shrink-0 items-center justify-center rounded-full transition-colors",
-        active ? "bg-border-strong text-fg" : "bg-surface text-fg-soft hover:bg-surface-2",
-      )}
-    >
-      {children}
-    </button>
   );
 }
 
@@ -477,7 +457,7 @@ function DetailPanel({
       <MetaRow k="Responsável" v={owner} />
 
       {piece.reason && (
-        <p className="rounded-panel border border-border bg-surface p-3 text-[12px] text-fg-2">
+        <p className="border-l border-border-strong pl-3 text-[12px]/[18px] text-fg-2">
           <span className="text-muted">Motivo do ajuste: </span>
           {piece.reason}
         </p>
