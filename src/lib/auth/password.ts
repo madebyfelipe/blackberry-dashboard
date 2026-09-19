@@ -42,7 +42,15 @@ export async function verifyPassword(
   const [scheme, saltHex, hashHex] = stored.split("$");
   if (scheme !== "scrypt" || !saltHex || !hashHex) return false;
   const expected = Buffer.from(hashHex, "hex");
-  const actual = await scrypt(password, Buffer.from(saltHex, "hex"), expected.length);
+  const salt = Buffer.from(saltHex, "hex");
+  /*
+   * Hash ou salt ilegíveis (registro corrompido ou adulterado à mão, ex.
+   * "scrypt$aa$zz"): `Buffer.from(..., "hex")` devolve vazio em vez de falhar,
+   * e aí o scrypt geraria 0 bytes — `timingSafeEqual` compararia nada com nada
+   * e aprovaria QUALQUER senha. Recusar é o único caminho seguro.
+   */
+  if (expected.length === 0 || salt.length === 0) return false;
+  const actual = await scrypt(password, salt, expected.length);
   // Comprimentos diferentes fariam timingSafeEqual lançar.
   if (actual.length !== expected.length) return false;
   return timingSafeEqual(actual, expected);
