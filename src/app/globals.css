@@ -94,6 +94,35 @@ body {
   color: var(--color-muted);
 }
 
+/*
+ * Barra de rolagem sempre visível, em vez do "overlay scrollbar" do sistema
+ * — em boa parte das instalações recentes de Windows/Chrome ela não aparece
+ * nunca em estado parado, e um painel cheio (a grade de peças do Lote, a
+ * tira do editor, os menus mais longos) parece cortado em vez de rolável.
+ * Fina e discreta, nos tokens do produto — não é um elemento de UI, é o
+ * mínimo para "role para ver mais" continuar óbvio.
+ */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-border-strong) transparent;
+}
+*::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+*::-webkit-scrollbar-thumb {
+  background-color: var(--color-border-strong);
+  background-clip: padding-box;
+  border: 2px solid transparent;
+  border-radius: 999px;
+}
+*::-webkit-scrollbar-thumb:hover {
+  background-color: var(--color-fg-3);
+}
+
 /* Motion — subtle, consistent with the calm mono aesthetic. */
 @keyframes toast-in {
   from {

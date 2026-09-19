@@ -19,6 +19,7 @@ import { PieceThumb } from "./PieceThumb";
 import { Popover } from "./Popover";
 import { RoundIconButton } from "./RoundIconButton";
 import { ScreenHeader } from "./ScreenHeader";
+import { ScrollFade } from "./ScrollFade";
 import { useToast } from "@/components/ui/Toast";
 import { ActionMenu } from "@/components/tasks/ActionMenu";
 import {
@@ -372,7 +373,10 @@ export function LoteView({ initialBatch }: { initialBatch: Batch }) {
        */}
       <div className="flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto lg:flex-row lg:gap-0 lg:overflow-hidden">
         {/* Grade de peças */}
-        <div className="shrink-0 overflow-x-hidden pt-1 lg:min-h-0 lg:flex-1 lg:overflow-y-auto lg:pr-6">
+        <ScrollFade
+          wrapperClassName="shrink-0 lg:flex-1"
+          className="overflow-x-hidden pt-1 lg:overflow-y-auto lg:pr-6"
+        >
           {filtered.length === 0 ? (
             <p className="py-10 text-center text-[13px] text-muted">
               Nenhuma peça com esses filtros.
@@ -422,10 +426,13 @@ export function LoteView({ initialBatch }: { initialBatch: Batch }) {
               ))}
             </div>
           )}
-        </div>
+        </ScrollFade>
 
         {/* Painel de detalhe */}
-        <aside className="flex w-full shrink-0 flex-col gap-[18px] overflow-x-hidden pt-1 lg:min-h-0 lg:w-[300px] lg:overflow-y-auto lg:border-l lg:border-border lg:pl-6">
+        <ScrollFade
+          wrapperClassName="w-full shrink-0 lg:w-[300px]"
+          className="flex flex-col gap-[18px] overflow-x-hidden pt-1 lg:overflow-y-auto lg:border-l lg:border-border lg:pl-6"
+        >
           {selected ? (
             <DetailPanel
               piece={selected}
@@ -441,7 +448,7 @@ export function LoteView({ initialBatch }: { initialBatch: Batch }) {
               Selecione uma peça para ver os detalhes.
             </p>
           )}
-        </aside>
+        </ScrollFade>
       </div>
     </div>
   );
