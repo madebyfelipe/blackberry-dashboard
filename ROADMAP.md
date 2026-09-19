@@ -1,6 +1,6 @@
 # Roadmap — black berry
 
-Documento vivo. Marca o que já existe, o que falta **desenhar** (você) e o que falta **construir** (Claude), até o fim do projeto. Última atualização: **19 set 2026** (auth real, upload de mídia, campos ricos da tarefa e a camada de movimento).
+Documento vivo. Marca o que já existe, o que falta **desenhar** (você) e o que falta **construir** (Claude), até o fim do projeto. Última atualização: **19 set 2026** (auth real, upload de mídia, campos ricos da tarefa, camada de movimento, shell que cabe no celular, testes + CI).
 
 Legenda: ✅ pronto · 🟡 parcial/placeholder · ⬜ não começado · 🎨 precisa de tela sua antes de eu construir
 
@@ -14,6 +14,7 @@ Legenda: ✅ pronto · 🟡 parcial/placeholder · ⬜ não começado · 🎨 pr
 - ✅ Camada de dados com `repository`/`store` (JSON + fallback memória) e API REST
 - ✅ Sistema de toasts + animações (fade/drawer/pop) + `prefers-reduced-motion`
 - ✅ **Camada de movimento** (`globals.css`): curva única de entrada, cascata de listas por `--d`, troca de tela (`template.tsx`), esqueletos (`loading.tsx`) e feedback de toque (`.tap`) — só `transform`/`opacity`
+- ✅ **Shell que cabe no celular**: a lateral fixa de 256px virava 86px de conteúdo em 390px — agora é barra de topo + gaveta abaixo de `md` (provisório até existir desenho de mobile)
 - ✅ **Store de arquivo compartilhado** (`lib/store/json-file.ts`) com revalidação por mtime — `next start` roda vários workers, e sem isso a tela renderizada por um worker não via o que o outro acabou de gravar
 
 ## Fase 1 — Aprovação de conteúdo (prioridade absoluta)
@@ -59,12 +60,13 @@ Legenda: ✅ pronto · 🟡 parcial/placeholder · ⬜ não começado · 🎨 pr
 ## Transversal / Plataforma
 - ✅ **Auth real** (e-mail/senha p/ agência + token p/ cliente): scrypt, cookie httpOnly assinado por HMAC, `proxy.ts` protegendo o shell, login/cadastro/recuperação, sair e troca de senha
 - 🟡 Recuperação de senha registra o pedido, mas **não envia e-mail** (falta provedor)
+- ✅ **Trocar a senha derruba as sessões dos outros aparelhos** (versão da senha dentro do token, sem precisar de lista de sessões)
 - ⬜ **Multi-tenant** com isolamento por agência (Postgres + RLS conforme spec) — `User.agency` já existe como raiz
 - ⬜ Trocar `store.ts` por banco (Neon Postgres via `vercel:marketplace`) antes de produção
 - ⬜ Papéis/permissões (Coordenação, Social media, Designer, Cliente) — o papel é gravado, mas ainda não muda o que a pessoa pode fazer
 - ✅ **Configurações**: perfil, troca de senha e sessão
 - ⬜ Inbox, Equipe (hoje placeholders)
-- ⬜ Testes automatizados + CI
+- ✅ **Testes automatizados** (`tests/`, runner do próprio Node, 132 casos das funções puras) **+ CI** (`.github/workflows/ci.yml`: tipos, testes e build a cada push e pull request)
 
 ## Fora do MVP (não construir sem pedido)
 Agendamento/publicação automática · métricas de redes · financeiro · NF/boleto · timesheet · CRM de prospecção.
@@ -90,6 +92,7 @@ Agendamento/publicação automática · métricas de redes · financeiro · NF/b
 5. Começar CRM/Health Score (Fase 3).
 
 ### Dívidas conhecidas
-- A senha nova não invalida sessões antigas (hoje existe uma sessão por cookie, sem lista de sessões).
+- `AUTH_SECRET` não está definido na Vercel: enquanto não estiver, o cookie de sessão é assinado com o segredo de desenvolvimento que está no repositório, e qualquer pessoa consegue forjar uma sessão. Tratar a instância como demonstração até resolver.
+- As telas de lote e editor ainda não foram adaptadas ao celular (o shell já foi).
 - O `json-file.ts` relê pelo mtime, mas dois processos ainda podem se sobrepor num leitura-altera-grava simultâneo: é o preço de arquivo como banco, e some com o Postgres.
 - As artes são servidas como foram enviadas, sem derivadas leves.

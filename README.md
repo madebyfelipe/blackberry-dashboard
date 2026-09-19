@@ -16,10 +16,29 @@ Três áreas: **aprovação de conteúdo** (diferencial), **gestão operacional 
 
 ```bash
 npm install
-npm run dev      # http://localhost:3000
-npm run build    # build de produção
+npm run dev        # http://localhost:3000
+npm run build      # build de produção
 npm run typecheck
+npm test           # testes das funções puras (node --test, sem build)
+npm run test:watch # o mesmo, refazendo a cada salvamento
 ```
+
+### Testes
+
+Os testes ficam em `tests/` e rodam no runner do próprio Node — nada de
+framework, transpilador ou build: o Node 22 lê TypeScript direto. O que ele não
+faz sozinho é entender o atalho `@/…` do tsconfig e os imports sem extensão do
+código-fonte; `tests/helpers/ts-resolve.mjs` cuida disso, então os testes
+importam os módulos exatamente como o app os importa.
+
+Cobrem as funções puras que sustentam o produto: sessão e senha, filtros e
+ordenações das tarefas, normalização no repositório, leitura de dimensões de
+imagem, régua de formatos das peças e a revalidação do store de arquivo. O que
+depende de requisição (route handlers, `next/headers`) fica de fora — esse
+caminho é conferido subindo o app.
+
+O mesmo trio roda no CI (`.github/workflows/ci.yml`) a cada push e pull
+request: `npm run typecheck`, `npm test` e `npm run build`.
 
 ### Entrar
 
@@ -68,6 +87,10 @@ O app só conversa com `repository.ts`, que só conversa com `store.ts`. Trocar 
 ## Sessão e rotas protegidas
 
 `src/proxy.ts` (Next 16 — o antigo `middleware.ts`) barra as telas do shell autenticado e devolve a pessoa ao destino original depois do login (`?next=`). Ficam de fora, de propósito: `/a/<token>` (aprovação do cliente, sem login) e `/api/media/<id>`, que precisa carregar as artes no navegador do cliente — o que protege a arte é o id de 16 bytes aleatórios.
+
+O matcher do proxy também deixa `/api` de fora, então cada rota da agência checa a sessão por conta própria (`requireUser()` de `src/lib/auth/session.ts`, que responde 401). As duas públicas continuam públicas: `POST /api/approve/<token>` e `GET /api/media/<id>`.
+
+**Trocar a senha derruba as sessões dos outros aparelhos.** O usuário tem uma `passwordVersion` que sobe a cada troca, e o token carrega a versão que valia quando foi emitido; `session.ts` compara as duas e recusa o que for anterior. Quem trocou continua logado, porque a rota reemite o cookie com a versão nova. O `proxy.ts` não participa dessa checagem (ele só confere a assinatura, porque não pode ler o store): quem foi recusado lá dentro chega ao login com `?sessao=encerrada`, e é aí que o proxy apaga o cookie morto.
 
 ## Movimento
 
