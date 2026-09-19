@@ -77,18 +77,25 @@ body {
 }
 
 /*
- * Escala do desktop — a 100% o app "respira menos" do que o Felipe queria;
- * no Ctrl+- do navegador, ~90% ficava melhor. `zoom` reproduz exatamente
- * isso (é uma escala de renderização, não uma unidade relativa — funciona
- * com os `px` do Tailwind sem reescrever nenhum componente) e só entra a
- * partir de `md`: o mobile já foi calibrado pixel a pixel e não precisa
- * de menos espaço, precisa do inverso.
+ * Não usar `zoom` no `html` para "compactar" o desktop.
+ *
+ * Tentamos `zoom: 0.9` a partir de `md` para reproduzir o Ctrl+- do
+ * navegador. Funciona para os `px`, mas NÃO para as unidades de viewport:
+ * por especificação, `vh`/`vw` continuam medindo o viewport real e só
+ * depois a renderização inteira é reduzida. Numa janela de 1440×900 o
+ * `h-screen` do shell (`app/(app)/layout.tsx`) passava a desenhar 810px
+ * dentro de 900 — 90px de faixa preta embaixo, e a sidebar com 14px de
+ * respiro no topo contra 104px no rodapé. O mesmo vale para todo `vh`/`vw`
+ * do produto (`max-h-[90vh]` do modal de tarefa, `max-w-[85vw]` da gaveta),
+ * que passavam a valer 0,9× o que dizem. Prender a cadeia de altura em
+ * `height: 100%` resolveria só o shell, dependendo de um detalhe recente da
+ * especificação (o bloco contendo inicial compensar o zoom da raiz) que se
+ * comporta de maneira diferente entre navegadores — e foi justamente no
+ * Firefox que o bug apareceu.
+ *
+ * Se a densidade do desktop voltar à pauta, o caminho é mexer nos tokens de
+ * espaçamento/tipografia, não na escala de renderização da raiz.
  */
-@media (min-width: 768px) {
-  html {
-    zoom: 0.9;
-  }
-}
 
 ::placeholder {
   color: var(--color-muted);
