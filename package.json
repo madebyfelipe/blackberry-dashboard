@@ -7,7 +7,9 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "node --import ./tests/helpers/register.mjs --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test \"tests/**/*.test.ts\"",
+    "test:watch": "node --import ./tests/helpers/register.mjs --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test --watch \"tests/**/*.test.ts\""
   },
   "dependencies": {
     "next": "^16.0.0",
