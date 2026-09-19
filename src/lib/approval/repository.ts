@@ -1,5 +1,12 @@
 import { read, transaction } from "./store";
-import { isBatchLinkActive, PIECE_FORMATS } from "./constants";
+import {
+  formatFromDimensions,
+  isBatchLinkActive,
+  PIECE_FORMATS,
+  sizeFromDimensions,
+} from "./constants";
+import { deleteMedia } from "@/lib/media/store";
+import type { MediaAsset } from "@/lib/media/types";
 import type {
   Batch,
   DecisionEvent,
@@ -99,27 +106,44 @@ export async function updatePieceDraft(
   });
 }
 
-/** Cria uma peça vazia no fim do lote ("Adicionar peça" no editor). */
-export async function addPiece(batchId: string): Promise<Piece | undefined> {
+/**
+ * Cria uma peça no fim do lote ("Adicionar peça" no editor).
+ *
+ * Com `media`, a peça nasce da arte enviada: nome do arquivo, tamanho real e
+ * formato deduzido das dimensões — é o caminho do "Subir artes".
+ */
+export async function addPiece(
+  batchId: string,
+  media?: MediaAsset,
+): Promise<Piece | undefined> {
   return transaction((batches) => {
     const batch = batches.find((b) => b.id === batchId);
     if (!batch) return undefined;
     const n = batch.pieces.length + 1;
+    const format =
+      media?.width && media?.height
+        ? formatFromDimensions(media.width, media.height, media.kind)
+        : "feed";
+    const meta = PIECE_FORMATS.find((f) => f.id === format) ?? PIECE_FORMATS[0];
     const piece: Piece = {
       id: "p" + Math.random().toString(36).slice(2, 8),
-      name: `Peça ${String(n).padStart(2, "0")}`,
-      size: PIECE_FORMATS[0].size,
+      name: media ? fileLabel(media.name) : `Peça ${String(n).padStart(2, "0")}`,
+      size:
+        media?.width && media?.height
+          ? sizeFromDimensions(media.width, media.height)
+          : meta.size,
       date: new Date().toISOString(),
       status: "pendente",
-      kind: PIECE_FORMATS[0].label,
-      format: "feed",
+      kind: meta.label,
+      format,
       channel: "instagram",
       caption: "",
       hashtags: "",
+      media,
       history: [
         {
           id: "h" + Math.random().toString(36).slice(2, 8),
-          title: "Peça criada no lote",
+          title: media ? "Arte enviada para o lote" : "Peça criada no lote",
           who: "Estúdio Norte · " + nowStamp(),
         },
       ],
@@ -129,6 +153,66 @@ export async function addPiece(batchId: string): Promise<Piece | undefined> {
     batch.draftSavedAt = new Date().toISOString();
     return { ...piece };
   });
+}
+
+/** "capa-lancamento.png" → "Capa lancamento" (nome que o time reconhece). */
+function fileLabel(filename: string): string {
+  const base = filename.replace(/\.[^.]+$/, "").replace(/[-_]+/g, " ").trim();
+  if (!base) return "Nova peça";
+  return base.charAt(0).toUpperCase() + base.slice(1).slice(0, 60);
+}
+
+/**
+ * Troca (ou remove) a arte de uma peça. A arte anterior é apagada do
+ * armazenamento — o histórico guarda a decisão, não o arquivo velho.
+ */
+export async function setPieceMedia(
+  batchId: string,
+  pieceId: string,
+  media: MediaAsset | null,
+): Promise<{ batch: Batch; piece: Piece } | undefined> {
+  const result = await transaction((batches) => {
+    const batch = batches.find((b) => b.id === batchId);
+    const piece = batch?.pieces.find((p) => p.id === pieceId);
+    if (!batch || !piece) return undefined;
+
+    const previous = piece.media;
+    piece.media = media ?? undefined;
+
+    if (media?.width && media?.height) {
+      piece.size = sizeFromDimensions(media.width, media.height);
+      const format = formatFromDimensions(media.width, media.height, media.kind);
+      piece.format = format;
+      const meta = PIECE_FORMATS.find((f) => f.id === format);
+      if (meta) piece.kind = meta.label;
+    }
+
+    piece.history = [
+      {
+        id: "h" + Math.random().toString(36).slice(2, 8),
+        title: media
+          ? previous
+            ? "Arte substituída"
+            : "Arte enviada"
+          : "Arte removida",
+        who: "Estúdio Norte · " + nowStamp(),
+      },
+      ...piece.history,
+    ];
+
+    batch.draftSavedAt = new Date().toISOString();
+    return {
+      batch: { ...batch },
+      piece: { ...piece },
+      previousMediaId: previous?.id,
+    };
+  });
+
+  if (!result) return undefined;
+  if (result.previousMediaId && result.previousMediaId !== media?.id) {
+    await deleteMedia(result.previousMediaId);
+  }
+  return { batch: result.batch, piece: result.piece };
 }
 
 /** Fecha o rascunho: o lote passa a valer para o link público do cliente. */

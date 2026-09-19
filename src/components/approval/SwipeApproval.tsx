@@ -271,6 +271,7 @@ function PieceCard({
       <div className="relative flex-1">
         <PieceThumb
           size={piece.size}
+          media={piece.media}
           showBadge={false}
           className="h-full w-full rounded-none border-0"
         />

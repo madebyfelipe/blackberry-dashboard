@@ -5,11 +5,11 @@ import type { Batch, Piece } from "@/lib/approval/types";
 import { batchProgress } from "@/lib/approval/constants";
 import { formatPieceDate } from "@/lib/format";
 import { cn } from "@/lib/cn";
+import { PieceThumb } from "./PieceThumb";
 import {
   ArrowRightIcon,
   ChevronLeftIcon,
   ChevronRightIcon,
-  ImageIcon,
   LockIcon,
   SparklesIcon,
 } from "@/components/icons";
@@ -194,10 +194,18 @@ function MainCard({ piece }: { piece: Piece }) {
   return (
     <article className="flex h-[310px] w-[250px] shrink-0 flex-col gap-2.5 rounded-card border-[1.5px] border-dim bg-surface-2 p-3.5">
       <CardHead size="lg" />
-      <div className="flex flex-1 flex-col items-center justify-center gap-2 rounded-panel border border-border bg-surface text-dim">
-        <ImageIcon size={20} />
-        <span className="text-[12px]">{piece.size.replace(" x ", " × ")}</span>
-      </div>
+      <PieceThumb
+        size={piece.size}
+        media={piece.media}
+        showBadge={false}
+        className="flex-1 rounded-panel"
+      >
+        {!piece.media && (
+          <span className="absolute bottom-3 text-[12px] text-dim">
+            {piece.size.replace(" x ", " × ")}
+          </span>
+        )}
+      </PieceThumb>
       <div className="flex items-center justify-between gap-2">
         <span className="text-[13px] font-semibold text-fg-2">{piece.name}</span>
         <span className="flex items-center gap-1.5 rounded-pill border border-border bg-surface px-2.5 py-1">
@@ -223,10 +231,12 @@ function PeekCard({ piece, className }: { piece: Piece; className?: string }) {
       )}
     >
       <CardHead size="sm" />
-      <div className="flex flex-1 flex-col items-center justify-center gap-2 rounded-panel border border-border bg-surface text-dim">
-        <ImageIcon size={16} />
-        <span className="text-[10px]">{piece.size.replace(" x ", " × ")}</span>
-      </div>
+      <PieceThumb
+        size={piece.size}
+        media={piece.media}
+        showBadge={false}
+        className="flex-1 rounded-panel"
+      />
       <div className="flex items-center justify-between gap-2">
         <span className="text-[11px] font-semibold text-fg-2">{piece.name}</span>
         <span className="text-[10px] text-dim">{formatPieceDate(piece.date)}</span>

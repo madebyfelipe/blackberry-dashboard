@@ -55,6 +55,31 @@ export const PIECE_CHANNELS: { id: PieceChannel; label: string }[] = [
   { id: "facebook", label: "Facebook" },
 ];
 
+/**
+ * Formato provável a partir das dimensões da arte enviada — o editor já chega
+ * com o chip certo marcado em vez de deixar tudo em "Feed".
+ *
+ * Quadrado → Feed; retrato 4:5 → Carrossel; vertical alto → Stories (vídeo
+ * vertical → Reels). Paisagem cai em Feed, que é o formato que a aceita.
+ */
+export function formatFromDimensions(
+  width: number,
+  height: number,
+  kind: "image" | "video",
+): PieceFormat {
+  if (!width || !height) return "feed";
+  const ratio = width / height;
+  if (ratio > 0.95 && ratio < 1.05) return "feed";
+  if (ratio < 0.62) return kind === "video" ? "reels" : "stories";
+  if (ratio < 0.95) return "carrossel";
+  return "feed";
+}
+
+/** Tamanho legível ("1080 x 1350") a partir das dimensões lidas do arquivo. */
+export function sizeFromDimensions(width: number, height: number): string {
+  return `${width} x ${height}`;
+}
+
 /** Limite de caracteres da legenda no Instagram — usado no contador do editor. */
 export const CAPTION_LIMIT = 2200;
 

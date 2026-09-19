@@ -26,6 +26,10 @@ import {
 } from "@/lib/format";
 import { Breadcrumb } from "@/components/ui/Breadcrumb";
 import { useToast } from "@/components/ui/Toast";
+import { Spinner } from "@/components/ui/Spinner";
+import { MediaDropzone } from "./MediaDropzone";
+import { PieceThumb } from "./PieceThumb";
+import { formatBytes } from "@/lib/media/constants";
 import { cn } from "@/lib/cn";
 import {
   BookmarkIcon,
@@ -43,7 +47,9 @@ import {
   MessageCircleIcon,
   Music2Icon,
   PlusIcon,
+  ReplaceIcon,
   SendIcon,
+  TrashIcon,
 } from "@/components/icons";
 
 /*
@@ -51,8 +57,10 @@ import {
  * peças à esquerda, detalhes no centro, preview do post à direita.
  *
  * O rascunho salva sozinho (debounce) e a barra de topo mostra quando gravou.
- * A arte em si ainda é o placeholder do `PieceThumb` — upload real está no
- * roadmap e a dropzone já está no lugar certo para receber.
+ *
+ * As artes são reais: "Subir artes" cria uma peça por arquivo (nome, tamanho e
+ * formato saem do próprio arquivo) e cada peça pode trocar ou remover a sua
+ * arte pelo preview. Sem arte, a peça continua no placeholder do `PieceThumb`.
  */
 
 const CHANNEL_ICON = {
@@ -81,6 +89,8 @@ export function BatchEditor({
     initialBatch.draftSavedAt,
   );
   const [saving, setSaving] = useState(false);
+  /** Quantos arquivos estão subindo agora — trava a dropzone e mostra o spinner. */
+  const [uploading, setUploading] = useState(0);
   const [, setTick] = useState(0);
   const timers = useRef(new Map<string, ReturnType<typeof setTimeout>>());
 
@@ -174,6 +184,89 @@ export function BatchEditor({
     } catch (e) {
       toast(e instanceof Error ? e.message : "Falha ao criar peça.", "error");
     }
+  }
+
+  /** "Subir artes": uma peça por arquivo, com a arte já anexada. */
+  async function uploadArts(files: File[]) {
+    setUploading((n) => n + files.length);
+    try {
+      const form = new FormData();
+      for (const file of files) form.append("files", file);
+      const res = await fetch(`/api/batches/${batch.id}/pieces`, {
+        method: "POST",
+        body: form,
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data?.error ?? "Falha ao subir as artes.");
+
+      const created = data.pieces as Piece[];
+      const rejected = (data.rejected ?? []) as { name: string; error: string }[];
+      setBatch((b) => ({ ...b, pieces: [...b.pieces, ...created], stage: "rascunho" }));
+      if (created[0]) setSelectedId(created[0].id);
+
+      toast(
+        created.length === 1
+          ? "Arte adicionada ao lote."
+          : `${created.length} artes adicionadas ao lote.`,
+      );
+      // O que não passou avisa em separado, com o motivo do arquivo.
+      for (const r of rejected) toast(`${r.name}: ${r.error}`, "error");
+    } catch (e) {
+      toast(e instanceof Error ? e.message : "Falha ao subir as artes.", "error");
+    } finally {
+      setUploading((n) => Math.max(0, n - files.length));
+    }
+  }
+
+  /** Troca a arte da peça aberta. */
+  async function replaceArt(file: File) {
+    if (!piece) return;
+    const pieceId = piece.id;
+    setUploading((n) => n + 1);
+    try {
+      const form = new FormData();
+      form.append("file", file);
+      const res = await fetch(
+        `/api/batches/${batch.id}/pieces/${pieceId}/media`,
+        { method: "POST", body: form },
+      );
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data?.error ?? "Falha ao trocar a arte.");
+      applyPiece(data as { batch: Batch; piece: Piece });
+      toast("Arte atualizada.");
+    } catch (e) {
+      toast(e instanceof Error ? e.message : "Falha ao trocar a arte.", "error");
+    } finally {
+      setUploading((n) => Math.max(0, n - 1));
+    }
+  }
+
+  /** Remove a arte da peça — volta ao placeholder, a peça continua no lote. */
+  async function removeArt() {
+    if (!piece?.media) return;
+    const pieceId = piece.id;
+    try {
+      const res = await fetch(
+        `/api/batches/${batch.id}/pieces/${pieceId}/media`,
+        { method: "DELETE" },
+      );
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data?.error ?? "Falha ao remover a arte.");
+      applyPiece(data as { batch: Batch; piece: Piece });
+      toast("Arte removida.");
+    } catch (e) {
+      toast(e instanceof Error ? e.message : "Falha ao remover a arte.", "error");
+    }
+  }
+
+  /** Aplica a peça que voltou do servidor (mídia mexe em size/format/kind). */
+  function applyPiece(data: { batch: Batch; piece: Piece }) {
+    setSavedAt(data.batch.draftSavedAt);
+    setBatch((b) => ({
+      ...b,
+      draftSavedAt: data.batch.draftSavedAt,
+      pieces: b.pieces.map((p) => (p.id === data.piece.id ? data.piece : p)),
+    }));
   }
 
   async function sendForApproval() {
@@ -289,17 +382,28 @@ export function BatchEditor({
           </div>
 
           <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto p-3">
-            <button
-              type="button"
-              onClick={() =>
-                toast("Upload de arte entra junto com a mídia real das peças.", "info")
-              }
-              className="flex flex-col items-center gap-1.5 rounded-panel border border-border-strong bg-surface px-4 py-[18px] text-center transition-colors hover:bg-surface/60"
+            <MediaDropzone
+              multiple
+              disabled={uploading > 0}
+              onFiles={uploadArts}
+              className="flex w-full flex-col items-center gap-1.5 rounded-panel border border-border-strong bg-surface px-4 py-[18px] text-center hover:bg-surface/60"
             >
-              <CloudUploadIcon size={18} className="text-fg-3" />
-              <span className="text-[13px] font-semibold text-fg-soft">Subir artes</span>
-              <span className="text-[11px] text-dim">PNG, JPG ou MP4 · até 50 MB</span>
-            </button>
+              {uploading > 0 ? (
+                <Spinner size={18} className="text-fg-3" />
+              ) : (
+                <CloudUploadIcon size={18} className="text-fg-3" />
+              )}
+              <span className="text-[13px] font-semibold text-fg-soft">
+                {uploading > 0
+                  ? uploading === 1
+                    ? "Subindo 1 arte…"
+                    : `Subindo ${uploading} artes…`
+                  : "Subir artes"}
+              </span>
+              <span className="text-[11px] text-dim">
+                Arraste aqui · PNG, JPG ou MP4 · até 50 MB
+              </span>
+            </MediaDropzone>
 
             {batch.pieces.map((p) => {
               const active = p.id === piece.id;
@@ -313,14 +417,16 @@ export function BatchEditor({
                     active ? "bg-border" : "hover:bg-surface",
                   )}
                 >
-                  <span
+                  <PieceThumb
+                    size={p.size}
+                    media={p.media}
+                    showBadge={false}
+                    plain
                     className={cn(
-                      "flex h-11 w-11 shrink-0 items-center justify-center rounded-[12px] border bg-surface text-faint",
+                      "h-11 w-11 shrink-0 border",
                       active ? "border-dim" : "border-border",
                     )}
-                  >
-                    <ImageIcon size={16} />
-                  </span>
+                  />
                   <span className="flex min-w-0 flex-1 flex-col gap-0.5">
                     <span className="truncate text-[13px] font-semibold text-fg-soft">
                       {p.name}
@@ -473,10 +579,54 @@ export function BatchEditor({
                 <EllipsisIcon size={14} className="text-fg-3" />
               </header>
 
-              <div className="flex h-[250px] flex-col items-center justify-center gap-2 bg-surface text-dim">
-                <ImageIcon size={22} />
-                <span className="text-[11px]">{piece.size.replace(" x ", " × ")}</span>
-              </div>
+              {piece.media ? (
+                <div className="group/art relative">
+                  <PieceThumb
+                    size={piece.size}
+                    media={piece.media}
+                    showBadge={false}
+                    className="h-[250px] w-full rounded-none border-0 bg-black"
+                    contain
+                  />
+                  {/* Trocar/remover aparecem sobre a arte, no hover. */}
+                  <div className="absolute inset-x-0 bottom-0 flex items-center justify-between gap-2 bg-gradient-to-t from-black/85 to-transparent p-2.5 opacity-0 transition-opacity duration-200 group-hover/art:opacity-100 focus-within:opacity-100">
+                    <span className="truncate text-[10px] text-fg-3">
+                      {formatBytes(piece.media.size)}
+                    </span>
+                    <span className="flex shrink-0 items-center gap-1.5">
+                      <MediaDropzone
+                        disabled={uploading > 0}
+                        onFiles={(files) => files[0] && replaceArt(files[0])}
+                        className="flex items-center gap-1.5 rounded-pill bg-black/70 px-2.5 py-1.5 text-[11px] text-fg-soft backdrop-blur-sm hover:bg-black/90"
+                      >
+                        <ReplaceIcon size={12} /> Trocar
+                      </MediaDropzone>
+                      <button
+                        type="button"
+                        onClick={removeArt}
+                        aria-label="Remover arte"
+                        className="tap flex items-center rounded-pill bg-black/70 p-1.5 text-fg-soft backdrop-blur-sm transition-colors hover:bg-black/90"
+                      >
+                        <TrashIcon size={12} />
+                      </button>
+                    </span>
+                  </div>
+                </div>
+              ) : (
+                <MediaDropzone
+                  disabled={uploading > 0}
+                  onFiles={(files) => files[0] && replaceArt(files[0])}
+                  className="flex h-[250px] w-full flex-col items-center justify-center gap-2 bg-surface text-dim hover:bg-surface-2"
+                >
+                  {uploading > 0 ? <Spinner size={22} /> : <ImageIcon size={22} />}
+                  <span className="text-[11px]">
+                    {piece.size.replace(" x ", " × ")}
+                  </span>
+                  <span className="text-[10px] text-faint">
+                    Clique ou arraste a arte desta peça
+                  </span>
+                </MediaDropzone>
+              )}
 
               <div className="flex items-center gap-3 px-3 pb-1 pt-2.5 text-fg-soft">
                 <HeartIcon size={16} />

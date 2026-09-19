@@ -1,0 +1,54 @@
+import { NextResponse } from "next/server";
+import { setPieceMedia } from "@/lib/approval/repository";
+import { MediaError, saveMedia } from "@/lib/media/store";
+import { requireUser } from "@/lib/auth/session";
+
+export const dynamic = "force-dynamic";
+
+type Ctx = { params: Promise<{ id: string; pieceId: string }> };
+
+/** Anexa (ou troca) a arte de uma peça. Multipart, campo `file`. */
+export async function POST(req: Request, { params }: Ctx) {
+  if (!(await requireUser())) {
+    return NextResponse.json({ error: "Faça login para enviar artes." }, { status: 401 });
+  }
+  const { id, pieceId } = await params;
+
+  let file: File | null = null;
+  try {
+    const form = await req.formData();
+    const value = form.get("file");
+    if (value instanceof File) file = value;
+  } catch {
+    return NextResponse.json({ error: "Envio inválido." }, { status: 400 });
+  }
+  if (!file) return NextResponse.json({ error: "Nenhum arquivo enviado." }, { status: 400 });
+
+  try {
+    const bytes = new Uint8Array(await file.arrayBuffer());
+    const media = await saveMedia(bytes, { mime: file.type, name: file.name });
+    const result = await setPieceMedia(id, pieceId, media);
+    if (!result) {
+      return NextResponse.json({ error: "Peça não encontrada." }, { status: 404 });
+    }
+    return NextResponse.json(result, { status: 201 });
+  } catch (err) {
+    if (err instanceof MediaError) {
+      return NextResponse.json({ error: err.message }, { status: 422 });
+    }
+    throw err;
+  }
+}
+
+/** Remove a arte da peça (volta ao placeholder). */
+export async function DELETE(_req: Request, { params }: Ctx) {
+  if (!(await requireUser())) {
+    return NextResponse.json({ error: "Faça login para editar o lote." }, { status: 401 });
+  }
+  const { id, pieceId } = await params;
+  const result = await setPieceMedia(id, pieceId, null);
+  if (!result) {
+    return NextResponse.json({ error: "Peça não encontrada." }, { status: 404 });
+  }
+  return NextResponse.json(result);
+}

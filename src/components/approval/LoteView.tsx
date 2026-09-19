@@ -309,6 +309,7 @@ export function LoteView({ initialBatch }: { initialBatch: Batch }) {
                 >
                   <PieceThumb
                     size={p.size}
+                    media={p.media}
                     showBadge={false}
                     plain
                     className={cn(

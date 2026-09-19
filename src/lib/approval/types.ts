@@ -1,3 +1,5 @@
+import type { MediaAsset } from "@/lib/media/types";
+
 export type PieceStatus = "pendente" | "aprovado" | "ajuste";
 
 export type DecisionEvent = {
@@ -33,6 +35,8 @@ export type Piece = {
   hashtags?: string;
   format?: PieceFormat;
   channel?: PieceChannel;
+  /** Arte enviada pela agência. Sem ela, a peça cai no placeholder. */
+  media?: MediaAsset;
   /** reason given on "ajuste" / reprovação */
   reason?: string;
   history: DecisionEvent[];
