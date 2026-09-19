@@ -108,7 +108,7 @@ export default function CriarContaPage() {
           />
         </AuthField>
 
-        <Button type="submit" disabled={loading} className="tap">
+        <Button type="submit" disabled={loading} className="tap w-full">
           {loading ? (
             <span className="flex items-center gap-2">
               <Spinner /> Criando…

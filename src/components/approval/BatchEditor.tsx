@@ -608,7 +608,7 @@ export function BatchEditor({
         </section>
 
         {/* Preview do post */}
-        <aside className="flex w-full shrink-0 flex-col gap-3 pb-2 lg:w-[312px] lg:min-h-0 lg:overflow-y-auto lg:border-l lg:border-border lg:pl-6">
+        <aside className="flex w-full shrink-0 flex-col gap-3 overflow-x-hidden pb-2 lg:w-[312px] lg:min-h-0 lg:overflow-y-auto lg:border-l lg:border-border lg:pl-6">
           <span className="font-mono text-[10px] tracking-[1.5px] text-muted">
             PREVIEW · {channelLabel.toUpperCase()}
           </span>

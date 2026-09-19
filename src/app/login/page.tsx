@@ -114,7 +114,7 @@ function LoginForm() {
           <span className="text-[13px] text-fg-soft">Lembrar de mim</span>
         </label>
 
-        <Button type="submit" disabled={loading} className="tap">
+        <Button type="submit" disabled={loading} className="tap w-full">
           {loading ? (
             <span className="flex items-center gap-2">
               <Spinner /> Entrando…
@@ -136,7 +136,7 @@ function LoginForm() {
         type="button"
         disabled
         title="SSO entra junto com o multi-tenant."
-        className="tap border-white/12 bg-white/5 hover:bg-white/10"
+        className="tap w-full border-white/12 bg-white/5 hover:bg-white/10"
       >
         Continuar com SSO
       </Button>

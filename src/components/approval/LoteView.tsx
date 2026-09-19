@@ -372,7 +372,7 @@ export function LoteView({ initialBatch }: { initialBatch: Batch }) {
        */}
       <div className="flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto lg:flex-row lg:gap-0 lg:overflow-hidden">
         {/* Grade de peças */}
-        <div className="shrink-0 pt-1 lg:min-h-0 lg:flex-1 lg:overflow-y-auto lg:pr-6">
+        <div className="shrink-0 overflow-x-hidden pt-1 lg:min-h-0 lg:flex-1 lg:overflow-y-auto lg:pr-6">
           {filtered.length === 0 ? (
             <p className="py-10 text-center text-[13px] text-muted">
               Nenhuma peça com esses filtros.
@@ -393,10 +393,23 @@ export function LoteView({ initialBatch }: { initialBatch: Batch }) {
                     showBadge={false}
                     plain
                     className={cn(
+                      /*
+                       * Anel de seleção como box-shadow `inset`, não
+                       * `outline`: este elemento já tem `overflow-hidden` +
+                       * `rounded-[12px]` (é o que recorta a arte no cantinho
+                       * do card), e outline com offset negativo tem um clip
+                       * path calculado à parte do recorte do próprio
+                       * overflow — nas colunas do meio da grade a costura
+                       * entre os dois cortava uma lasca lateral do anel,
+                       * sobretudo em larguras fracionadas (3 colunas nem
+                       * sempre dividem a grade num número inteiro de px).
+                       * box-shadow usa o MESMO recorte arredondado da caixa,
+                       * sem essa costura.
+                       */
                       "h-[190px] w-full transition-all duration-200 group-hover:-translate-y-0.5",
                       selectedId === p.id
-                        ? "outline outline-1 -outline-offset-[0.5px] outline-fg-soft"
-                        : "outline outline-1 -outline-offset-[0.5px] outline-transparent group-hover:outline-border-strong",
+                        ? "shadow-[inset_0_0_0_1px_var(--color-fg-soft)]"
+                        : "shadow-[inset_0_0_0_1px_transparent] group-hover:shadow-[inset_0_0_0_1px_var(--color-border-strong)]",
                     )}
                   />
                   <span className="text-[13px] font-semibold text-fg-soft">
@@ -412,7 +425,7 @@ export function LoteView({ initialBatch }: { initialBatch: Batch }) {
         </div>
 
         {/* Painel de detalhe */}
-        <aside className="flex w-full shrink-0 flex-col gap-[18px] pt-1 lg:min-h-0 lg:w-[300px] lg:overflow-y-auto lg:border-l lg:border-border lg:pl-6">
+        <aside className="flex w-full shrink-0 flex-col gap-[18px] overflow-x-hidden pt-1 lg:min-h-0 lg:w-[300px] lg:overflow-y-auto lg:border-l lg:border-border lg:pl-6">
           {selected ? (
             <DetailPanel
               piece={selected}

@@ -17,6 +17,7 @@ import {
 import { Breadcrumb } from "@/components/ui/Breadcrumb";
 import { Button } from "@/components/ui/Button";
 import {
+  EllipsisIcon,
   PlusIcon,
   SlidersIcon,
   Settings2Icon,
@@ -33,7 +34,15 @@ import { DisplayMenu } from "./DisplayMenu";
 import { apiCreateTask, apiDeleteTask, apiUpdateTask } from "./api";
 
 type Tab = TaskStatus | "todas";
-type OpenMenu = "filtros" | "visualizacao" | null;
+type OpenMenu = "filtros" | "visualizacao" | "status-ocultos" | null;
+
+/*
+ * As abas de status da Lista mostram só o que está "em jogo" no dia a dia
+ * (A fazer, Em progresso, Em revisão); Concluído/Pausado/Cancelado ficam
+ * atrás do botão "Mais status" — ver o bloco "status-ocultos" no cabeçalho.
+ */
+const VISIBLE_TAB_STATUSES = STATUSES.slice(0, 3);
+const HIDDEN_TAB_STATUSES = STATUSES.slice(3);
 
 export function TasksView({ initialTasks }: { initialTasks: Task[] }) {
   const { toast } = useToast();
@@ -100,6 +109,8 @@ export function TasksView({ initialTasks }: { initialTasks: Task[] }) {
   }, [tasks]);
 
   const activeFilters = countActiveFilters(filters);
+  // Se a tarefa aberta está num status escondido, a aba dele reaparece — só some quando ninguém está olhando.
+  const hiddenActiveStatus = HIDDEN_TAB_STATUSES.find((s) => s.id === tab);
 
   // ---- mutations (optimistic) ----
 
@@ -186,22 +197,100 @@ export function TasksView({ initialTasks }: { initialTasks: Task[] }) {
       <div className="flex min-w-0 flex-nowrap items-center justify-between gap-3">
         {/* Left: tabs (lista) or title (grade) */}
         {isLista ? (
-          <div className="flex min-w-0 items-center gap-2 overflow-x-auto">
-            <Tab
-              active={tab === "todas"}
-              onClick={() => setTab("todas")}
-              label="Todas"
-              count={counts.get("todas") ?? 0}
-            />
-            {STATUSES.map((s) => (
+          /*
+           * Dois níveis, não um: só as abas roláveis ficam dentro do
+           * `overflow-x-auto` (linha 375). Um popover metido ali dentro
+           * herda o mesmo corte vertical que a grade do Lote tinha — o
+           * `overflow-x-auto` força o eixo Y a virar `auto` também (regra
+           * do CSS: um eixo "visible" ao lado de outro que não é vira
+           * "auto"), e o painel que abre para BAIXO da linha some cortado.
+           * O gatilho "Mais status" é irmão da área rolável, fora do corte.
+           */
+          <div className="flex min-w-0 items-center gap-2">
+            <div className="flex min-w-0 items-center gap-2 overflow-x-auto">
               <Tab
-                key={s.id}
-                active={tab === s.id}
-                onClick={() => setTab(s.id)}
-                label={s.label}
-                count={counts.get(s.id) ?? 0}
+                active={tab === "todas"}
+                onClick={() => setTab("todas")}
+                label="Todas"
+                count={counts.get("todas") ?? 0}
               />
-            ))}
+              {VISIBLE_TAB_STATUSES.map((s) => (
+                <Tab
+                  key={s.id}
+                  active={tab === s.id}
+                  onClick={() => setTab(s.id)}
+                  label={s.label}
+                  count={counts.get(s.id) ?? 0}
+                />
+              ))}
+
+              {/* Aba ativa entre as ocultas: some da tela ao trocar de status, não ao rolar o olho. */}
+              {hiddenActiveStatus && (
+                <Tab
+                  active
+                  onClick={() => setTab(hiddenActiveStatus.id)}
+                  label={hiddenActiveStatus.label}
+                  count={counts.get(hiddenActiveStatus.id) ?? 0}
+                />
+              )}
+            </div>
+
+            {/*
+             * Concluído, Pausado e Cancelado não são status do dia a dia —
+             * ficam atrás deste botão em vez de brigar por espaço na linha,
+             * igual ao resto do produto (menu de filtros, de visualização).
+             */}
+            <Popover
+              open={menu === "status-ocultos"}
+              onClose={() => setMenu(null)}
+              trigger={
+                <button
+                  type="button"
+                  aria-label="Mais status"
+                  aria-haspopup="menu"
+                  aria-expanded={menu === "status-ocultos"}
+                  onClick={() =>
+                    setMenu((m) => (m === "status-ocultos" ? null : "status-ocultos"))
+                  }
+                  className={cn(
+                    "tap flex h-10 w-10 shrink-0 items-center justify-center rounded-full transition-colors",
+                    menu === "status-ocultos" || hiddenActiveStatus
+                      ? "bg-border-strong text-fg"
+                      : "text-muted hover:bg-surface/60 hover:text-fg-soft",
+                  )}
+                >
+                  <EllipsisIcon size={16} />
+                </button>
+              }
+            >
+              <div className="w-[190px] animate-pop-in overflow-hidden rounded-menu border border-border bg-surface p-1.5 shadow-[0_8px_24px_rgba(0,0,0,0.5)]">
+                {HIDDEN_TAB_STATUSES.map((s) => (
+                  <button
+                    key={s.id}
+                    type="button"
+                    onClick={() => {
+                      setTab(s.id);
+                      setMenu(null);
+                    }}
+                    className={cn(
+                      "flex w-full items-center justify-between gap-2 rounded-mark px-2.5 py-1.5 text-left text-[13px] transition-colors hover:bg-surface-2",
+                      tab === s.id ? "text-fg-soft" : "text-muted",
+                    )}
+                  >
+                    <span className="flex min-w-0 items-center gap-2">
+                      <span
+                        className="h-2 w-2 shrink-0 rounded-full"
+                        style={{ backgroundColor: s.dot }}
+                      />
+                      <span className="truncate">{s.label}</span>
+                    </span>
+                    <span className="shrink-0 text-[11px] text-faint">
+                      {counts.get(s.id) ?? 0}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </Popover>
           </div>
         ) : (
           /* Quadro — export "2. Board · Kanban": alternador Lista/Quadro */
@@ -298,19 +387,20 @@ export function TasksView({ initialTasks }: { initialTasks: Task[] }) {
           </Popover>
 
           {/*
-           * No celular o rótulo sai e sobra o "+": a linha do cabeçalho tem
-           * ~390px e precisa caber busca, os dois menus e o criar.
+           * Redondo e só com o ícone, como os outros botões do cabeçalho — o
+           * rótulo "Adicionar tarefa" vira `title`/`aria-label`. O destaque
+           * (bg-primary) é o que separa "criar" de "filtrar"/"ver", sem
+           * precisar de texto para isso.
            */}
-          <Button
+          <button
+            type="button"
             aria-label="Adicionar tarefa"
-            className="w-fit shrink-0 max-sm:h-10 max-sm:w-10 max-sm:rounded-full max-sm:px-0"
+            title="Adicionar tarefa"
             onClick={() => setDrawer({ mode: "create" })}
+            className="tap flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary text-on-primary transition-colors hover:bg-white"
           >
-            <span className="flex items-center gap-1.5">
-              <PlusIcon size={16} />
-              <span className="max-sm:hidden">Adicionar tarefa</span>
-            </span>
-          </Button>
+            <PlusIcon size={16} />
+          </button>
         </div>
       </div>
 

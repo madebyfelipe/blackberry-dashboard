@@ -76,6 +76,20 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
+/*
+ * Escala do desktop — a 100% o app "respira menos" do que o Felipe queria;
+ * no Ctrl+- do navegador, ~90% ficava melhor. `zoom` reproduz exatamente
+ * isso (é uma escala de renderização, não uma unidade relativa — funciona
+ * com os `px` do Tailwind sem reescrever nenhum componente) e só entra a
+ * partir de `md`: o mobile já foi calibrado pixel a pixel e não precisa
+ * de menos espaço, precisa do inverso.
+ */
+@media (min-width: 768px) {
+  html {
+    zoom: 0.9;
+  }
+}
+
 ::placeholder {
   color: var(--color-muted);
 }
