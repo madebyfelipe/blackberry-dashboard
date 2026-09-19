@@ -50,13 +50,17 @@ export function RoundIconButton({
     );
   }
 
+  /*
+   * Só `aria-expanded`, sem `aria-haspopup="menu"`: o que abre não é um menu
+   * de comandos, é um grupo de controles (chips, campo de data), e anunciar
+   * "menu" prometeria uma navegação por setas que não existe.
+   */
   return (
     <button
       type="button"
       aria-label={label}
       title={label}
       aria-expanded={expanded}
-      aria-haspopup={expanded === undefined ? undefined : "menu"}
       onClick={onClick}
       className={classes}
     >
