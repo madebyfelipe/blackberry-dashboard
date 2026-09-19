@@ -181,7 +181,7 @@ export function LoteView({ initialBatch }: { initialBatch: Batch }) {
   ];
 
   return (
-    <div className="flex h-full min-h-0 flex-col gap-[22px] py-5 pl-2 pr-7">
+    <div className="flex h-full min-h-0 flex-col gap-4 px-1 py-5 md:gap-[22px] md:pl-2 md:pr-7">
       <Breadcrumb
         items={[
           { label: batch.client, href: "/social" },
@@ -210,6 +210,11 @@ export function LoteView({ initialBatch }: { initialBatch: Batch }) {
         <Popover
           open={showFormats}
           onClose={() => setShowFormats(false)}
+          // O filtro é o primeiro botão da linha de ações; com o alinhamento
+          // padrão (`right`) o painel de 200px abria para a esquerda do
+          // botão e saía da tela no celular. `left` mantém as duas telas
+          // dentro da viewport — o gatilho está à esquerda nas duas.
+          align="left"
           trigger={
             <RoundIconButton
               label="Filtrar por formato"
@@ -222,7 +227,7 @@ export function LoteView({ initialBatch }: { initialBatch: Batch }) {
             </RoundIconButton>
           }
         >
-          <div className="w-[200px] animate-pop-in rounded-[16px] border border-border bg-surface-2 p-1.5 shadow-[0_16px_40px_rgba(0,0,0,0.55)]">
+          <div className="w-[200px] max-w-[calc(100vw-32px)] animate-pop-in rounded-[16px] border border-border bg-surface-2 p-1.5 shadow-[0_16px_40px_rgba(0,0,0,0.55)]">
             {PIECE_FORMATS.map((f) => {
               const on = formatFilter.includes(f.label);
               return (
@@ -260,7 +265,12 @@ export function LoteView({ initialBatch }: { initialBatch: Batch }) {
                 }
               }}
               placeholder="Buscar peça…"
-              className="absolute right-0 top-1/2 h-10 w-[240px] -translate-y-1/2 animate-fade-in rounded-pill border border-border bg-surface pl-4 pr-12 text-[13px] text-fg-soft placeholder:text-muted focus:border-border-strong focus:outline-none"
+              // No celular a linha de ações quebra alinhada à esquerda (ao
+              // contrário do desktop, onde sobra espaço à direita do
+              // cabeçalho) — `right-0` jogava o campo para fora da tela.
+              // `left-0` abaixo de `md` resolve; acima, volta a abrir para a
+              // esquerda do botão como sempre foi.
+              className="absolute left-0 top-1/2 h-10 w-[240px] max-w-[calc(100vw-32px)] -translate-y-1/2 animate-fade-in rounded-pill border border-border bg-surface pl-4 pr-12 text-[13px] text-fg-soft placeholder:text-muted focus:border-border-strong focus:outline-none md:left-auto md:right-0"
             />
           )}
           <RoundIconButton
@@ -274,7 +284,14 @@ export function LoteView({ initialBatch }: { initialBatch: Batch }) {
 
         <ActionMenu
           triggerClassName="h-10 w-10 bg-surface text-fg-soft hover:bg-surface-2"
-          menuClassName="w-[208px]"
+          // O painel nasce alinhado à direita (`ActionMenu` não tem variante
+          // responsiva); no celular a linha de ações abre colada à esquerda
+          // da tela e "direita" jogava o menu para fora. `left`/`right` são
+          // as duas únicas posições não-`auto`, então com largura fixa a
+          // regra de over-constraint do CSS descarta o `right` que o
+          // componente aplica e usa o `left` daqui — sem editar o
+          // ActionMenu (fora da minha área).
+          menuClassName="w-[208px] max-md:left-0 max-md:right-auto"
           items={[
             {
               label: "Enviar por WhatsApp",
@@ -335,7 +352,9 @@ export function LoteView({ initialBatch }: { initialBatch: Batch }) {
             type="button"
             onClick={() => setFilter(c.id)}
             className={cn(
-              "rounded-pill px-3.5 py-[7px] text-[12px] transition-colors",
+              // py-2.5 no celular chega perto do alvo de toque de 40px sem
+              // exagerar no chip; no desktop volta ao py-[7px] original.
+              "rounded-pill px-3.5 py-2.5 text-[12px] transition-colors md:py-[7px]",
               filter === c.id
                 ? "bg-border font-semibold text-fg-soft"
                 : "font-medium text-muted outline outline-1 -outline-offset-[0.5px] outline-border hover:text-fg-soft",

@@ -322,8 +322,14 @@ export function BatchEditor({
     PIECE_CHANNELS.find((c) => c.id === pieceChannel(piece))?.label ?? "Instagram";
 
   return (
-    <div className="flex h-full min-h-0 flex-col gap-[22px] py-5 pl-2 pr-7">
+    <div className="flex h-full min-h-0 flex-col gap-4 px-1 py-5 md:gap-[22px] md:pl-2 md:pr-7">
+      {/*
+       * No celular a trilha some — o back arrow do cabeçalho abaixo já leva
+       * para o lote, e a versão compacta seria um segundo "voltar" repetido.
+       * Acima de `md` a trilha completa continua igual.
+       */}
       <Breadcrumb
+        mobileMode="hidden"
         items={[
           { label: "black berry", href: "/tarefas" },
           { label: "Social media", href: "/social" },
@@ -437,60 +443,74 @@ export function BatchEditor({
             </span>
           </div>
 
-          <div className="flex min-h-0 gap-2 overflow-x-auto pb-1 lg:flex-1 lg:flex-col lg:overflow-x-visible lg:overflow-y-auto lg:pb-0">
-            {batch.pieces.map((p, i) => {
-              const active = p.id === piece.id;
-              return (
-                <button
-                  key={p.id}
-                  type="button"
-                  aria-current={active ? "true" : undefined}
-                  onClick={() => setSelectedId(p.id)}
-                  style={{ ["--d" as string]: i }}
-                  className="stagger-item tap group flex w-[132px] shrink-0 flex-col gap-2 text-left lg:w-auto lg:flex-row lg:items-center lg:gap-3"
-                >
-                  <PieceThumb
-                    size={p.size}
-                    media={p.media}
-                    showBadge={false}
-                    plain
-                    className={cn(
-                      "h-[80px] w-full shrink-0 transition-all duration-200 lg:h-10 lg:w-10",
-                      active
-                        ? "outline outline-1 -outline-offset-[0.5px] outline-fg-soft"
-                        : "outline outline-1 -outline-offset-[0.5px] outline-transparent group-hover:outline-border-strong",
-                    )}
-                  />
-                  <span className="flex min-w-0 flex-1 flex-col gap-0.5">
-                    <span className="flex items-center gap-1.5">
-                      <span
-                        className={cn(
-                          "truncate text-[12px] font-semibold transition-colors",
-                          active ? "text-fg" : "text-fg-3 group-hover:text-fg-soft",
-                        )}
-                      >
-                        {p.name}
-                      </span>
-                      {/*
-                       * Colado no nome (e não na ponta da linha) porque na tira
-                       * horizontal do celular a linha vira coluna e o ícone
-                       * caía sozinho embaixo do card.
-                       */}
-                      {p.status === "aprovado" && (
-                        <CheckIcon
-                          size={13}
-                          aria-label="Peça aprovada"
-                          className="shrink-0 text-fg-3"
-                        />
+          {/*
+           * No celular a tira rola na horizontal — `snap-x` trava a rolagem
+           * numa peça inteira de cada vez, então nada fica cortado no meio
+           * (o que antes parecia bug); o degradê na borda direita avisa que
+           * tem mais peça pra rolar. Acima de `lg` vira lista vertical, sem
+           * snap (overflow-x volta a `visible`) e sem degradê.
+           */}
+          <div className="relative min-h-0 lg:contents">
+            <div className="flex min-h-0 snap-x snap-mandatory gap-2 overflow-x-auto pb-1 pr-1 lg:flex-1 lg:flex-col lg:snap-none lg:overflow-x-visible lg:overflow-y-auto lg:pb-0 lg:pr-0">
+              {batch.pieces.map((p, i) => {
+                const active = p.id === piece.id;
+                return (
+                  <button
+                    key={p.id}
+                    type="button"
+                    aria-current={active ? "true" : undefined}
+                    onClick={() => setSelectedId(p.id)}
+                    style={{ ["--d" as string]: i }}
+                    className="stagger-item tap group flex w-[132px] shrink-0 snap-start flex-col gap-2 text-left lg:w-auto lg:flex-row lg:items-center lg:gap-3"
+                  >
+                    <PieceThumb
+                      size={p.size}
+                      media={p.media}
+                      showBadge={false}
+                      plain
+                      className={cn(
+                        "h-[80px] w-full shrink-0 transition-all duration-200 lg:h-10 lg:w-10",
+                        active
+                          ? "outline outline-1 -outline-offset-[0.5px] outline-fg-soft"
+                          : "outline outline-1 -outline-offset-[0.5px] outline-transparent group-hover:outline-border-strong",
                       )}
+                    />
+                    <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+                      <span className="flex items-center gap-1.5">
+                        <span
+                          className={cn(
+                            "truncate text-[12px] font-semibold transition-colors",
+                            active ? "text-fg" : "text-fg-3 group-hover:text-fg-soft",
+                          )}
+                        >
+                          {p.name}
+                        </span>
+                        {/*
+                         * Colado no nome (e não na ponta da linha) porque na tira
+                         * horizontal do celular a linha vira coluna e o ícone
+                         * caía sozinho embaixo do card.
+                         */}
+                        {p.status === "aprovado" && (
+                          <CheckIcon
+                            size={13}
+                            aria-label="Peça aprovada"
+                            className="shrink-0 text-fg-3"
+                          />
+                        )}
+                      </span>
+                      <span className="truncate text-[11px] text-dim">
+                        {pieceFormatLabel(p)} · {formatPieceDate(p.date)}
+                      </span>
                     </span>
-                    <span className="truncate text-[11px] text-dim">
-                      {pieceFormatLabel(p)} · {formatPieceDate(p.date)}
-                    </span>
-                  </span>
-                </button>
-              );
-            })}
+                  </button>
+                );
+              })}
+            </div>
+            {/* Só no celular: sinaliza que a tira continua para a direita. */}
+            <div
+              aria-hidden="true"
+              className="pointer-events-none absolute inset-y-0 right-0 w-10 bg-gradient-to-l from-bg to-transparent lg:hidden"
+            />
           </div>
 
           <div className="flex shrink-0 flex-col gap-2">
