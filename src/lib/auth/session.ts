@@ -1,7 +1,7 @@
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
-import { getUserById } from "./repository";
-import { SESSION_COOKIE, SESSION_MAX_AGE, signSession, verifySession } from "./token";
+import { getPasswordVersion, getUserForSession } from "./repository";
+import { SESSION_COOKIE, SESSION_MAX_AGE, readSession, signSession } from "./token";
 import type { PublicUser } from "./types";
 
 /*
@@ -10,8 +10,14 @@ import type { PublicUser } from "./types";
  * depende de `next/headers`.
  */
 
+/**
+ * Começa (ou renova) a sessão. O token leva a versão da senha do momento —
+ * é ela que faz uma troca de senha derrubar os outros aparelhos.
+ */
 export async function startSession(userId: string): Promise<void> {
-  const token = await signSession(userId);
+  const token = await signSession(userId, {
+    passwordVersion: await getPasswordVersion(userId),
+  });
   const store = await cookies();
   store.set(SESSION_COOKIE, token, {
     httpOnly: true,
@@ -27,12 +33,18 @@ export async function endSession(): Promise<void> {
   store.delete(SESSION_COOKIE);
 }
 
-/** Usuário logado, ou undefined. Nunca lança. */
+/**
+ * Usuário logado, ou undefined. Nunca lança.
+ *
+ * Além da assinatura do token (conferida em `token.ts`), aqui se confere a
+ * versão da senha contra a que está gravada no usuário — um token emitido
+ * antes da última troca de senha não vale mais.
+ */
 export async function currentUser(): Promise<PublicUser | undefined> {
   const store = await cookies();
-  const userId = await verifySession(store.get(SESSION_COOKIE)?.value);
-  if (!userId) return undefined;
-  return getUserById(userId);
+  const claims = await readSession(store.get(SESSION_COOKIE)?.value);
+  if (!claims) return undefined;
+  return getUserForSession(claims.sub, claims.passwordVersion);
 }
 
 /**

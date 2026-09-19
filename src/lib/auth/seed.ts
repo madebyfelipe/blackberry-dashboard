@@ -19,6 +19,7 @@ export function seedUsers(): User[] {
       role: "coordenacao",
       agency: "Estúdio Norte",
       passwordHash: hashPasswordSync(password),
+      passwordVersion: 1,
       createdAt: now,
     },
   ];

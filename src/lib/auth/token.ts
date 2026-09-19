@@ -4,14 +4,30 @@
  * Por isso este arquivo não importa nada do Node nem do Next: ele é o único
  * pedaço de auth que roda dos dois lados.
  *
- * Formato: "<payload base64url>.<assinatura base64url>", payload = {sub, exp}.
- * O token é opaco para o cliente (cookie httpOnly) e não guarda nada sensível.
+ * Formato: "<payload base64url>.<assinatura base64url>", payload = {sub, exp,
+ * pv}. O token é opaco para o cliente (cookie httpOnly) e não guarda nada
+ * sensível.
+ *
+ * `pv` é a versão da senha de quem entrou. Quem confere (session.ts) compara
+ * com a versão gravada no usuário: trocar a senha sobe a versão e, com isso,
+ * todo token emitido antes deixa de valer — é o que dá "sair de todos os
+ * aparelhos" sem manter uma lista de sessões abertas.
  */
 
 export const SESSION_COOKIE = "bb_session";
 export const SESSION_MAX_AGE = 60 * 60 * 24 * 30; // 30 dias
 
-type Payload = { sub: string; exp: number };
+type Payload = { sub: string; exp: number; pv?: number };
+
+/** O que o token carrega, já conferido. */
+export type SessionClaims = { sub: string; passwordVersion: number };
+
+/**
+ * Tokens emitidos antes de existir `pv` não têm o campo. Tratá-los como
+ * versão 1 (a inicial de todo usuário) mantém as sessões válidas na subida
+ * desta mudança, em vez de deslogar todo mundo de uma vez.
+ */
+const PRIMEIRA_VERSAO = 1;
 
 /**
  * Segredo de assinatura. Em produção vem de AUTH_SECRET; sem ele, o app cai
@@ -61,11 +77,16 @@ async function key(): Promise<CryptoKey> {
 
 export async function signSession(
   userId: string,
-  maxAgeSeconds = SESSION_MAX_AGE,
+  options: { passwordVersion?: number; maxAgeSeconds?: number } = {},
 ): Promise<string> {
+  const {
+    passwordVersion = PRIMEIRA_VERSAO,
+    maxAgeSeconds = SESSION_MAX_AGE,
+  } = options;
   const payload: Payload = {
     sub: userId,
     exp: Math.floor(Date.now() / 1000) + maxAgeSeconds,
+    pv: passwordVersion,
   };
   const body = b64url(new TextEncoder().encode(JSON.stringify(payload)));
   const sig = await crypto.subtle.sign(
@@ -76,10 +97,16 @@ export async function signSession(
   return `${body}.${b64url(new Uint8Array(sig))}`;
 }
 
-/** Devolve o id do usuário, ou null se o token for inválido/expirado. */
-export async function verifySession(
+/**
+ * Devolve o conteúdo do token, ou null se ele for inválido/expirado.
+ *
+ * Aqui só se confere assinatura e validade — a versão da senha volta como
+ * está escrita, porque conferi-la exige ler o usuário, e este arquivo não
+ * pode tocar no store (roda também no `proxy.ts`).
+ */
+export async function readSession(
   token: string | undefined | null,
-): Promise<string | null> {
+): Promise<SessionClaims | null> {
   if (!token) return null;
   const [body, sig] = token.split(".");
   if (!body || !sig) return null;
@@ -96,8 +123,24 @@ export async function verifySession(
     ) as Payload;
     if (!payload.sub || typeof payload.exp !== "number") return null;
     if (payload.exp * 1000 < Date.now()) return null;
-    return payload.sub;
+    return {
+      sub: payload.sub,
+      passwordVersion:
+        typeof payload.pv === "number" ? payload.pv : PRIMEIRA_VERSAO,
+    };
   } catch {
     return null;
   }
+}
+
+/**
+ * Só o id do usuário. É o que o `proxy.ts` precisa para decidir se deixa a
+ * tela carregar; a conferência da versão da senha fica em `session.ts`, que
+ * tem acesso ao store — e é por onde passam todas as rotas de API e o layout
+ * do shell.
+ */
+export async function verifySession(
+  token: string | undefined | null,
+): Promise<string | null> {
+  return (await readSession(token))?.sub ?? null;
 }

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { AuthError, changePassword } from "@/lib/auth/repository";
-import { requireUser } from "@/lib/auth/session";
+import { requireUser, startSession } from "@/lib/auth/session";
 
 export const dynamic = "force-dynamic";
 
@@ -21,6 +21,13 @@ export async function POST(req: Request) {
       String(currentPassword ?? ""),
       String(nextPassword ?? ""),
     );
+    /*
+     * A troca de senha sobe a versão gravada no usuário, o que invalida todo
+     * token emitido antes — inclusive o deste navegador. Reemitir o cookie
+     * aqui mantém quem trocou a senha logado e derruba só os outros aparelhos,
+     * que é o comportamento esperado.
+     */
+    await startSession(user.id);
     return NextResponse.json({ ok: true });
   } catch (err) {
     if (err instanceof AuthError) {

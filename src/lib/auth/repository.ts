@@ -26,6 +26,28 @@ export async function getUserById(id: string): Promise<PublicUser | undefined> {
   return user && toPublic(user);
 }
 
+/**
+ * Versão atual da senha do usuário — vai dentro do token quando a sessão
+ * começa. Sobe a cada troca de senha (ver `changePassword`).
+ */
+export async function getPasswordVersion(id: string): Promise<number> {
+  return (await read()).find((u) => u.id === id)?.passwordVersion ?? 1;
+}
+
+/**
+ * Usuário de uma sessão em curso. Só devolve se a versão da senha gravada for
+ * a mesma que o token carrega: depois de uma troca de senha, os tokens
+ * emitidos antes deixam de valer, em qualquer aparelho.
+ */
+export async function getUserForSession(
+  id: string,
+  passwordVersion: number,
+): Promise<PublicUser | undefined> {
+  const user = (await read()).find((u) => u.id === id);
+  if (!user || user.passwordVersion !== passwordVersion) return undefined;
+  return toPublic(user);
+}
+
 export async function listUsers(): Promise<PublicUser[]> {
   return (await read()).map(toPublic);
 }
@@ -57,6 +79,7 @@ export async function registerUser(input: NewUser): Promise<PublicUser> {
       role: isRole(input.role) ? input.role : "coordenacao",
       agency: (input.agency ?? "").trim() || `Agência de ${name.split(" ")[0]}`,
       passwordHash,
+      passwordVersion: 1,
       createdAt: new Date().toISOString(),
     };
     users.push(user);
@@ -102,12 +125,18 @@ export async function updateProfile(
   });
 }
 
-/** Troca de senha a partir da senha atual (tela de configurações). */
+/**
+ * Troca de senha a partir da senha atual (tela de configurações).
+ *
+ * Devolve a nova versão da senha: quem chama reemite o cookie com ela, para o
+ * aparelho que acabou de trocar continuar logado enquanto todos os outros
+ * caem.
+ */
 export async function changePassword(
   userId: string,
   currentPassword: string,
   nextPassword: string,
-): Promise<void> {
+): Promise<number> {
   if (nextPassword.length < 8) {
     throw new AuthError("A nova senha precisa de pelo menos 8 caracteres.");
   }
@@ -117,8 +146,12 @@ export async function changePassword(
     throw new AuthError("Senha atual incorreta.");
   }
   const passwordHash = await hashPassword(nextPassword);
-  await transaction((users) => {
+  return transaction((users) => {
     const u = users.find((x) => x.id === userId);
-    if (u) u.passwordHash = passwordHash;
+    if (!u) throw new AuthError("Usuário não encontrado.");
+    u.passwordHash = passwordHash;
+    // Derruba as sessões abertas antes desta troca.
+    u.passwordVersion += 1;
+    return u.passwordVersion;
   });
 }

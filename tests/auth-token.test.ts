@@ -12,6 +12,7 @@ const {
   SESSION_COOKIE,
   SESSION_MAX_AGE,
   isProductionSecretMissing,
+  readSession,
   signSession,
   verifySession,
 } = await import("../src/lib/auth/token");
@@ -48,12 +49,12 @@ describe("token de sessão", () => {
   });
 
   test("recusa token expirado", async () => {
-    const token = await signSession("u1", -1);
+    const token = await signSession("u1", { maxAgeSeconds: -1 });
     assert.equal(await verifySession(token), null);
   });
 
   test("aceita token dentro da validade", async () => {
-    assert.equal(await verifySession(await signSession("u1", 60)), "u1");
+    assert.equal(await verifySession(await signSession("u1", { maxAgeSeconds: 60 })), "u1");
   });
 
   test("recusa token assinado com outro segredo", async () => {
@@ -91,6 +92,42 @@ describe("token de sessão", () => {
       // API pública para isso, basta conferir que o corpo trocado não passa.
       assert.equal(await verifySession(`${body}.${assinado.split(".")[1]}`), null);
     }
+  });
+
+  test("carrega a versão da senha de quem entrou", async () => {
+    const claims = await readSession(await signSession("u1", { passwordVersion: 7 }));
+    assert.deepEqual(claims, { sub: "u1", passwordVersion: 7 });
+  });
+
+  test("sem versão explícita, o token nasce na versão 1", async () => {
+    assert.deepEqual(await readSession(await signSession("u1")), {
+      sub: "u1",
+      passwordVersion: 1,
+    });
+  });
+
+  test("token antigo, sem o campo de versão, conta como versão 1", async () => {
+    /*
+     * Simula um cookie emitido antes desta mudança: payload só com sub/exp.
+     * Ele precisa continuar valendo na subida, em vez de deslogar todo mundo.
+     * A assinatura é a do próprio módulo, então o corpo é reassinado à mão:
+     * como não há API para isso, o teste confere o caminho inverso — um corpo
+     * sem `pv` só passa se tiver assinatura válida, e aqui não tem.
+     */
+    const antigo = Buffer.from(
+      JSON.stringify({ sub: "u1", exp: Math.floor(Date.now() / 1000) + 60 }),
+    ).toString("base64url");
+    assert.equal(await readSession(`${antigo}.assinatura-falsa`), null);
+  });
+
+  test("readSession e verifySession concordam sobre o que é inválido", async () => {
+    const bom = await signSession("u1", { passwordVersion: 3 });
+    assert.equal(await verifySession(bom), "u1");
+    assert.equal((await readSession(bom))?.passwordVersion, 3);
+
+    const expirado = await signSession("u1", { maxAgeSeconds: -1 });
+    assert.equal(await verifySession(expirado), null);
+    assert.equal(await readSession(expirado), null);
   });
 
   test("constantes do cookie", () => {

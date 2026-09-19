@@ -11,12 +11,17 @@ export default async function AppLayout({
    * O `proxy.ts` já barra quem não tem sessão. Esta checagem é o cinto de
    * segurança do lado do servidor: garante que nenhuma tela do shell seja
    * renderizada sem usuário, e é dela que sai o usuário da sidebar.
+   *
+   * Chegar aqui sem usuário com um cookie bem assinado significa sessão
+   * recusada pelo `session.ts` — hoje, token anterior à última troca de senha.
+   * A marca na URL avisa o proxy para apagar o cookie em vez de devolver a
+   * pessoa para cá (ver `SESSAO_ENCERRADA` em `proxy.ts`).
    */
   const user = await currentUser();
-  if (!user) redirect("/login");
+  if (!user) redirect("/login?sessao=encerrada");
 
   return (
-    <div className="flex h-screen gap-4 bg-bg p-4">
+    <div className="flex h-screen flex-col gap-3 bg-bg p-3 md:flex-row md:gap-4 md:p-4">
       <Sidebar user={user} />
       <main className="flex min-w-0 flex-1 flex-col overflow-hidden">
         {children}

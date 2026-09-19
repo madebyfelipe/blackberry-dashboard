@@ -24,6 +24,12 @@ const PROTECTED = [
 
 const AUTH_PAGES = ["/login", "/criar-conta", "/recuperar-senha"];
 
+/**
+ * Marca que o layout do shell põe na URL ao mandar a pessoa para o login
+ * porque a sessão foi recusada lá dentro (ver o uso abaixo).
+ */
+const SESSAO_ENCERRADA = { chave: "sessao", valor: "encerrada" };
+
 export async function proxy(request: NextRequest) {
   const { pathname, search } = request.nextUrl;
   const token = request.cookies.get(SESSION_COOKIE)?.value;
@@ -45,6 +51,18 @@ export async function proxy(request: NextRequest) {
 
   // Já logado não precisa ver login/cadastro.
   if (userId && AUTH_PAGES.includes(pathname)) {
+    /*
+     * Exceção: o proxy só sabe conferir a assinatura do token. Quem decide se
+     * a sessão ainda vale é o `session.ts`, que lê o usuário — e hoje recusa
+     * token anterior à última troca de senha. Sem esta saída, um cookie bem
+     * assinado mas morto entraria em laço: o layout manda para /login, o proxy
+     * vê assinatura válida e devolve para /tarefas, o layout manda de novo…
+     */
+    if (request.nextUrl.searchParams.get(SESSAO_ENCERRADA.chave) === SESSAO_ENCERRADA.valor) {
+      const res = NextResponse.next();
+      res.cookies.delete(SESSION_COOKIE);
+      return res;
+    }
     return NextResponse.redirect(new URL("/tarefas", request.url));
   }
 
