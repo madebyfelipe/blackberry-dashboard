@@ -1,0 +1,45 @@
+# CI do black berry — ROADMAP, "Testes automatizados + CI".
+#
+# Roda a mesma sequência que se roda na máquina antes de commitar: tipos,
+# testes e build. Nada aqui instala dependência nova: os testes usam o runner
+# do próprio Node (`node --test`), que lê TypeScript direto.
+
+name: CI
+
+on:
+  push:
+  pull_request:
+
+# Um push novo no mesmo branch cancela a execução anterior.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verificar:
+    name: Tipos, testes e build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Baixar o código
+        uses: actions/checkout@v4
+
+      - name: Preparar o Node
+        uses: actions/setup-node@v4
+        with:
+          # 22 é o Node de desenvolvimento e o mínimo para os testes: o
+          # `node --test` só lê TypeScript sem build a partir do v22.18.
+          node-version: '22'
+          cache: npm
+
+      - name: Instalar dependências
+        run: npm ci
+
+      - name: Tipos
+        run: npm run typecheck
+
+      - name: Testes
+        run: npm test
+
+      - name: Build de produção
+        run: npm run build
