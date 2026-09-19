@@ -75,14 +75,15 @@ Agendamento/publicação automática · métricas de redes · financeiro · NF/b
 
 ## Rotina do Claude (como trabalhar a cada sessão)
 
-1. **Contexto primeiro.** Ler `MEMORY.md` e as memórias do projeto (começar por `ragick-black-berry-redesign`). Ler este `ROADMAP.md`.
-2. **Design é lei.** A fonte de verdade são os `*-export.html` (pen.dev) na raiz. Construir fiel ao design. **Ao precisar divergir, sugerir e confirmar antes.**
-3. **Manter os espaços do Felipe.** O que ainda não tem tela desenhada fica como **placeholder fácil de trocar** (ex.: `PieceThumb`, páginas placeholder) — nunca inventar telas finais por conta própria; marcar 🎨 aqui.
-4. **Arquitetura estável.** Novas views são *leitoras* de `repository`/`constants`. Nunca duplicar dados por tela. Pipeline de status só em `constants.ts`.
-5. **Interações + feedback.** Toda ação relevante dá feedback (toast, estado otimista, animação sutil). Respeitar `prefers-reduced-motion`.
-6. **Validar sempre.** `npm run typecheck` + `npm run build` verdes; smoke test das rotas/API tocadas antes de concluir.
-7. **Deploy + versionamento.** Commits pequenos e descritivos; subir no GitHub (`madebyfelipe/blackberry-dashboard`); deploy via `/vercel:deploy` quando fizer sentido.
-8. **Fechar o loop.** Atualizar este roadmap e as memórias; relatar o que foi feito, o que ficou pendente e o que precisa de decisão/desenho.
+Quem decide o quê e como o trabalho passa entre Felipe e Claude está em `FLUXO.md` — leia antes de começar. Resumo do que vale para toda sessão:
+
+1. **Contexto primeiro.** Ler `FLUXO.md`, este `ROADMAP.md` e as memórias do projeto (começar por `ragick-black-berry-redesign`).
+2. **Design é lei, e é sempre do Felipe.** A fonte de verdade são os `*-export.html` (pen.dev) na raiz. Construir fiel ao design. Tela sem desenho fica como **placeholder fácil de trocar** — nunca inventar tela final por conta própria; marcar 🎨 aqui.
+3. **Arquitetura estável.** Novas views são *leitoras* de `repository`/`constants`. Nunca duplicar dados por tela. Pipeline de status só em `constants.ts`.
+4. **Interações + feedback.** Toda ação relevante dá feedback (toast, estado otimista, animação sutil). Respeitar `prefers-reduced-motion`.
+5. **Validar sempre.** `npm run typecheck` + `npm test` + `npm run build` verdes; app rodando de verdade (não só compilando) nas rotas tocadas, desktop e celular.
+6. **Deploy + versionamento.** Commits pequenos e descritivos; branch própria + PR (ver `FLUXO.md` para quando o merge é do Felipe).
+7. **Fechar o loop.** Atualizar este roadmap; relatar o que foi feito, o que ficou pendente e o que precisa de decisão/desenho.
 
 ### Próximos passos sugeridos (ordem)
 1. **Multi-tenant**: todo `repository` passa a filtrar por agência (a auth já entrega o usuário e a agência dele).
