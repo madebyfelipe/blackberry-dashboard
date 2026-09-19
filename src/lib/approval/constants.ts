@@ -124,6 +124,26 @@ export function progressCaption(batch: Batch): string {
   return `${aprovadas} aprovadas · ${ajuste} com ajuste pedido · ${pendentes} pendentes`;
 }
 
+/**
+ * Mensagem pronta para mandar o link ao cliente (WhatsApp, e-mail ou colada
+ * onde for). Fica aqui, e não na view, para os três canais dizerem a mesma
+ * coisa — ROADMAP: "Envio do link por WhatsApp/e-mail".
+ */
+export function shareMessage(batch: Batch, url: string): string {
+  const { total } = batchProgress(batch);
+  const pecas = total === 1 ? "1 peça" : `${total} peças`;
+  return (
+    `Oi! O lote "${batch.label}" está pronto para sua aprovação — ${pecas} para revisar.\n\n` +
+    `É só abrir o link, deslizar e aprovar (ou pedir ajuste, com o motivo):\n${url}\n\n` +
+    `Qualquer dúvida, é só responder por aqui.`
+  );
+}
+
+/** Assunto do e-mail com o link de aprovação. */
+export function shareSubject(batch: Batch): string {
+  return `${batch.client} · ${batch.label} — aprovação de conteúdo`;
+}
+
 export type LinkStatus = "ativo" | "revogado" | "expirado";
 
 export function batchLinkStatus(batch: Batch): LinkStatus {

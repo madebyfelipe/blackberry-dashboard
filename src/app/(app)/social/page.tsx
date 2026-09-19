@@ -18,17 +18,18 @@ export default async function SocialPage() {
       </div>
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        {batches.map((b) => {
+        {batches.map((b, i) => {
           const p = batchProgress(b);
           return (
             <Link
               key={b.id}
               href={`/social/${b.id}`}
-              className="group flex flex-col gap-4 rounded-card border border-border bg-surface-2 p-6 transition-colors hover:border-border-strong"
+              style={{ ["--d" as string]: i }}
+              className="stagger-item group flex flex-col gap-4 rounded-card border border-border bg-surface-2 p-6 transition-[border-color,transform] duration-200 hover:-translate-y-0.5 hover:border-border-strong"
             >
               <div className="flex items-start justify-between">
                 <div className="flex items-center gap-3">
-                  <span className="flex h-9 w-9 items-center justify-center rounded-mark bg-[#616161] text-[14px] font-bold text-fg">
+                  <span className="flex h-9 w-9 items-center justify-center rounded-mark bg-dim text-[14px] font-bold text-fg transition-transform duration-200 group-hover:scale-105">
                     {b.client.charAt(0)}
                   </span>
                   <div>
@@ -40,7 +41,7 @@ export default async function SocialPage() {
                 </div>
                 <ChevronRightIcon
                   size={18}
-                  className="text-muted transition-transform group-hover:translate-x-0.5"
+                  className="text-muted transition-transform duration-200 group-hover:translate-x-1"
                 />
               </div>
 
@@ -54,9 +55,17 @@ export default async function SocialPage() {
                   </span>
                 </div>
                 <div className="h-2 w-full overflow-hidden rounded-pill bg-border">
+                  {/*
+                   * A barra cresce da esquerda ao abrir a tela: `scaleX` em vez
+                   * de `width` para a animação ficar no compositor.
+                   */}
                   <div
-                    className="h-2 rounded-pill bg-primary transition-all"
-                    style={{ width: `${p.pct}%` }}
+                    className="h-2 origin-left rounded-pill bg-primary transition-transform duration-500"
+                    style={{
+                      width: `${p.pct}%`,
+                      animation: "grow-x 0.6s var(--ease-out-soft) both",
+                      animationDelay: `${Math.min(i, 8) * 60 + 120}ms`,
+                    }}
                   />
                 </div>
                 <span className="text-[12px] text-muted">{progressCaption(b)}</span>

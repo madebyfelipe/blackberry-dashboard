@@ -80,6 +80,28 @@ export async function authenticate(
   return toPublic(user);
 }
 
+/** Nome e agência (tela de configurações). E-mail e papel não mudam aqui. */
+export async function updateProfile(
+  userId: string,
+  patch: { name?: string; agency?: string },
+): Promise<PublicUser> {
+  const name = patch.name?.trim();
+  if (patch.name !== undefined && !name) {
+    throw new AuthError("O nome não pode ficar vazio.");
+  }
+  return transaction((users) => {
+    const user = users.find((u) => u.id === userId);
+    if (!user) throw new AuthError("Usuário não encontrado.");
+    if (name) user.name = name;
+    if (patch.agency !== undefined) {
+      const agency = patch.agency.trim();
+      if (!agency) throw new AuthError("O nome da agência não pode ficar vazio.");
+      user.agency = agency;
+    }
+    return toPublic(user);
+  });
+}
+
 /** Troca de senha a partir da senha atual (tela de configurações). */
 export async function changePassword(
   userId: string,

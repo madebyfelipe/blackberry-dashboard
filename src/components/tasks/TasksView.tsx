@@ -380,14 +380,20 @@ function Tab({
       type="button"
       onClick={onClick}
       className={cn(
-        "flex shrink-0 items-center gap-2 rounded-pill px-6 py-2.5 text-[14px] transition-colors",
+        "tap flex shrink-0 items-center gap-2 rounded-pill px-6 py-2.5 text-[14px] transition-colors",
         active
           ? "bg-border-strong text-fg shadow-[0_1px_3.5px_-1px_#0000000f]"
-          : "text-muted hover:text-fg-soft",
+          : "text-muted hover:bg-surface/60 hover:text-fg-soft",
       )}
     >
       {label}
-      <span className={cn("text-[12px]", active ? "text-fg-soft" : "text-faint")}>
+      <span
+        key={count}
+        className={cn(
+          "animate-rise-in-sm text-[12px]",
+          active ? "text-fg-soft" : "text-faint",
+        )}
+      >
         {count}
       </span>
     </button>
@@ -413,10 +419,10 @@ function ViewTab({
       onClick={onClick}
       aria-pressed={active}
       className={cn(
-        "flex shrink-0 items-center rounded-pill px-6 py-2.5 text-[14px] transition-colors",
+        "tap flex shrink-0 items-center rounded-pill px-6 py-2.5 text-[14px] transition-colors",
         active
           ? "bg-border-strong text-fg shadow-[0_1px_3.5px_-1px_#0000000f]"
-          : "text-muted hover:text-fg-soft",
+          : "text-muted hover:bg-surface/60 hover:text-fg-soft",
       )}
     >
       {label}
@@ -445,7 +451,7 @@ function IconBtn({
       onClick={onClick}
       className={cn(
         // shrink-0: sem isso o flex achatava o botão (deixava de ser redondo).
-        "relative z-10 flex h-10 w-10 shrink-0 items-center justify-center rounded-full transition-colors",
+        "tap relative z-10 flex h-10 w-10 shrink-0 items-center justify-center rounded-full transition-colors",
         active
           ? "bg-border-strong text-fg"
           : "bg-surface text-fg-soft hover:bg-surface-2",
@@ -453,7 +459,7 @@ function IconBtn({
     >
       {children}
       {!!badge && (
-        <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-pill bg-primary px-1 text-[10px] font-semibold text-on-primary">
+        <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 animate-scale-in items-center justify-center rounded-pill bg-primary px-1 text-[10px] font-semibold text-on-primary">
           {badge}
         </span>
       )}
@@ -471,7 +477,7 @@ function EmptyState({
   onClear: () => void;
 }) {
   return (
-    <div className="flex h-full flex-col items-center justify-center gap-4 rounded-card border border-border bg-surface-2 text-center">
+    <div className="flex h-full animate-rise-in flex-col items-center justify-center gap-4 rounded-card border border-border bg-surface-2 text-center">
       <div className="flex h-12 w-12 items-center justify-center rounded-full bg-border text-muted">
         <SquareCheckIcon size={22} />
       </div>
@@ -489,7 +495,7 @@ function EmptyState({
         <button
           type="button"
           onClick={onClear}
-          className="rounded-pill border border-border px-4 py-2 text-[13px] text-fg-soft transition-colors hover:bg-surface"
+          className="tap rounded-pill border border-border px-4 py-2 text-[13px] text-fg-soft transition-colors hover:bg-surface"
         >
           Limpar filtros
         </button>

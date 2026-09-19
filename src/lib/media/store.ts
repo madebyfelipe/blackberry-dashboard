@@ -1,6 +1,7 @@
 import { promises as fs } from "node:fs";
 import { randomBytes } from "node:crypto";
 import path from "node:path";
+import { createJsonStore } from "@/lib/store/json-file";
 import { readDimensions } from "./dimensions";
 import { ACCEPTED_MIME, MAX_UPLOAD_BYTES } from "./constants";
 import type { MediaAsset } from "./types";
@@ -8,49 +9,27 @@ import type { MediaAsset } from "./types";
 /*
  * Armazenamento das artes.
  *
- * Mesma estratégia dos outros stores: disco quando dá (dev), memória quando
- * não (serverless/somente-leitura). Os bytes vão para `data/uploads/<id>` e os
- * metadados para `data/media.json` — separados de propósito: trocar por um
- * bucket (S3/Blob) mexe só no par `writeBytes`/`readBytes`.
+ * Os bytes vão para `data/uploads/<id>.<ext>` e os metadados para
+ * `data/media.json` pelo store compartilhado (`lib/store/json-file`), que
+ * revalida pelo mtime — sem isso, o worker que serve `/api/media/<id>` não
+ * enxergaria o que outro worker acabou de gravar.
  *
- * Ver ROADMAP: "Upload real de mídia" e a troca do JSON por banco.
+ * Disco somente-leitura (serverless): os bytes ficam na memória do processo,
+ * o que só sustenta a sessão atual. Trocar por um bucket (S3/Blob) mexe nas
+ * três funções de byte daqui — ver ROADMAP.
  */
 
-const DATA_DIR = path.join(process.cwd(), "data");
-const UPLOAD_DIR = path.join(DATA_DIR, "uploads");
-const INDEX_FILE = path.join(DATA_DIR, "media.json");
+const UPLOAD_DIR = path.join(process.cwd(), "data", "uploads");
 
 export class MediaError extends Error {}
 
-let index: Record<string, MediaAsset> | null = null;
-let canPersist = true;
-/** Fallback quando o disco é somente-leitura: bytes vivem no processo. */
+const index = createJsonStore<Record<string, MediaAsset>>({
+  file: "media.json",
+  seed: () => ({}),
+});
+
+/** Reserva para disco somente-leitura. */
 const memoryBytes = new Map<string, Uint8Array>();
-
-async function loadIndex(): Promise<Record<string, MediaAsset>> {
-  if (index) return index;
-  try {
-    index = JSON.parse(await fs.readFile(INDEX_FILE, "utf8")) as Record<
-      string,
-      MediaAsset
-    >;
-  } catch {
-    index = {};
-  }
-  return index;
-}
-
-async function persistIndex(): Promise<void> {
-  if (!canPersist || !index) return;
-  try {
-    await fs.mkdir(DATA_DIR, { recursive: true });
-    const tmp = INDEX_FILE + ".tmp";
-    await fs.writeFile(tmp, JSON.stringify(index, null, 2), "utf8");
-    await fs.rename(tmp, INDEX_FILE);
-  } catch {
-    canPersist = false;
-  }
-}
 
 function fileFor(asset: MediaAsset): string {
   const { ext } = ACCEPTED_MIME[asset.mime] ?? { ext: "bin" };
@@ -92,23 +71,22 @@ export async function saveMedia(
     createdAt: new Date().toISOString(),
   };
 
-  const map = await loadIndex();
-  map[id] = asset;
-
+  // Bytes primeiro: um registro sem arquivo daria uma arte quebrada na tela.
   try {
     await fs.mkdir(UPLOAD_DIR, { recursive: true });
     await fs.writeFile(fileFor(asset), bytes);
   } catch {
-    canPersist = false;
     memoryBytes.set(id, bytes);
   }
-  await persistIndex();
+  await index.transaction((map) => {
+    map[id] = asset;
+  });
 
   return asset;
 }
 
 export async function getMedia(id: string): Promise<MediaAsset | undefined> {
-  return (await loadIndex())[id];
+  return (await index.read())[id];
 }
 
 /** Bytes da arte, do disco ou da memória. */
@@ -129,15 +107,15 @@ export async function readMedia(
 
 /** Apaga arte e registro. Silencioso se já não existir. */
 export async function deleteMedia(id: string): Promise<void> {
-  const map = await loadIndex();
-  const asset = map[id];
+  const asset = await getMedia(id);
   if (!asset) return;
-  delete map[id];
+  await index.transaction((map) => {
+    delete map[id];
+  });
   memoryBytes.delete(id);
   try {
     await fs.unlink(fileFor(asset));
   } catch {
     // Arquivo já não estava lá — o registro sumindo basta.
   }
-  await persistIndex();
 }

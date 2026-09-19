@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { Batch, Piece, PieceStatus } from "@/lib/approval/types";
 import {
@@ -8,6 +8,8 @@ import {
   batchProgress,
   pieceChannel,
   pieceFormatLabel,
+  shareMessage,
+  shareSubject,
   PIECE_CHANNELS,
   PIECE_FORMATS,
   PIECE_STATUS,
@@ -24,6 +26,9 @@ import {
   SlidersIcon,
   SearchIcon,
   CheckIcon,
+  SendIcon,
+  MessageCircleIcon,
+  InboxIcon,
 } from "@/components/icons";
 import { cn } from "@/lib/cn";
 
@@ -51,7 +56,14 @@ export function LoteView({ initialBatch }: { initialBatch: Batch }) {
   );
 
   const progress = batchProgress(batch);
-  const publicUrl = `https://app.blackberry.com.br/a/${batch.token}`;
+  /*
+   * O link precisa ser o do ambiente em que o time está (localhost, preview da
+   * Vercel ou produção) — senão copiar/compartilhar manda o cliente para um
+   * domínio que talvez nem exista ainda. No servidor cai no domínio final.
+   */
+  const [origin, setOrigin] = useState("https://app.blackberry.com.br");
+  useEffect(() => setOrigin(window.location.origin), []);
+  const publicUrl = `${origin}/a/${batch.token}`;
   const linkStatus = batchLinkStatus(batch);
 
   const filtered = useMemo(() => {
@@ -72,6 +84,29 @@ export function LoteView({ initialBatch }: { initialBatch: Batch }) {
     try {
       await navigator.clipboard.writeText(publicUrl);
       toast("Link copiado.");
+    } catch {
+      toast("Não foi possível copiar.", "error");
+    }
+  }
+
+  /** Abre o WhatsApp/e-mail com a mensagem pronta e o link do lote. */
+  function share(channel: "whatsapp" | "email") {
+    if (linkStatus !== "ativo") {
+      toast("O link está inativo. Gere um novo antes de enviar.", "error");
+      return;
+    }
+    const message = shareMessage(batch, publicUrl);
+    const url =
+      channel === "whatsapp"
+        ? `https://wa.me/?text=${encodeURIComponent(message)}`
+        : `mailto:?subject=${encodeURIComponent(shareSubject(batch))}&body=${encodeURIComponent(message)}`;
+    window.open(url, "_blank", "noopener");
+  }
+
+  async function copyMessage() {
+    try {
+      await navigator.clipboard.writeText(shareMessage(batch, publicUrl));
+      toast("Mensagem copiada com o link.");
     } catch {
       toast("Não foi possível copiar.", "error");
     }
@@ -234,10 +269,27 @@ export function LoteView({ initialBatch }: { initialBatch: Batch }) {
 
           <ActionMenu
             triggerClassName="h-10 w-10 bg-surface text-fg-soft hover:bg-surface-2"
+            menuClassName="w-[208px]"
             items={[
+              {
+                label: "Enviar por WhatsApp",
+                icon: <MessageCircleIcon size={15} />,
+                onSelect: () => share("whatsapp"),
+              },
+              {
+                label: "Enviar por e-mail",
+                icon: <InboxIcon size={15} />,
+                onSelect: () => share("email"),
+              },
+              {
+                label: "Copiar mensagem",
+                icon: <SendIcon size={15} />,
+                onSelect: copyMessage,
+              },
               {
                 label: "Abrir link público",
                 icon: <ExternalLinkIcon size={15} />,
+                divider: true,
                 onSelect: () => window.open(`/a/${batch.token}`, "_blank"),
               },
               {
@@ -300,12 +352,13 @@ export function LoteView({ initialBatch }: { initialBatch: Batch }) {
             </p>
           ) : (
             <div className="grid grid-cols-2 gap-5 xl:grid-cols-3">
-              {filtered.map((p) => (
+              {filtered.map((p, i) => (
                 <button
                   key={p.id}
                   type="button"
                   onClick={() => setSelectedId(p.id)}
-                  className="group flex flex-col gap-2.5 text-left"
+                  style={{ ["--d" as string]: i }}
+                  className="stagger-item tap group flex flex-col gap-2.5 text-left"
                 >
                   <PieceThumb
                     size={p.size}
@@ -313,7 +366,7 @@ export function LoteView({ initialBatch }: { initialBatch: Batch }) {
                     showBadge={false}
                     plain
                     className={cn(
-                      "h-[190px] w-full transition-all",
+                      "h-[190px] w-full transition-all duration-200 group-hover:-translate-y-0.5",
                       selectedId === p.id
                         ? "outline outline-1 -outline-offset-[0.5px] outline-fg-soft"
                         : "outline outline-1 -outline-offset-[0.5px] outline-transparent group-hover:outline-border-strong",

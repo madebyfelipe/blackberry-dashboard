@@ -8,7 +8,8 @@ Três áreas: **aprovação de conteúdo** (diferencial), **gestão operacional 
 
 - **Next.js 16** (App Router) · **React 19** · **TypeScript**
 - **Tailwind CSS v4** (tokens do design em `src/app/globals.css` via `@theme`)
-- Persistência atual: **arquivo JSON** com fallback em memória (`src/lib/**/store.ts`) — troque por um banco antes de escalar na Vercel (ver `ROADMAP.md` e a memória `ragick-persistence-deploy`).
+- Persistência atual: **arquivo JSON** com fallback em memória (`src/lib/store/json-file.ts`) — troque por um banco antes de escalar na Vercel (ver `ROADMAP.md` e a memória `ragick-persistence-deploy`).
+- Auth própria: senha com **scrypt** (`node:crypto`) e sessão em cookie httpOnly assinada com **HMAC-SHA256** (Web Crypto). Sem dependência externa.
 - Ícones: lucide, reproduzidos como stroke/`currentColor` em `src/components/icons.tsx`.
 
 ## Rodando localmente
@@ -20,17 +21,35 @@ npm run build    # build de produção
 npm run typecheck
 ```
 
+### Entrar
+
+O seed cria uma conta de demonstração na primeira execução:
+
+| E-mail | Senha |
+| --- | --- |
+| `felipe@blackberry.app` | `blackberry` (ou `DEMO_PASSWORD`) |
+
+Dá para criar outra conta em `/criar-conta` — o cadastro já entra logado.
+
+### Variáveis de ambiente
+
+| Variável | Para quê |
+| --- | --- |
+| `AUTH_SECRET` | Chave que assina o cookie de sessão. **Obrigatória em produção** (mín. 16 caracteres): sem ela o app usa um segredo de desenvolvimento, que não protege nada e invalida as sessões a cada deploy. |
+| `DEMO_PASSWORD` | Senha da conta semeada, para instalações compartilhadas. |
+
 ## Rotas principais
 
 | Rota | O que é |
 | --- | --- |
-| `/login` | Tela de login (black berry) |
-| `/tarefas` | Tarefas — Lista + Grade (Kanban), CRUD, drag-and-drop, busca, menu de filtros (`F`) e menu de visualização |
+| `/login` · `/criar-conta` · `/recuperar-senha` | Entrada (black berry) — login e cadastro reais; a recuperação registra o pedido, o disparo de e-mail ainda não existe |
+| `/tarefas` | Tarefas — Lista + Quadro (Kanban), CRUD, drag-and-drop, busca, menu de filtros (`F`) e menu de visualização |
 | `/social` | Lotes de aprovação (visão agência) |
 | `/social/[id]` | Detalhe do lote — grade de peças + painel de decisão + link público |
 | `/social/[id]/editor` | **Editor de lote** — peças, detalhes da peça (data, formato, canal, legenda, hashtags) e preview do post |
 | `/a/[token]` | **Aprovação pública** (cliente, sem login): tela de início + swipe para aprovar/pedir ajuste |
-| `/inbox`, `/clientes`, `/equipe`, `/configuracoes` | Placeholders prontos para desenhar |
+| `/configuracoes` | Conta: perfil, troca de senha e sessão |
+| `/inbox`, `/clientes`, `/equipe` | Placeholders prontos para desenhar |
 
 ## Design
 
@@ -40,5 +59,16 @@ Tudo segue os exports do pen.dev na raiz do repo (`*-export.html`) — a fonte d
 
 O app só conversa com `repository.ts`, que só conversa com `store.ts`. Trocar o armazenamento é um drop-in em `store.ts` sem tocar no resto.
 
-- Tarefas: `src/lib/tasks/{types,constants,seed,store,repository}.ts` — o pipeline de status vive **só** em `constants.ts`.
+- Tarefas: `src/lib/tasks/{types,constants,priority,seed,store,repository}.ts` — o pipeline de status vive **só** em `constants.ts`; a régua de prioridade, **só** em `priority.ts`.
 - Aprovação: `src/lib/approval/{types,constants,seed,store,repository}.ts`.
+- Contas: `src/lib/auth/{types,password,token,session,seed,store,repository}.ts`. `token.ts` não importa nada do Node nem do Next — é o único pedaço compartilhado com o `proxy.ts`.
+- Mídia: `src/lib/media/*` — bytes em `data/uploads/`, metadados em `data/media.json`.
+- Base comum: `src/lib/store/json-file.ts` (arquivo JSON + memória). Ele revalida pelo **mtime** a cada leitura, porque `next start` roda vários workers: sem isso, quem grava e quem renderiza a tela veem estados diferentes.
+
+## Sessão e rotas protegidas
+
+`src/proxy.ts` (Next 16 — o antigo `middleware.ts`) barra as telas do shell autenticado e devolve a pessoa ao destino original depois do login (`?next=`). Ficam de fora, de propósito: `/a/<token>` (aprovação do cliente, sem login) e `/api/media/<id>`, que precisa carregar as artes no navegador do cliente — o que protege a arte é o id de 16 bytes aleatórios.
+
+## Movimento
+
+A biblioteca de animação vive em `globals.css`: uma curva de entrada (`--ease-out-soft`), cascata de listas por `--d` (`.stagger-item`), troca de tela em `app/(app)/template.tsx`, esqueletos (`.skeleton` + `loading.tsx`) e feedback de toque (`.tap`). Só `transform` e `opacity` são animados, e tudo respeita `prefers-reduced-motion`.
