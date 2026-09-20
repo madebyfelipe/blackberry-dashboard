@@ -160,6 +160,9 @@ export function SwipeApproval({ batch }: { batch: Batch }) {
               )}
               {current && (
                 <div
+                  // Um nó novo por peça: sem a key, o mesmo elemento voltava de ±600px
+                  // para 0 com a transição ligada — o card "voltava" ao centro.
+                  key={current.id}
                   onPointerDown={onPointerDown}
                   onPointerMove={onPointerMove}
                   onPointerUp={onPointerUp}
