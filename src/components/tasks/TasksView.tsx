@@ -284,7 +284,7 @@ export function TasksView({ initialTasks }: { initialTasks: Task[] }) {
                       />
                       <span className="truncate">{s.label}</span>
                     </span>
-                    <span className="shrink-0 text-[11px] text-faint">
+                    <span className="shrink-0 text-[11px] text-muted">
                       {counts.get(s.id) ?? 0}
                     </span>
                   </button>
@@ -489,7 +489,7 @@ function Tab({
       className={cn(
         "tap flex shrink-0 items-center gap-2 rounded-pill px-6 py-2.5 text-[14px] transition-colors",
         active
-          ? "bg-border-strong text-fg shadow-[0_1px_3.5px_-1px_#0000000f]"
+          ? "bg-border-strong text-fg shadow-[0_1px_3.5px_-1px_rgba(0,0,0,0.06)]"
           : "text-muted hover:bg-surface/60 hover:text-fg-soft",
       )}
     >
@@ -498,7 +498,7 @@ function Tab({
         key={count}
         className={cn(
           "animate-rise-in-sm text-[12px]",
-          active ? "text-fg-soft" : "text-faint",
+          active ? "text-fg-soft" : "text-muted",
         )}
       >
         {count}
@@ -508,8 +508,8 @@ function Tab({
 }
 
 /**
- * Pílula Lista/Quadro do export "2. Board · Kanban" — ativa: bg #414141,
- * texto branco e a sombra de 1px do desenho.
+ * Pílula Lista/Quadro do export "2. Board · Kanban" — ativa: fundo
+ * `border-strong`, texto branco e a sombra de 1px do desenho.
  */
 function ViewTab({
   active,
@@ -528,7 +528,7 @@ function ViewTab({
       className={cn(
         "tap flex shrink-0 items-center rounded-pill px-6 py-2.5 text-[14px] transition-colors",
         active
-          ? "bg-border-strong text-fg shadow-[0_1px_3.5px_-1px_#0000000f]"
+          ? "bg-border-strong text-fg shadow-[0_1px_3.5px_-1px_rgba(0,0,0,0.06)]"
           : "text-muted hover:bg-surface/60 hover:text-fg-soft",
       )}
     >

@@ -104,7 +104,7 @@ export function TaskTable({
             )}
 
             {g.tasks.length === 0 ? (
-              <p className="border-b border-border px-4 py-3 text-[13px] text-faint">
+              <p className="border-b border-border px-4 py-3 text-[13px] text-muted">
                 Nenhuma tarefa neste grupo.
               </p>
             ) : subgroupKey === "nenhum" ? (
@@ -119,7 +119,7 @@ export function TaskTable({
             ) : (
               groupTasks(g.tasks, subgroupKey).map((sg) => (
                 <div key={sg.key}>
-                  <p className="px-4 py-1.5 pl-6 text-[11px] font-medium tracking-[0.3px] text-faint">
+                  <p className="px-4 py-1.5 pl-6 text-[11px] font-medium tracking-[0.3px] text-muted">
                     {sg.label.toUpperCase()} · {sg.tasks.length}
                   </p>
                   <Rows
@@ -187,7 +187,7 @@ function Rows({
             </div>
           </div>
           {has("id") && (
-            <div className="w-[72px] shrink-0 truncate text-[12px] text-faint">
+            <div className="w-[72px] shrink-0 truncate text-[12px] text-muted">
               {t.id}
             </div>
           )}
@@ -211,14 +211,14 @@ function Rows({
                   </span>
                 </>
               ) : (
-                <span className="text-[13px] text-faint">—</span>
+                <span className="text-[13px] text-muted">—</span>
               )}
             </div>
           )}
           {has("labels") && (
             <div className="flex w-[150px] shrink-0 flex-wrap gap-1 overflow-hidden">
               {t.labels.length === 0 ? (
-                <span className="text-[13px] text-faint">—</span>
+                <span className="text-[13px] text-muted">—</span>
               ) : (
                 t.labels.slice(0, 2).map((l) => (
                   <span
@@ -230,7 +230,7 @@ function Rows({
                 ))
               )}
               {t.labels.length > 2 && (
-                <span className="text-[11px] text-faint">+{t.labels.length - 2}</span>
+                <span className="text-[11px] text-muted">+{t.labels.length - 2}</span>
               )}
             </div>
           )}
@@ -250,7 +250,12 @@ function Rows({
               {formatShortDate(t.createdAt)}
             </div>
           )}
-          <div className="flex w-8 shrink-0 justify-center opacity-0 transition-opacity group-hover:opacity-100">
+          {/*
+             * A caixa continua com a medida antiga (32x28) e o botão de 40px
+             * sobra por cima dela: o alvo de toque cresce sem esticar a altura
+             * da linha nem empurrar as colunas.
+             */}
+            <div className="flex h-7 w-8 shrink-0 items-center justify-center opacity-0 transition-opacity group-hover:opacity-100">
             <ActionMenu
               items={[
                 {

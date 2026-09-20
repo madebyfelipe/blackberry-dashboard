@@ -5,6 +5,7 @@ import { STATUSES } from "@/lib/tasks/constants";
 import type { TaskStatus } from "@/lib/tasks/types";
 import { StatusPill, StatusDot } from "@/components/ui/StatusPill";
 import { CheckIcon } from "@/components/icons";
+import { useMenuKeys } from "@/components/ui/useMenuKeys";
 import { cn } from "@/lib/cn";
 
 /** A status pill that opens a dropdown to change the status. */
@@ -18,11 +19,17 @@ export function StatusMenu({
   align?: "left" | "right";
 }) {
   const [open, setOpen] = useState(false);
+  const { menuRef, triggerRef, onKeyDown } = useMenuKeys(open, () =>
+    setOpen(false),
+  );
 
   return (
     <div className="relative">
       <button
+        ref={triggerRef}
         type="button"
+        aria-haspopup="menu"
+        aria-expanded={open}
         onClick={(e) => {
           e.stopPropagation();
           setOpen((o) => !o);
@@ -42,21 +49,27 @@ export function StatusMenu({
             }}
           />
           <div
+            ref={menuRef}
+            role="menu"
+            aria-label="Mudar status"
             className={cn(
-              "absolute z-50 mt-2 w-[184px] animate-pop-in overflow-hidden rounded-[18px] border border-border bg-surface-2 p-1.5 shadow-[0_16px_40px_rgba(0,0,0,0.55)]",
+              "absolute z-50 mt-2 w-[184px] animate-pop-in overflow-hidden rounded-menu border border-border bg-surface-2 p-1.5 shadow-[0_16px_40px_rgba(0,0,0,0.55)]",
               align === "right" ? "right-0" : "left-0",
             )}
             onClick={(e) => e.stopPropagation()}
+            onKeyDown={onKeyDown}
           >
             {STATUSES.map((s) => (
               <button
                 key={s.id}
                 type="button"
+                role="menuitemradio"
+                aria-checked={s.id === status}
                 onClick={() => {
                   setOpen(false);
                   if (s.id !== status) onSelect(s.id);
                 }}
-                className="flex w-full items-center gap-2.5 rounded-[12px] px-2.5 py-2 text-left text-[13px] text-fg-soft hover:bg-border"
+                className="flex w-full items-center gap-2.5 rounded-mark px-2.5 py-2 text-left text-[13px] text-fg-soft hover:bg-border focus:bg-border focus:outline-none"
               >
                 <StatusDot status={s.id} size={9} />
                 <span className="flex-1">{s.label}</span>

@@ -14,7 +14,14 @@
 
   /* Borders */
   --color-border: #2b2b2b; /* bb-surface-strong (também serve de borda) */
-  --color-border-strong: #414141; /* bb-border-strong */
+  --color-border-strong: #414141; /* bb-border-strong, e o fundo dos avatares */
+
+  /*
+   * Degraus de cinza dos selos (peça pendente/aprovada, marca do toast).
+   * Vêm dos exports; ficam aqui porque eram hex soltos nos `constants.ts`.
+   */
+  --color-badge: #3a3a3a;
+  --color-badge-strong: #4b4b4b;
 
   /* Text */
   --color-fg: #ffffff; /* bb-text */
@@ -23,27 +30,58 @@
   --color-fg-3: #acacac; /* bb-text-nav */
   --color-muted: #898989; /* bb-text-muted */
   --color-dim: #616161; /* cinza de apoio das telas novas (marca, legendas) */
+  /*
+   * `faint` é decorativo — marcadores, divisórias, pontos de status. Em texto
+   * que a pessoa precisa ler ele reprova: 2,86:1 sobre `bg` (#000) e 2,51:1
+   * sobre `surface` (#141414), contra os 4,5:1 exigidos. Texto de apoio em
+   * conteúdo real (id da tarefa, "+N" de etiquetas, contadores, legendas dos
+   * menus) usa `muted`, que dá 6,00:1 sobre `bg`, 5,27:1 sobre `surface` e
+   * 4,93:1 sobre `surface-2`.
+   */
   --color-faint: #565656; /* bb-status-done */
 
   /* Inverted primary (buttons/active chips) */
   --color-primary: #e8e8e8;
   --color-on-primary: #141414;
 
-  /* Status (kept monochrome per black berry; tune when the design specifies hues) */
-  --color-status-todo: #898989;
+  /*
+   * Único matiz do produto: o vermelho da ação destrutiva ("Excluir" no menu
+   * de ações). Estava cravado como `#e88` no JSX; aqui ele fica em um lugar
+   * só, com o mesmo valor de antes (7,0:1 sobre `surface-2`, onde o menu
+   * abre). Se um produto monocromático deve marcar o destrutivo com cor ou
+   * com peso/ícone é decisão de design — do Felipe, não minha: enquanto ela
+   * não vier, o vocabulário não muda, só deixa de estar espalhado.
+   */
+  --color-danger: #ee8888;
+
+  /*
+   * Status das tarefas — os cinzas dos pontos do export "List View". Os
+   * valores são os que as telas já desenhavam (viviam soltos em
+   * `lib/tasks/constants.ts`); estes tokens estavam aqui sem ninguém usar e
+   * com valores que não batiam com o que ia para a tela.
+   */
+  --color-status-todo: #888888;
   --color-status-progress: #c9c9c9;
-  --color-status-review: #acacac;
-  --color-status-done: #e8e8e8;
-  --color-status-paused: #565656;
-  --color-status-canceled: #565656;
+  --color-status-review: #e0e0e0;
+  --color-status-done: #565656;
+  --color-status-paused: #5a5a5a;
+  --color-status-canceled: #404040;
 
   /* Radii */
   --radius-field: 24px;
   --radius-pill: 999px;
   --radius-card: 24px;
   --radius-panel: 16px; /* painéis internos / dropzone / preview */
-  --radius-menu: 10px; /* menus flutuantes (Filtros) */
+  --radius-menu: 10px; /* menus flutuantes (o export "Filtros · Menu" manda) */
   --radius-mark: 6px; /* marca, chips de menu, linhas de menu */
+  --radius-thumb: 12px; /* recorte da arte: grade de peças do Lote e do editor */
+
+  /*
+   * Medidas — alvo de toque dos botões redondos (RoundIconButton, "⋯"). 40px
+   * é o que o export desenha e o mínimo confortável no celular; vira
+   * `h-control`/`w-control`.
+   */
+  --spacing-control: 40px;
 
   /* Type family */
   --font-sans: var(--font-inter), Inter, system-ui, sans-serif;

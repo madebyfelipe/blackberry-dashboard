@@ -19,7 +19,7 @@ const base =
   "tap inline-flex h-fit items-center justify-center rounded-field px-4 py-2.5 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-border-strong";
 
 const variants: Record<Variant, string> = {
-  // Inverted primary — bg #e8e8e8, text #141414
+  // Invertido: fundo `primary` sobre texto `on-primary`.
   primary: "bg-primary text-on-primary hover:bg-white",
   // Secondary — surface with border
   secondary:

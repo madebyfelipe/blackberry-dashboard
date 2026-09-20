@@ -3,7 +3,8 @@ import { cn } from "@/lib/cn";
 type InputProps = React.InputHTMLAttributes<HTMLInputElement>;
 
 /**
- * Text field per black berry: bg #000, border #414141, radius 24, 13px.
+ * Campo de texto do black berry: fundo `bg`, borda `border-strong`, raio de
+ * campo (`--radius-field`) e 13px.
  */
 export function Input({ className, ...props }: InputProps) {
   return (
