@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { updatePieceDraft } from "@/lib/approval/repository";
 import { PIECE_CHANNELS, PIECE_FORMATS } from "@/lib/approval/constants";
 import type { PieceChannel, PieceDraftPatch, PieceFormat } from "@/lib/approval/types";
-import { requireUser, unauthorized } from "@/lib/auth/session";
+import { requireAgency, unauthorized } from "@/lib/auth/session";
 
 export const dynamic = "force-dynamic";
 
@@ -13,7 +13,8 @@ export async function PATCH(
   req: Request,
   { params }: { params: Promise<{ id: string; pieceId: string }> },
 ) {
-  if (!(await requireUser())) return unauthorized("Faça login para editar o lote.");
+  const session = await requireAgency();
+  if (!session) return unauthorized("Faça login para editar o lote.");
   const { id, pieceId } = await params;
 
   let body: Record<string, unknown>;
@@ -47,8 +48,9 @@ export async function PATCH(
     return NextResponse.json({ error: "Nada para salvar." }, { status: 422 });
   }
 
-  const result = await updatePieceDraft(id, pieceId, patch);
+  const result = await updatePieceDraft(session.scope, id, pieceId, patch);
   if (!result) {
+    // Também é o caso de peça de outra agência — nunca 403 (ver repository).
     return NextResponse.json({ error: "Peça não encontrada." }, { status: 404 });
   }
   return NextResponse.json(result);

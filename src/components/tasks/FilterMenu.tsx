@@ -450,7 +450,7 @@ function OptionRow({
 
 function SubHeading({ children }: { children: string }) {
   return (
-    <p className="px-2.5 pb-1 pt-1.5 text-[10px] font-semibold tracking-[0.4px] text-faint">
+    <p className="px-2.5 pb-1 pt-1.5 text-[10px] font-semibold tracking-[0.4px] text-muted">
       {children.toUpperCase()}
     </p>
   );

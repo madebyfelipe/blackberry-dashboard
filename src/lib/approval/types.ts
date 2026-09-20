@@ -1,3 +1,4 @@
+import type { AgencyId } from "@/lib/agency/types";
 import type { MediaAsset } from "@/lib/media/types";
 
 export type PieceStatus = "pendente" | "aprovado" | "ajuste";
@@ -52,6 +53,12 @@ export type BatchStage = "rascunho" | "em-aprovacao";
 
 export type Batch = {
   id: string;
+  /**
+   * Agência dona do lote. Toda operação da agência confere este campo contra a
+   * sessão; o link público do cliente é a exceção, e quem autoriza lá é o
+   * token (ver `repository.ts`).
+   */
+  agencyId: AgencyId;
   client: string;
   /** e.g. "Lote setembro · 01-30 set" */
   label: string;

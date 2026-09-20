@@ -32,3 +32,6 @@ next-env.d.ts
 
 .vercel
 .env*
+
+# worktrees dos agentes (o harness as cria dentro do repo)
+/.claude/

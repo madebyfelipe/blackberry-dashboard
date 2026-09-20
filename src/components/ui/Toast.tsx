@@ -68,8 +68,13 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
               className="flex h-4 w-4 items-center justify-center rounded-full"
               style={{
                 backgroundColor:
-                  t.kind === "error" ? "#3a3a3a" : "var(--color-primary)",
-                color: t.kind === "error" ? "#e8e8e8" : "#141414",
+                  t.kind === "error"
+                    ? "var(--color-badge)"
+                    : "var(--color-primary)",
+                color:
+                  t.kind === "error"
+                    ? "var(--color-fg-soft)"
+                    : "var(--color-on-primary)",
               }}
             >
               {t.kind === "error" ? <XIcon size={11} /> : <CheckIcon size={11} />}

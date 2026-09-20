@@ -1,19 +1,21 @@
 import { NextResponse } from "next/server";
 import { createTask, listTasks, ValidationError } from "@/lib/tasks/repository";
-import { requireUser, unauthorized } from "@/lib/auth/session";
+import { requireAgency, unauthorized } from "@/lib/auth/session";
 
 export const dynamic = "force-dynamic";
 
 export async function GET() {
-  if (!(await requireUser())) return unauthorized();
-  const tasks = await listTasks();
+  // A agência sai da sessão. Não há parâmetro por onde pedir a de outra.
+  const session = await requireAgency();
+  if (!session) return unauthorized();
+  const tasks = await listTasks(session.scope);
   return NextResponse.json({ tasks });
 }
 
 export async function POST(req: Request) {
-  // O criador vem da sessão, nunca do corpo da requisição.
-  const user = await requireUser();
-  if (!user) return unauthorized();
+  // O criador e a agência vêm da sessão, nunca do corpo da requisição.
+  const session = await requireAgency();
+  if (!session) return unauthorized();
 
   let body: unknown;
   try {
@@ -33,7 +35,7 @@ export async function POST(req: Request) {
   } = (body ?? {}) as Record<string, unknown>;
 
   try {
-    const task = await createTask({
+    const task = await createTask(session.scope, {
       title: String(title ?? ""),
       client: String(client ?? ""),
       status: status as never,
@@ -41,7 +43,7 @@ export async function POST(req: Request) {
       description: description === undefined ? undefined : String(description),
       priority: priority as never,
       labels: labels as never,
-      creator: user.name,
+      creator: session.user.name,
       dueDate: dueDate as never,
     });
     return NextResponse.json({ task }, { status: 201 });

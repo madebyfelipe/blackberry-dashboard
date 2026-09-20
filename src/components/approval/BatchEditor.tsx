@@ -400,7 +400,7 @@ export function BatchEditor({
         </Popover>
 
         <ActionMenu
-          triggerClassName="h-10 w-10 bg-surface text-fg-soft hover:bg-surface-2"
+          triggerClassName="bg-surface text-fg-soft hover:bg-surface-2"
           menuClassName="w-[208px]"
           items={[
             {
@@ -420,7 +420,7 @@ export function BatchEditor({
         <button
           type="button"
           onClick={sendForApproval}
-          className="tap flex h-10 shrink-0 items-center gap-2 rounded-pill bg-primary px-5 text-[14px] font-semibold text-[#111111] transition-colors hover:bg-white"
+          className="tap flex h-10 shrink-0 items-center gap-2 rounded-pill bg-primary px-5 text-[14px] font-semibold text-on-primary transition-colors hover:bg-white"
         >
           <SendIcon size={16} /> Enviar para aprovação
         </button>
@@ -586,7 +586,7 @@ export function BatchEditor({
             maxLength={CAPTION_LIMIT}
             onChange={(e) => edit({ caption: e.target.value })}
             placeholder="Escreva a legenda que o cliente vai aprovar…"
-            className="max-h-[420px] min-h-[200px] w-full flex-1 resize-none rounded-panel border border-border bg-transparent p-3.5 text-[13px]/[21px] text-fg-soft placeholder:text-faint focus:border-border-strong focus:outline-none"
+            className="max-h-[420px] min-h-[200px] w-full flex-1 resize-none rounded-panel border border-border bg-transparent p-3.5 text-[13px]/[21px] text-fg-soft placeholder:text-muted focus:border-border-strong focus:outline-none"
           />
 
           <label
@@ -602,7 +602,7 @@ export function BatchEditor({
               value={piece.hashtags ?? ""}
               onChange={(e) => edit({ hashtags: e.target.value })}
               placeholder="clinicaaurora skincare pele glow"
-              className="w-full bg-transparent text-[13px] text-fg-soft placeholder:text-faint focus:outline-none"
+              className="w-full bg-transparent text-[13px] text-fg-soft placeholder:text-muted focus:outline-none"
             />
           </div>
         </section>
@@ -670,7 +670,7 @@ export function BatchEditor({
               >
                 {uploading > 0 ? <Spinner size={22} /> : <ImageIcon size={22} />}
                 <span className="text-[11px]">{piece.size.replace(" x ", " × ")}</span>
-                <span className="text-[10px] text-faint">
+                <span className="text-[10px] text-muted">
                   Clique ou arraste a arte desta peça
                 </span>
               </MediaDropzone>

@@ -1,3 +1,4 @@
+import { LEGACY_AGENCY_ID } from "@/lib/agency/id";
 import type { Task, TaskPriority, TaskStatus } from "./types";
 
 type SeedRow = {
@@ -30,6 +31,8 @@ const ROWS: SeedRow[] = [
 export function seedTasks(): Task[] {
   return ROWS.map(({ dueInDays, description, ...row }) => ({
     ...row,
+    // A demonstração é da agência semeada — é ela que abre o app na primeira vez.
+    agencyId: LEGACY_AGENCY_ID,
     description: description ?? "",
     dueDate:
       dueInDays === undefined

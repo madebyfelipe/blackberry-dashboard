@@ -9,6 +9,7 @@ import test, { describe } from "node:test";
 process.env.AUTH_SECRET = "segredo-de-teste-com-mais-de-16-chars";
 
 const {
+  AUTH_SECRET_AUSENTE,
   SESSION_COOKIE,
   SESSION_MAX_AGE,
   isProductionSecretMissing,
@@ -16,6 +17,25 @@ const {
   signSession,
   verifySession,
 } = await import("../src/lib/auth/token");
+
+/**
+ * Roda `fn` como se fosse produção sem AUTH_SECRET e devolve o ambiente ao
+ * que era. `process.env.NODE_ENV` é somente-leitura nos tipos do Next; o
+ * alias mutável evita mexer no descritor da propriedade.
+ */
+async function emProducaoSemSegredo(fn: () => Promise<void> | void): Promise<void> {
+  const env = process.env as Record<string, string | undefined>;
+  const nodeEnv = env.NODE_ENV;
+  const secret = env.AUTH_SECRET;
+  try {
+    env.NODE_ENV = "production";
+    delete env.AUTH_SECRET;
+    await fn();
+  } finally {
+    env.NODE_ENV = nodeEnv;
+    env.AUTH_SECRET = secret;
+  }
+}
 
 describe("token de sessão", () => {
   test("assina e verifica, devolvendo o id do usuário", async () => {
@@ -154,6 +174,60 @@ describe("token de sessão", () => {
       assert.equal(isProductionSecretMissing(), false, "fora de produção não reclama");
     } finally {
       env.NODE_ENV = nodeEnv;
+      env.AUTH_SECRET = secret;
+    }
+  });
+});
+
+describe("produção sem AUTH_SECRET", () => {
+  test("a mensagem diz o que fazer, não só o que faltou", () => {
+    assert.match(AUTH_SECRET_AUSENTE, /AUTH_SECRET/);
+    assert.match(AUTH_SECRET_AUSENTE, /openssl rand -base64 32/);
+    assert.match(AUTH_SECRET_AUSENTE, /Vercel/);
+    assert.match(AUTH_SECRET_AUSENTE, /Environment Variables/);
+  });
+
+  test("assinar recusa em vez de cair no segredo de desenvolvimento", async () => {
+    await emProducaoSemSegredo(async () => {
+      await assert.rejects(() => signSession("u1"), /AUTH_SECRET/);
+    });
+  });
+
+  test("conferir um token recusa, e não devolve null como se fosse inválido", async () => {
+    // O silêncio é o bug desta issue: sem a barreira, o erro cairia no
+    // try/catch de `readSession` e viraria um redirect para o login.
+    const token = await signSession("u1");
+    await emProducaoSemSegredo(async () => {
+      await assert.rejects(() => readSession(token), /AUTH_SECRET/);
+      await assert.rejects(() => verifySession(token), /AUTH_SECRET/);
+    });
+  });
+
+  test("token ausente ou malformado continua sendo só null", async () => {
+    // A recusa é sobre o segredo do servidor, não sobre o que o navegador
+    // mandou: cookie vazio segue sendo "não está logado".
+    await emProducaoSemSegredo(async () => {
+      assert.equal(await readSession(undefined), null);
+      assert.equal(await verifySession("sem-ponto"), null);
+    });
+  });
+
+  test("o boot do servidor recusa subir", async () => {
+    const { register } = await import("../src/instrumentation");
+    await emProducaoSemSegredo(() => {
+      assert.throws(() => register(), /AUTH_SECRET/);
+    });
+  });
+
+  test("fora de produção o fallback continua valendo, com ou sem segredo", async () => {
+    const env = process.env as Record<string, string | undefined>;
+    const secret = env.AUTH_SECRET;
+    const { register } = await import("../src/instrumentation");
+    try {
+      delete env.AUTH_SECRET;
+      assert.equal(await verifySession(await signSession("u1")), "u1");
+      assert.doesNotThrow(() => register());
+    } finally {
       env.AUTH_SECRET = secret;
     }
   });

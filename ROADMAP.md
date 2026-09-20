@@ -1,6 +1,6 @@
 # Roadmap — black berry
 
-Documento vivo. Marca o que já existe, o que falta **desenhar** (você) e o que falta **construir** (Claude), até o fim do projeto. Última atualização: **19 set 2026** (auth real, upload de mídia, campos ricos da tarefa, camada de movimento, shell que cabe no celular, testes + CI).
+Documento vivo. Marca o que já existe, o que falta **desenhar** (você) e o que falta **construir** (Claude), até o fim do projeto. Última atualização: **20 set 2026** (multi-tenant: isolamento por agência em toda a camada de dados).
 
 Legenda: ✅ pronto · 🟡 parcial/placeholder · ⬜ não começado · 🎨 precisa de tela sua antes de eu construir
 
@@ -10,6 +10,7 @@ Legenda: ✅ pronto · 🟡 parcial/placeholder · ⬜ não começado · 🎨 pr
 - ✅ Projeto Next.js 16 + React 19 + Tailwind v4 + TS do zero
 - ✅ Tokens do design **black berry** (`globals.css @theme`) + primitivos (`Button`, `Input`, `StatusPill`, `Avatar`, `Breadcrumb`, `Toast`)
 - ✅ **Design system v2 (gradiente)**: tokens anotados com os nomes `bb-*` do export, `--color-dim` (#616161), `--radius-panel`/`--radius-menu`, sidebar com `bg-sidebar-gradient` e corpo da lista transparente
+- ✅ **Polimento do design system** (issue #14): hex e raios crus saíram do JSX para o `@theme` (`--color-danger`, `--color-badge`/`--color-badge-strong`, `--radius-thumb`, `--spacing-control`, cinzas de status), o "⋯" ganhou o alvo de toque de 40px sem mexer na altura das linhas, os menus de ação voltaram à forma do export (10px/6px) com `aria-haspopup`/`aria-expanded` e navegação por setas, e o texto de apoio em conteúdo real subiu de `faint` (2,5:1) para `muted` (5,3:1)
 - ✅ Shell autenticado (sidebar completa) + rotas placeholder
 - ✅ Camada de dados com `repository`/`store` (JSON + fallback memória) e API REST
 - ✅ Sistema de toasts + animações (fade/drawer/pop) + `prefers-reduced-motion`
@@ -61,12 +62,13 @@ Legenda: ✅ pronto · 🟡 parcial/placeholder · ⬜ não começado · 🎨 pr
 - ✅ **Auth real** (e-mail/senha p/ agência + token p/ cliente): scrypt, cookie httpOnly assinado por HMAC, `proxy.ts` protegendo o shell, login/cadastro/recuperação, sair e troca de senha
 - 🟡 Recuperação de senha registra o pedido, mas **não envia e-mail** (falta provedor)
 - ✅ **Trocar a senha derruba as sessões dos outros aparelhos** (versão da senha dentro do token, sem precisar de lista de sessões)
-- ⬜ **Multi-tenant** com isolamento por agência (Postgres + RLS conforme spec) — `User.agency` já existe como raiz
+- ✅ **Multi-tenant**: agência virou entidade com id (`lib/agency`), tarefa e lote carregam `agencyId`, e todo `repository` exige o escopo da sessão como primeiro argumento — não dá para listar nem alterar sem dizer de qual agência, e dado de outra agência responde 404. Link público do cliente segue sem sessão, restrito ao lote do token. Falta o reforço no banco (**RLS**), que entra junto com o Postgres
+- 🟡 Cliente ainda é texto livre na tarefa e no lote (vira entidade com id quando a tela de Clientes for desenhada — 🎨)
 - ⬜ Trocar `store.ts` por banco (Neon Postgres via `vercel:marketplace`) antes de produção
 - ⬜ Papéis/permissões (Coordenação, Social media, Designer, Cliente) — o papel é gravado, mas ainda não muda o que a pessoa pode fazer
 - ✅ **Configurações**: perfil, troca de senha e sessão
 - ⬜ Inbox, Equipe (hoje placeholders)
-- ✅ **Testes automatizados** (`tests/`, runner do próprio Node, 132 casos das funções puras) **+ CI** (`.github/workflows/ci.yml`: tipos, testes e build a cada push e pull request)
+- ✅ **Testes automatizados** (`tests/`, runner do próprio Node, 153 casos das funções puras, incluindo o isolamento entre agências) **+ CI** (`.github/workflows/ci.yml`: tipos, testes e build a cada push e pull request)
 
 ## Fora do MVP (não construir sem pedido)
 Agendamento/publicação automática · métricas de redes · financeiro · NF/boleto · timesheet · CRM de prospecção.
@@ -86,14 +88,15 @@ Quem decide o quê e como o trabalho passa entre Felipe e Claude está em `FLUXO
 7. **Fechar o loop.** Atualizar este roadmap; relatar o que foi feito, o que ficou pendente e o que precisa de decisão/desenho.
 
 ### Próximos passos sugeridos (ordem)
-1. **Multi-tenant**: todo `repository` passa a filtrar por agência (a auth já entrega o usuário e a agência dele).
-2. **Banco no lugar do JSON** (Neon Postgres) + bucket para as artes — o `json-file.ts` foi feito para sair inteiro.
-3. **Calendário editorial** lendo a data de publicação que o editor já grava, e a carga do time a partir do responsável.
-4. **Envio automático do link** (WhatsApp/e-mail pelo servidor) + lembretes.
-5. Começar CRM/Health Score (Fase 3).
+1. **Banco no lugar do JSON** (Neon Postgres) + bucket para as artes — o `json-file.ts` foi feito para sair inteiro; o filtro por agência, que hoje vive no `repository`, vira `WHERE agency_id` e ganha **RLS** por cima.
+2. **Calendário editorial** lendo a data de publicação que o editor já grava, e a carga do time a partir do responsável.
+3. **Envio automático do link** (WhatsApp/e-mail pelo servidor) + lembretes.
+4. Começar CRM/Health Score (Fase 3).
 
 ### Dívidas conhecidas
-- `AUTH_SECRET` não está definido na Vercel: enquanto não estiver, o cookie de sessão é assinado com o segredo de desenvolvimento que está no repositório, e qualquer pessoa consegue forjar uma sessão. Tratar a instância como demonstração até resolver.
+- `AUTH_SECRET` não está definido na Vercel. O código já não aceita mais rodar assim: em produção sem o segredo o servidor recusa subir (`src/instrumentation.ts`) e assinar/conferir cookie lança (`src/lib/auth/token.ts`) — não existe mais o silêncio de cair no segredo de desenvolvimento. Falta o Felipe definir a variável no painel (`openssl rand -base64 32` → Settings → Environment Variables); até lá, a instância em produção não sobe.
 - As telas de lote e editor ainda não foram adaptadas ao celular (o shell já foi).
 - O `json-file.ts` relê pelo mtime, mas dois processos ainda podem se sobrepor num leitura-altera-grava simultâneo: é o preço de arquivo como banco, e some com o Postgres.
 - As artes são servidas como foram enviadas, sem derivadas leves.
+- Com o isolamento por agência, uma agência recém-cadastrada abre o `/social` vazio — e não tem como sair de lá: **criar lote** ainda não existe (os dois lotes vêm da semente, e são da agência semeada). Falta a tela 🎨.
+- Não existe **convite de equipe**: cada cadastro abre uma agência nova, então duas pessoas da mesma agência ainda não compartilham o mesmo tenant.

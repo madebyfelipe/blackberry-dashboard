@@ -1,3 +1,5 @@
+import type { AgencyId } from "@/lib/agency/types";
+
 /** Papéis do produto (spec: Coordenação, Social media, Designer). */
 export type Role = "coordenacao" | "social" | "designer";
 
@@ -7,8 +9,14 @@ export type User = {
   /** Normalizado em minúsculas — é a chave de login. */
   email: string;
   role: Role;
-  /** Agência a que o usuário pertence — raiz do multi-tenant que vem depois. */
+  /** Nome da agência, como a pessoa escreve. Muda; não serve de chave. */
   agency: string;
+  /**
+   * Tenant do usuário: é ele que todo `repository` usa para filtrar. Nasce do
+   * nome no cadastro (ver `lib/agency/id.ts`) e não muda mais — renomear a
+   * agência não pode trocar de tenant.
+   */
+  agencyId: AgencyId;
   /** Formato "scrypt$<salt hex>$<hash hex>" (ver `password.ts`). */
   passwordHash: string;
   /**

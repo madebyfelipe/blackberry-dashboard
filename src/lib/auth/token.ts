@@ -30,13 +30,30 @@ export type SessionClaims = { sub: string; passwordVersion: number };
 const PRIMEIRA_VERSAO = 1;
 
 /**
- * Segredo de assinatura. Em produção vem de AUTH_SECRET; sem ele, o app cai
- * num segredo de desenvolvimento — o que invalida as sessões a cada deploy e
- * NÃO serve para produção (ver README).
+ * O que se diz a quem subiu produção sem o segredo. É uma mensagem só, usada
+ * tanto na recusa do boot (`src/instrumentation.ts`) quanto na de runtime
+ * aqui, para que o erro no log seja sempre o mesmo texto — com o passo a
+ * passo, e não só o nome da variável.
+ */
+export const AUTH_SECRET_AUSENTE = [
+  "AUTH_SECRET não está definida (ou tem menos de 16 caracteres).",
+  "Sem ela o cookie de sessão seria assinado com o segredo de desenvolvimento",
+  "que está no repositório — qualquer um que leia o código entraria como",
+  "qualquer usuário. Por isso o app recusa rodar em produção.",
+  "",
+  "Gere um segredo:   openssl rand -base64 32",
+  "E defina:          Vercel → Settings → Environment Variables → AUTH_SECRET",
+].join("\n");
+
+/**
+ * Segredo de assinatura. Em produção vem de AUTH_SECRET; fora dela, o app cai
+ * num segredo de desenvolvimento — que não protege nada e invalida as sessões
+ * a cada deploy, por isso em produção o caminho é recusar, não cair.
  */
 function secret(): string {
   const fromEnv = process.env.AUTH_SECRET;
   if (fromEnv && fromEnv.length >= 16) return fromEnv;
+  exigirSegredoEmProducao();
   return "black-berry-dev-secret-trocar-em-producao";
 }
 
@@ -45,6 +62,19 @@ export function isProductionSecretMissing(): boolean {
     process.env.NODE_ENV === "production" &&
     !(process.env.AUTH_SECRET && process.env.AUTH_SECRET.length >= 16)
   );
+}
+
+/**
+ * Lança em produção sem segredo. Chamada no começo de `signSession` e de
+ * `readSession`, **fora** do try/catch que existe ali: dentro dele o erro
+ * viraria "token inválido" (null) e a falha sumiria num redirect para o login
+ * — exatamente o silêncio que esta issue veio acabar.
+ *
+ * É a única barreira que vale nos dois runtimes: `token.ts` também roda no
+ * proxy (Edge), onde o boot do servidor Node não passa.
+ */
+export function exigirSegredoEmProducao(): void {
+  if (isProductionSecretMissing()) throw new Error(AUTH_SECRET_AUSENTE);
 }
 
 function b64url(bytes: Uint8Array): string {
@@ -79,6 +109,7 @@ export async function signSession(
   userId: string,
   options: { passwordVersion?: number; maxAgeSeconds?: number } = {},
 ): Promise<string> {
+  exigirSegredoEmProducao();
   const {
     passwordVersion = PRIMEIRA_VERSAO,
     maxAgeSeconds = SESSION_MAX_AGE,
@@ -110,6 +141,7 @@ export async function readSession(
   if (!token) return null;
   const [body, sig] = token.split(".");
   if (!body || !sig) return null;
+  exigirSegredoEmProducao();
   try {
     const ok = await crypto.subtle.verify(
       "HMAC",

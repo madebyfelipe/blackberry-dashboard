@@ -24,6 +24,13 @@
  * só transform e opacity.
  */
 
+/*
+ * Os hex daqui para baixo são a única exceção à regra de cor do produto: não
+ * são cor de interface, são a arte do fundo (um espectro inteiro, que não cabe
+ * em token nenhum do vocabulário monocromático). Nada aqui deve ser reusado
+ * como cor de componente.
+ */
+
 // ---- Leque espectral (direita) --------------------------------------------
 
 // O arco é dimensionado pela LARGURA: é ela que decide onde a faixa cruza a

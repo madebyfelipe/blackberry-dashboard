@@ -37,7 +37,7 @@ export function RoundIconButton({
 }) {
   const classes = cn(
     // shrink-0: sem isso o flex achata o botão e ele deixa de ser redondo.
-    "tap relative z-10 flex h-10 w-10 shrink-0 items-center justify-center rounded-full transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-border-strong",
+    "tap relative z-10 flex h-control w-control shrink-0 items-center justify-center rounded-full transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-border-strong",
     active ? "bg-border-strong text-fg" : "bg-surface text-fg-soft hover:bg-surface-2",
     className,
   );

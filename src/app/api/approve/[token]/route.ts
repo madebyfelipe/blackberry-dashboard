@@ -4,6 +4,12 @@ import type { PieceStatus } from "@/lib/approval/types";
 
 export const dynamic = "force-dynamic";
 
+/*
+ * Decisão do cliente pelo link público. Sem sessão, e por isso sem agência: a
+ * autorização inteira é o token, que resolve um lote só. É a única rota de
+ * escrita do produto que não passa por `AgencyScope` — qualquer agência que
+ * viesse desta requisição seria agência escolhida por quem chama.
+ */
 const VALID: PieceStatus[] = ["aprovado", "ajuste", "pendente"];
 
 export async function POST(

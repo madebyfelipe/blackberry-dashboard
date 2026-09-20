@@ -228,7 +228,7 @@ export function LoteView({ initialBatch }: { initialBatch: Batch }) {
             </RoundIconButton>
           }
         >
-          <div className="w-[200px] max-w-[calc(100vw-32px)] animate-pop-in rounded-[16px] border border-border bg-surface-2 p-1.5 shadow-[0_16px_40px_rgba(0,0,0,0.55)]">
+          <div className="w-[200px] max-w-[calc(100vw-32px)] animate-pop-in rounded-menu border border-border bg-surface-2 p-1.5 shadow-[0_16px_40px_rgba(0,0,0,0.55)]">
             {PIECE_FORMATS.map((f) => {
               const on = formatFilter.includes(f.label);
               return (
@@ -241,7 +241,7 @@ export function LoteView({ initialBatch }: { initialBatch: Batch }) {
                       on ? list.filter((l) => l !== f.label) : [...list, f.label],
                     )
                   }
-                  className="flex w-full items-center justify-between rounded-[12px] px-2.5 py-2 text-left text-[13px] text-fg-soft hover:bg-border"
+                  className="flex w-full items-center justify-between rounded-mark px-2.5 py-2 text-left text-[13px] text-fg-soft hover:bg-border"
                 >
                   <span>{f.label}</span>
                   {on && <CheckIcon size={14} />}
@@ -284,7 +284,7 @@ export function LoteView({ initialBatch }: { initialBatch: Batch }) {
         </div>
 
         <ActionMenu
-          triggerClassName="h-10 w-10 bg-surface text-fg-soft hover:bg-surface-2"
+          triggerClassName="bg-surface text-fg-soft hover:bg-surface-2"
           // O painel nasce alinhado à direita (`ActionMenu` não tem variante
           // responsiva); no celular a linha de ações abre colada à esquerda
           // da tela e "direita" jogava o menu para fora. `left`/`right` são
@@ -339,7 +339,7 @@ export function LoteView({ initialBatch }: { initialBatch: Batch }) {
           type="button"
           onClick={copyLink}
           disabled={linkStatus !== "ativo"}
-          className="tap flex h-10 shrink-0 items-center gap-2 rounded-pill bg-primary px-5 text-[14px] font-semibold text-[#111111] transition-colors hover:bg-white disabled:cursor-not-allowed disabled:opacity-50"
+          className="tap flex h-10 shrink-0 items-center gap-2 rounded-pill bg-primary px-5 text-[14px] font-semibold text-on-primary transition-colors hover:bg-white disabled:cursor-not-allowed disabled:opacity-50"
         >
           <CopyIcon size={16} /> Copiar link
         </button>
@@ -400,7 +400,7 @@ export function LoteView({ initialBatch }: { initialBatch: Batch }) {
                       /*
                        * Anel de seleção como box-shadow `inset`, não
                        * `outline`: este elemento já tem `overflow-hidden` +
-                       * `rounded-[12px]` (é o que recorta a arte no cantinho
+                       * `rounded-thumb` (é o que recorta a arte no cantinho
                        * do card), e outline com offset negativo tem um clip
                        * path calculado à parte do recorte do próprio
                        * overflow — nas colunas do meio da grade a costura
@@ -581,7 +581,7 @@ function PanelButton({
       className={cn(
         "flex h-10 w-full shrink-0 items-center justify-center rounded-pill px-5 text-[14px] font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-50",
         primary
-          ? "bg-primary text-[#111111] hover:bg-white"
+          ? "bg-primary text-on-primary hover:bg-white"
           : "text-fg-soft outline outline-1 -outline-offset-[0.5px] outline-border hover:bg-surface",
       )}
     >
