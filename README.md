@@ -78,11 +78,49 @@ Tudo segue os exports do pen.dev na raiz do repo (`*-export.html`) — a fonte d
 
 O app só conversa com `repository.ts`, que só conversa com `store.ts`. Trocar o armazenamento é um drop-in em `store.ts` sem tocar no resto.
 
+- Agência (tenant): `src/lib/agency/{types,id}.ts` — ver "Multi-tenant" abaixo.
 - Tarefas: `src/lib/tasks/{types,constants,priority,seed,store,repository}.ts` — o pipeline de status vive **só** em `constants.ts`; a régua de prioridade, **só** em `priority.ts`.
 - Aprovação: `src/lib/approval/{types,constants,seed,store,repository}.ts`.
 - Contas: `src/lib/auth/{types,password,token,session,seed,store,repository}.ts`. `token.ts` não importa nada do Node nem do Next — é o único pedaço compartilhado com o `proxy.ts`.
 - Mídia: `src/lib/media/*` — bytes em `data/uploads/`, metadados em `data/media.json`.
 - Base comum: `src/lib/store/json-file.ts` (arquivo JSON + memória). Ele revalida pelo **mtime** a cada leitura, porque `next start` roda vários workers: sem isso, quem grava e quem renderiza a tela veem estados diferentes.
+
+## Multi-tenant: isolamento por agência
+
+Toda tarefa e todo lote carrega um `agencyId`, e **nenhuma leitura ou escrita
+acontece sem dizer de qual agência**: as funções de `repository.ts` exigem um
+`AgencyScope` como primeiro argumento, e o TypeScript recusa a chamada sem ele.
+O escopo nasce num lugar só — `requireAgency()` / `currentAgencyScope()` em
+`src/lib/auth/session.ts`, a partir da sessão do servidor. Nunca de query
+string, corpo ou header.
+
+Vale para escrita como vale para leitura: `getTask`, `updateTask`, `deleteTask`
+e toda operação de lote/peça procuram por id **e** agência. Registro de outra
+agência responde **404**, nunca 403 — 403 confirmaria que o id existe.
+
+**O id da agência.** `user.agency` continua sendo o nome que a pessoa escreve;
+quem identifica o tenant é `user.agencyId`, gravado no cadastro e imutável
+depois disso (renomear a agência troca o rótulo, não o tenant). O id é o slug
+do nome — "Estúdio Norte" → `estudio-norte` — mais um sufixo aleatório nos
+cadastros novos, porque ainda não existe convite de equipe: sem o sufixo,
+bastaria digitar o nome de uma agência para cair dentro dela.
+
+**Migração.** Roda sozinha na primeira leitura de cada store (`revive`), no
+mesmo espírito dos `seed.ts`. Conta antiga recebe o slug do nome que já tinha;
+tarefa e lote antigos, sem dono, caem na agência semeada (`estudio-norte`) — a
+única que existia antes do multi-tenant. Nada some e nada vaza para quem acabou
+de se cadastrar.
+
+**A exceção é o link público.** `/a/<token>` e `POST /api/approve/<token>`
+rodam sem sessão, e portanto sem agência: quem autoriza é o token, e ele
+resolve exatamente um lote (`getBatchByToken` recusa token ambíguo). As duas
+funções ficam isoladas no fim de `approval/repository.ts`, sem `AgencyScope`
+por desenho — um escopo ali seria escopo escolhido por quem chama. `GET
+/api/media/<id>` segue igualmente público, protegido pelo id de 16 bytes, para
+o cliente conseguir carregar as artes.
+
+Quando o Postgres entrar (banco no lugar do JSON), este filtro vira o `WHERE
+agency_id` de cada consulta e ganha **RLS** por cima.
 
 ## Sessão e rotas protegidas
 
