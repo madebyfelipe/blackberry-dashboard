@@ -12,7 +12,7 @@ export type PieceStatusMeta = {
   /** badge background + text, from the Lote export */
   badgeBg: string;
   badgeFg: string;
-  /** cor do ponto da pílula de status (export "Clínica Aurora · Lote") */
+  /** cor do ponto da pílula de status (export "Clínica Aurora - Lote") */
   dot: string;
 };
 

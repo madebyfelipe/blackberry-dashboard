@@ -6,10 +6,13 @@ import type { Batch, Piece } from "@/lib/approval/types";
 import {
   CAPTION_LIMIT,
   PIECE_CHANNELS,
+  batchLinkStatus,
   batchStage,
   pieceChannel,
   pieceFormat,
   pieceFormatLabel,
+  shareMessage,
+  shareSubject,
 } from "@/lib/approval/constants";
 import {
   formatAgo,
@@ -40,14 +43,17 @@ import {
   HashIcon,
   HeartIcon,
   ImageIcon,
+  InboxIcon,
   InstagramIcon,
   MessageCircleIcon,
   Music2Icon,
   PlusIcon,
   ReplaceIcon,
+  RotateIcon,
   SendIcon,
   Settings2Icon,
   TrashIcon,
+  XIcon,
 } from "@/components/icons";
 
 /*
@@ -77,9 +83,11 @@ const AUTOSAVE_MS = 900;
 
 export function BatchEditor({
   batch: initialBatch,
+  clientSlug,
   initialPieceId,
 }: {
   batch: Batch;
+  clientSlug: string;
   initialPieceId?: string;
 }) {
   const { toast } = useToast();
@@ -100,6 +108,20 @@ export function BatchEditor({
   const [uploading, setUploading] = useState(0);
   const [, setTick] = useState(0);
   const timers = useRef(new Map<string, ReturnType<typeof setTimeout>>());
+
+  /*
+   * O link do lote vive no editor desde que a tela de Lote passou a mostrar
+   * só a URL e o copiar (export "Clínica Aurora - Lote"): enviar ao cliente,
+   * gerar de novo e desativar são ações de quem está preparando o lote.
+   *
+   * A URL precisa ser a do ambiente em que o time está (localhost, preview da
+   * Vercel ou produção) — senão o cliente recebe um domínio que talvez nem
+   * exista ainda. No servidor cai no domínio final.
+   */
+  const [origin, setOrigin] = useState("https://app.blackberry.com.br");
+  useEffect(() => setOrigin(window.location.origin), []);
+  const publicUrl = `${origin}/a/${batch.token}`;
+  const linkStatus = batchLinkStatus(batch);
 
   const piece = batch.pieces.find((p) => p.id === selectedId) ?? batch.pieces[0];
   const index = batch.pieces.findIndex((p) => p.id === piece?.id);
@@ -178,6 +200,51 @@ export function BatchEditor({
       date: piece.date,
     });
     toast("Rascunho salvo.");
+  }
+
+  /** Abre o WhatsApp/e-mail com a mensagem pronta e o link do lote. */
+  function share(channel: "whatsapp" | "email") {
+    if (linkStatus !== "ativo") {
+      toast("O link está inativo. Gere um novo antes de enviar.", "error");
+      return;
+    }
+    const message = shareMessage(batch, publicUrl);
+    const url =
+      channel === "whatsapp"
+        ? `https://wa.me/?text=${encodeURIComponent(message)}`
+        : `mailto:?subject=${encodeURIComponent(shareSubject(batch))}&body=${encodeURIComponent(message)}`;
+    window.open(url, "_blank", "noopener");
+  }
+
+  async function copyMessage() {
+    try {
+      await navigator.clipboard.writeText(shareMessage(batch, publicUrl));
+      toast("Mensagem copiada com o link.");
+    } catch {
+      toast("Não foi possível copiar.", "error");
+    }
+  }
+
+  async function manageLink(action: "regenerate" | "revoke" | "reactivate") {
+    try {
+      const res = await fetch(`/api/batches/${batch.id}/token`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ action }),
+      });
+      if (!res.ok) throw new Error();
+      const { batch: updated } = await res.json();
+      setBatch((b) => ({ ...b, ...updated }));
+      toast(
+        action === "regenerate"
+          ? "Novo link gerado."
+          : action === "revoke"
+            ? "Link desativado."
+            : "Link reativado.",
+      );
+    } catch {
+      toast("Não foi possível atualizar o link.", "error");
+    }
   }
 
   async function addPiece() {
@@ -333,8 +400,8 @@ export function BatchEditor({
         items={[
           { label: "black berry", href: "/tarefas" },
           { label: "Social media", href: "/social" },
-          { label: batch.client, href: `/social/${batch.id}` },
-          { label: batch.label },
+          { label: batch.client, href: `/social/${clientSlug}` },
+          { label: batch.label, href: `/social/${clientSlug}/${batch.id}` },
           { label: "Editor" },
         ]}
       />
@@ -354,7 +421,7 @@ export function BatchEditor({
         }
         leading={
           <RoundIconButton
-            href={`/social/${batch.id}`}
+            href={`/social/${clientSlug}/${batch.id}`}
             label="Voltar para o lote"
           >
             <ChevronLeftIcon size={18} />
@@ -411,9 +478,47 @@ export function BatchEditor({
             {
               label: "Ver o lote",
               icon: <ExternalLinkIcon size={15} />,
-              divider: true,
-              onSelect: () => router.push(`/social/${batch.id}`),
+              onSelect: () => router.push(`/social/${clientSlug}/${batch.id}`),
             },
+            {
+              label: "Enviar por WhatsApp",
+              icon: <MessageCircleIcon size={15} />,
+              divider: true,
+              onSelect: () => share("whatsapp"),
+            },
+            {
+              label: "Enviar por e-mail",
+              icon: <InboxIcon size={15} />,
+              onSelect: () => share("email"),
+            },
+            {
+              label: "Copiar mensagem",
+              icon: <SendIcon size={15} />,
+              onSelect: copyMessage,
+            },
+            {
+              label: "Abrir link público",
+              icon: <ExternalLinkIcon size={15} />,
+              divider: true,
+              onSelect: () => window.open(`/a/${batch.token}`, "_blank"),
+            },
+            {
+              label: "Gerar novo link",
+              icon: <RotateIcon size={15} />,
+              onSelect: () => manageLink("regenerate"),
+            },
+            linkStatus === "revogado"
+              ? {
+                  label: "Reativar link",
+                  icon: <ExternalLinkIcon size={15} />,
+                  onSelect: () => manageLink("reactivate"),
+                }
+              : {
+                  label: "Desativar link",
+                  icon: <XIcon size={15} />,
+                  danger: true,
+                  onSelect: () => manageLink("revoke"),
+                },
           ]}
         />
 

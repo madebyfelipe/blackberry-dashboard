@@ -14,6 +14,12 @@ import { cn } from "@/lib/cn";
  * Com `href` vira link (a seta de voltar), sem `href` vira botão. Nos dois
  * casos `label` é o `aria-label` e o `title` — como o conteúdo é só um ícone,
  * sem ele o botão não tem nome acessível.
+ *
+ * `tone="primary"` é o botão claro dos exports novos (o "+" de Clientes e de
+ * Lotes, o copiar link do Lote). É variante daqui, e não `className` de fora:
+ * `cn` só concatena, então um `bg-primary` vindo de fora briga com o
+ * `bg-surface` do padrão e quem ganha é a ordem do CSS — foi assim que o
+ * ícone do copiar link ficou escuro sobre fundo escuro, invisível.
  */
 export function RoundIconButton({
   children,
@@ -23,6 +29,7 @@ export function RoundIconButton({
   active,
   badge,
   expanded,
+  tone = "surface",
   className,
 }: {
   children: React.ReactNode;
@@ -33,12 +40,18 @@ export function RoundIconButton({
   badge?: number;
   /** Informa que o botão abre um menu e se ele está aberto. */
   expanded?: boolean;
+  /** `primary` é o botão claro dos exports novos. */
+  tone?: "surface" | "primary";
   className?: string;
 }) {
   const classes = cn(
     // shrink-0: sem isso o flex achata o botão e ele deixa de ser redondo.
     "tap relative z-10 flex h-control w-control shrink-0 items-center justify-center rounded-full transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-border-strong",
-    active ? "bg-border-strong text-fg" : "bg-surface text-fg-soft hover:bg-surface-2",
+    tone === "primary"
+      ? "bg-primary text-on-primary hover:bg-white"
+      : active
+        ? "bg-border-strong text-fg"
+        : "bg-surface text-fg-soft hover:bg-surface-2",
     className,
   );
 

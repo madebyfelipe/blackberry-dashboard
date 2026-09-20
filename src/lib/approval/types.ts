@@ -62,6 +62,8 @@ export type Batch = {
   client: string;
   /** e.g. "Lote setembro · 01-30 set" */
   label: string;
+  /** Briefing curto que a agência escreve ao criar o lote. */
+  description?: string;
   stage?: BatchStage;
   /** ISO — última gravação do rascunho no editor */
   draftSavedAt?: string;

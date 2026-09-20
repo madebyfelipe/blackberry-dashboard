@@ -8,55 +8,40 @@ import {
   batchProgress,
   pieceChannel,
   pieceFormatLabel,
-  shareMessage,
-  shareSubject,
   PIECE_CHANNELS,
-  PIECE_FORMATS,
   PIECE_STATUS,
 } from "@/lib/approval/constants";
+import { formatPieceDate } from "@/lib/format";
 import { Breadcrumb } from "@/components/ui/Breadcrumb";
 import { PieceThumb } from "./PieceThumb";
-import { Popover } from "./Popover";
 import { RoundIconButton } from "./RoundIconButton";
-import { ScreenHeader } from "./ScreenHeader";
 import { ScrollFade } from "./ScrollFade";
 import { useToast } from "@/components/ui/Toast";
-import { ActionMenu } from "@/components/tasks/ActionMenu";
-import {
-  CopyIcon,
-  RotateIcon,
-  ExternalLinkIcon,
-  XIcon,
-  SlidersIcon,
-  SearchIcon,
-  CheckIcon,
-  SendIcon,
-  MessageCircleIcon,
-  InboxIcon,
-} from "@/components/icons";
+import { CopyIcon } from "@/components/icons";
 import { cn } from "@/lib/cn";
 
 type Filter = "todas" | PieceStatus;
 
 /**
- * Lote (visão agência) — export "Clínica Aurora · Lote".
- * Cabeçalho com título + ações redondas, chips de status, grade de peças à
- * esquerda e painel de detalhe encostado na borda direita.
+ * Lote (visão agência) — export "Clínica Aurora - Lote".
  *
- * O cabeçalho, o botão redondo e o menu flutuante são os mesmos objetos do
- * editor (`ScreenHeader`, `RoundIconButton`, `Popover`): as duas telas
- * precisavam da mesma altura e da mesma escala de título, e compartilhar os
- * componentes é o que impede que voltem a divergir.
+ * Topo minimalista: trilha à esquerda, link público à direita, e nada mais.
+ * Saíram daqui o título grande, o resumo de progresso e os botões redondos de
+ * filtro/busca; as ações do link (WhatsApp, e-mail, copiar mensagem, gerar e
+ * desativar) passaram para o menu do Editor de lote. O que sobrou na tela é o
+ * que o desenho pede: chips de status, grade de peças e painel de detalhe.
  */
-export function LoteView({ initialBatch }: { initialBatch: Batch }) {
+export function LoteView({
+  initialBatch,
+  clientSlug,
+}: {
+  initialBatch: Batch;
+  clientSlug: string;
+}) {
   const { toast } = useToast();
   const router = useRouter();
   const [batch, setBatch] = useState<Batch>(initialBatch);
   const [filter, setFilter] = useState<Filter>("todas");
-  const [formatFilter, setFormatFilter] = useState<string[]>([]);
-  const [showFormats, setShowFormats] = useState(false);
-  const [search, setSearch] = useState("");
-  const [showSearch, setShowSearch] = useState(false);
   const [busy, setBusy] = useState(false);
   const [selectedId, setSelectedId] = useState<string>(
     initialBatch.pieces.find((p) => p.status === "ajuste")?.id ??
@@ -75,71 +60,26 @@ export function LoteView({ initialBatch }: { initialBatch: Batch }) {
   const publicUrl = `${origin}/a/${batch.token}`;
   const linkStatus = batchLinkStatus(batch);
 
-  const filtered = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    return batch.pieces.filter((p) => {
-      if (filter !== "todas" && p.status !== filter) return false;
-      if (formatFilter.length && !formatFilter.includes(pieceFormatLabel(p)))
-        return false;
-      if (q && !`${p.name} ${p.kind} ${p.caption ?? ""}`.toLowerCase().includes(q))
-        return false;
-      return true;
-    });
-  }, [batch, filter, formatFilter, search]);
+  const filtered = useMemo(
+    () =>
+      filter === "todas"
+        ? batch.pieces
+        : batch.pieces.filter((p) => p.status === filter),
+    [batch, filter],
+  );
 
   const selected = batch.pieces.find((p) => p.id === selectedId);
 
   async function copyLink() {
+    if (linkStatus !== "ativo") {
+      toast("O link está inativo. Gere um novo no editor do lote.", "error");
+      return;
+    }
     try {
       await navigator.clipboard.writeText(publicUrl);
       toast("Link copiado.");
     } catch {
       toast("Não foi possível copiar.", "error");
-    }
-  }
-
-  /** Abre o WhatsApp/e-mail com a mensagem pronta e o link do lote. */
-  function share(channel: "whatsapp" | "email") {
-    if (linkStatus !== "ativo") {
-      toast("O link está inativo. Gere um novo antes de enviar.", "error");
-      return;
-    }
-    const message = shareMessage(batch, publicUrl);
-    const url =
-      channel === "whatsapp"
-        ? `https://wa.me/?text=${encodeURIComponent(message)}`
-        : `mailto:?subject=${encodeURIComponent(shareSubject(batch))}&body=${encodeURIComponent(message)}`;
-    window.open(url, "_blank", "noopener");
-  }
-
-  async function copyMessage() {
-    try {
-      await navigator.clipboard.writeText(shareMessage(batch, publicUrl));
-      toast("Mensagem copiada com o link.");
-    } catch {
-      toast("Não foi possível copiar.", "error");
-    }
-  }
-
-  async function manageLink(action: "regenerate" | "revoke" | "reactivate") {
-    try {
-      const res = await fetch(`/api/batches/${batch.id}/token`, {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ action }),
-      });
-      if (!res.ok) throw new Error();
-      const { batch: updated } = await res.json();
-      setBatch((b) => ({ ...b, ...updated }));
-      toast(
-        action === "regenerate"
-          ? "Novo link gerado."
-          : action === "revoke"
-            ? "Link desativado."
-            : "Link reativado.",
-      );
-    } catch {
-      toast("Não foi possível atualizar o link.", "error");
     }
   }
 
@@ -174,194 +114,67 @@ export function LoteView({ initialBatch }: { initialBatch: Batch }) {
     }
   }
 
+  // Rótulos e ordem vêm do export "Clínica Aurora - Lote".
   const chips: { id: Filter; label: string; count: number }[] = [
     { id: "todas", label: "Todas", count: progress.total },
-    { id: "aprovado", label: "Aprovadas", count: progress.aprovadas },
-    { id: "ajuste", label: "Ajustes", count: progress.ajuste },
-    { id: "pendente", label: "Pendentes", count: progress.pendentes },
+    { id: "ajuste", label: "Ajuste", count: progress.ajuste },
+    { id: "aprovado", label: "Aprovado", count: progress.aprovadas },
+    { id: "pendente", label: "Pendente", count: progress.pendentes },
   ];
 
   return (
     <div className="flex h-full min-h-0 flex-col gap-4 px-1 py-5 md:gap-[22px] md:pl-2 md:pr-7">
-      <Breadcrumb
-        items={[
-          { label: batch.client, href: "/social" },
-          { label: batch.label },
-        ]}
-      />
-
-      {/* Header Row */}
-      <ScreenHeader
-        title={batch.label}
-        subtitle={
-          <>
-            {batch.client} · {progress.total}{" "}
-            {progress.total === 1 ? "peça" : "peças"} · {progress.pendentes}{" "}
-            aguardando aprovação
-          </>
-        }
-      >
-        {linkStatus !== "ativo" && (
-          <span className="rounded-pill bg-border-strong px-3 py-1.5 text-[12px] font-medium text-fg-soft">
-            Link {linkStatus}
-          </span>
-        )}
-
-        {/* Filtro por formato */}
-        <Popover
-          open={showFormats}
-          onClose={() => setShowFormats(false)}
-          // O filtro é o primeiro botão da linha de ações; com o alinhamento
-          // padrão (`right`) o painel de 200px abria para a esquerda do
-          // botão e saía da tela no celular. `left` mantém as duas telas
-          // dentro da viewport — o gatilho está à esquerda nas duas.
-          align="left"
-          trigger={
-            <RoundIconButton
-              label="Filtrar por formato"
-              onClick={() => setShowFormats((v) => !v)}
-              active={showFormats || formatFilter.length > 0}
-              expanded={showFormats}
-              badge={formatFilter.length || undefined}
-            >
-              <SlidersIcon size={18} />
-            </RoundIconButton>
-          }
-        >
-          <div className="w-[200px] max-w-[calc(100vw-32px)] animate-pop-in rounded-menu border border-border bg-surface-2 p-1.5 shadow-[0_16px_40px_rgba(0,0,0,0.55)]">
-            {PIECE_FORMATS.map((f) => {
-              const on = formatFilter.includes(f.label);
-              return (
-                <button
-                  key={f.id}
-                  type="button"
-                  aria-pressed={on}
-                  onClick={() =>
-                    setFormatFilter((list) =>
-                      on ? list.filter((l) => l !== f.label) : [...list, f.label],
-                    )
-                  }
-                  className="flex w-full items-center justify-between rounded-mark px-2.5 py-2 text-left text-[13px] text-fg-soft hover:bg-border"
-                >
-                  <span>{f.label}</span>
-                  {on && <CheckIcon size={14} />}
-                </button>
-              );
-            })}
-          </div>
-        </Popover>
-
-        {/* Busca — abre por cima, o botão não sai do lugar */}
-        <div className="relative shrink-0">
-          {showSearch && (
-            <input
-              autoFocus
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              onBlur={() => !search && setShowSearch(false)}
-              onKeyDown={(e) => {
-                if (e.key === "Escape") {
-                  setSearch("");
-                  setShowSearch(false);
-                }
-              }}
-              placeholder="Buscar peça…"
-              // No celular a linha de ações quebra alinhada à esquerda (ao
-              // contrário do desktop, onde sobra espaço à direita do
-              // cabeçalho) — `right-0` jogava o campo para fora da tela.
-              // `left-0` abaixo de `md` resolve; acima, volta a abrir para a
-              // esquerda do botão como sempre foi.
-              className="absolute left-0 top-1/2 h-10 w-[240px] max-w-[calc(100vw-32px)] -translate-y-1/2 animate-fade-in rounded-pill border border-border bg-surface pl-4 pr-12 text-[13px] text-fg-soft placeholder:text-muted focus:border-border-strong focus:outline-none md:left-auto md:right-0"
-            />
-          )}
-          <RoundIconButton
-            label="Buscar peça"
-            onClick={() => setShowSearch((v) => !v)}
-            active={showSearch || !!search}
-          >
-            <SearchIcon size={18} />
-          </RoundIconButton>
-        </div>
-
-        <ActionMenu
-          triggerClassName="bg-surface text-fg-soft hover:bg-surface-2"
-          // O painel nasce alinhado à direita (`ActionMenu` não tem variante
-          // responsiva); no celular a linha de ações abre colada à esquerda
-          // da tela e "direita" jogava o menu para fora. `left`/`right` são
-          // as duas únicas posições não-`auto`, então com largura fixa a
-          // regra de over-constraint do CSS descarta o `right` que o
-          // componente aplica e usa o `left` daqui — sem editar o
-          // ActionMenu (fora da minha área).
-          menuClassName="w-[208px] max-md:left-0 max-md:right-auto"
+      {/* Header Row — trilha à esquerda, link público à direita */}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <Breadcrumb
           items={[
-            {
-              label: "Enviar por WhatsApp",
-              icon: <MessageCircleIcon size={15} />,
-              onSelect: () => share("whatsapp"),
-            },
-            {
-              label: "Enviar por e-mail",
-              icon: <InboxIcon size={15} />,
-              onSelect: () => share("email"),
-            },
-            {
-              label: "Copiar mensagem",
-              icon: <SendIcon size={15} />,
-              onSelect: copyMessage,
-            },
-            {
-              label: "Abrir link público",
-              icon: <ExternalLinkIcon size={15} />,
-              divider: true,
-              onSelect: () => window.open(`/a/${batch.token}`, "_blank"),
-            },
-            {
-              label: "Gerar novo link",
-              icon: <RotateIcon size={15} />,
-              onSelect: () => manageLink("regenerate"),
-            },
-            linkStatus === "revogado"
-              ? {
-                  label: "Reativar link",
-                  icon: <ExternalLinkIcon size={15} />,
-                  onSelect: () => manageLink("reactivate"),
-                }
-              : {
-                  label: "Desativar link",
-                  icon: <XIcon size={15} />,
-                  danger: true,
-                  onSelect: () => manageLink("revoke"),
-                },
+            { label: "black berry", href: "/tarefas" },
+            { label: "Social media", href: "/social" },
+            { label: batch.client, href: `/social/${clientSlug}` },
+            { label: batch.label },
           ]}
         />
 
-        <button
-          type="button"
-          onClick={copyLink}
-          disabled={linkStatus !== "ativo"}
-          className="tap flex h-10 shrink-0 items-center gap-2 rounded-pill bg-primary px-5 text-[14px] font-semibold text-on-primary transition-colors hover:bg-white disabled:cursor-not-allowed disabled:opacity-50"
-        >
-          <CopyIcon size={16} /> Copiar link
-        </button>
-      </ScreenHeader>
+        <div className="flex min-w-0 items-center gap-2">
+          {/*
+           * O desenho só tem o caminho feliz; quando o link não está valendo,
+           * a URL copiada não levaria a lugar nenhum — o selo diz por quê, e
+           * o botão de copiar fica desligado.
+           */}
+          {linkStatus !== "ativo" && (
+            <span className="shrink-0 rounded-pill bg-border-strong px-3 py-1.5 text-[12px] font-medium text-fg-soft">
+              Link {linkStatus}
+            </span>
+          )}
+          {/*
+           * A URL inteira só cabe no desktop; no celular fica o botão, que é
+           * o que a pessoa usa de qualquer jeito.
+           */}
+          <span className="hidden max-w-[320px] truncate rounded-field border border-border bg-surface px-4 py-2.5 text-[13px] text-fg-2 lg:block">
+            {publicUrl}
+          </span>
+          <RoundIconButton tone="primary" label="Copiar link" onClick={copyLink}>
+            <CopyIcon size={16} />
+          </RoundIconButton>
+        </div>
+      </div>
 
-      {/* Chips */}
+      {/* Filter Chips */}
       <div className="flex flex-wrap items-center gap-2">
         {chips.map((c) => (
           <button
             key={c.id}
             type="button"
             onClick={() => setFilter(c.id)}
+            aria-pressed={filter === c.id}
             className={cn(
-              // py-2.5 no celular chega perto do alvo de toque de 40px sem
-              // exagerar no chip; no desktop volta ao py-[7px] original.
-              "rounded-pill px-3.5 py-2.5 text-[12px] transition-colors md:py-[7px]",
+              "tap rounded-pill px-4 py-2 text-[14px] transition-colors",
               filter === c.id
-                ? "bg-border font-semibold text-fg-soft"
-                : "font-medium text-muted inset-ring-1 inset-ring-border hover:text-fg-soft",
+                ? "bg-primary text-on-primary"
+                : "text-fg-soft hover:bg-surface",
             )}
           >
-            {c.label} · {c.count}
+            {c.label} {c.count}
           </button>
         ))}
       </div>
@@ -382,45 +195,40 @@ export function LoteView({ initialBatch }: { initialBatch: Batch }) {
               Nenhuma peça com esses filtros.
             </p>
           ) : (
-            <div className="grid grid-cols-2 gap-5 xl:grid-cols-3">
+            <div className="grid grid-cols-2 gap-4 xl:grid-cols-3">
               {filtered.map((p, i) => (
                 <button
                   key={p.id}
                   type="button"
                   onClick={() => setSelectedId(p.id)}
                   style={{ ["--d" as string]: i }}
-                  className="stagger-item tap group flex flex-col gap-2.5 text-left"
+                  className="stagger-item tap group flex flex-col gap-2 text-left"
                 >
+                  {/*
+                   * Anel de seleção como box-shadow `inset`: a miniatura tem
+                   * `overflow-hidden` + canto arredondado (é o que recorta a
+                   * arte), e `outline` tem um clip calculado à parte do
+                   * recorte do overflow — a costura entre os dois cortava
+                   * uma lasca do anel nas colunas do meio da grade.
+                   */}
                   <PieceThumb
                     size={p.size}
                     media={p.media}
-                    showBadge={false}
-                    plain
+                    status={p.status}
                     className={cn(
-                      /*
-                       * Anel de seleção como box-shadow `inset`, não
-                       * `outline`: este elemento já tem `overflow-hidden` +
-                       * `rounded-thumb` (é o que recorta a arte no cantinho
-                       * do card), e outline com offset negativo tem um clip
-                       * path calculado à parte do recorte do próprio
-                       * overflow — nas colunas do meio da grade a costura
-                       * entre os dois cortava uma lasca lateral do anel,
-                       * sobretudo em larguras fracionadas (3 colunas nem
-                       * sempre dividem a grade num número inteiro de px).
-                       * box-shadow usa o MESMO recorte arredondado da caixa,
-                       * sem essa costura.
-                       */
-                      "h-[190px] w-full transition-all duration-200 group-hover:-translate-y-0.5",
+                      "h-[130px] w-full transition-all duration-200 group-hover:-translate-y-0.5",
                       selectedId === p.id
                         ? "shadow-[inset_0_0_0_1px_var(--color-fg-soft)]"
-                        : "shadow-[inset_0_0_0_1px_transparent] group-hover:shadow-[inset_0_0_0_1px_var(--color-border-strong)]",
+                        : "group-hover:shadow-[inset_0_0_0_1px_var(--color-border-strong)]",
                     )}
                   />
-                  <span className="text-[13px] font-semibold text-fg-soft">
-                    {p.name}
-                  </span>
-                  <span className="text-[11px] text-muted">
-                    {p.size} · {pieceFormatLabel(p)}
+                  <span className="flex w-full items-center justify-between gap-2">
+                    <span className="truncate text-[14px] font-semibold text-fg-soft">
+                      {p.name}
+                    </span>
+                    <span className="shrink-0 text-[12px] text-muted">
+                      {formatPieceDate(p.date)}
+                    </span>
                   </span>
                 </button>
               ))}
@@ -440,7 +248,9 @@ export function LoteView({ initialBatch }: { initialBatch: Batch }) {
               onApprove={() => pieceAction(selected, "approve")}
               onRedo={() => pieceAction(selected, "redo")}
               onEditor={() =>
-                router.push(`/social/${batch.id}/editor?peca=${selected.id}`)
+                router.push(
+                  `/social/${clientSlug}/${batch.id}/editor?peca=${selected.id}`,
+                )
               }
             />
           ) : (

@@ -32,7 +32,7 @@ export function PieceThumb({
   /** URL direta, quando não há um MediaAsset (compatibilidade). */
   src?: string;
   showBadge?: boolean;
-  /** grade do export "Clínica Aurora · Lote": sem borda, cantos 12px, só ícone */
+  /** miniatura sem borda, cantos 12px, só ícone (a tira do editor) */
   plain?: boolean;
   /** Mostra a arte inteira em vez de preencher o quadro (preview do editor). */
   contain?: boolean;
