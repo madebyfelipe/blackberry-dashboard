@@ -93,7 +93,7 @@ Quem decide o quê e como o trabalho passa entre Felipe e Claude está em `FLUXO
 5. Começar CRM/Health Score (Fase 3).
 
 ### Dívidas conhecidas
-- `AUTH_SECRET` não está definido na Vercel: enquanto não estiver, o cookie de sessão é assinado com o segredo de desenvolvimento que está no repositório, e qualquer pessoa consegue forjar uma sessão. Tratar a instância como demonstração até resolver.
+- `AUTH_SECRET` não está definido na Vercel. O código já não aceita mais rodar assim: em produção sem o segredo o servidor recusa subir (`src/instrumentation.ts`) e assinar/conferir cookie lança (`src/lib/auth/token.ts`) — não existe mais o silêncio de cair no segredo de desenvolvimento. Falta o Felipe definir a variável no painel (`openssl rand -base64 32` → Settings → Environment Variables); até lá, a instância em produção não sobe.
 - As telas de lote e editor ainda não foram adaptadas ao celular (o shell já foi).
 - O `json-file.ts` relê pelo mtime, mas dois processos ainda podem se sobrepor num leitura-altera-grava simultâneo: é o preço de arquivo como banco, e some com o Postgres.
 - As artes são servidas como foram enviadas, sem derivadas leves.

@@ -54,7 +54,7 @@ Dá para criar outra conta em `/criar-conta` — o cadastro já entra logado.
 
 | Variável | Para quê |
 | --- | --- |
-| `AUTH_SECRET` | Chave que assina o cookie de sessão. **Obrigatória em produção** (mín. 16 caracteres): sem ela o app usa um segredo de desenvolvimento, que não protege nada e invalida as sessões a cada deploy. |
+| `AUTH_SECRET` | Chave que assina o cookie de sessão. **Obrigatória em produção** (mín. 16 caracteres): sem ela o servidor recusa subir e qualquer assinatura/conferência de cookie lança. Gere com `openssl rand -base64 32` e defina em Vercel → Settings → Environment Variables. Fora de produção o app cai num segredo de desenvolvimento, que não protege nada e invalida as sessões a cada deploy. |
 | `DEMO_PASSWORD` | Senha da conta semeada, para instalações compartilhadas. |
 
 ## Rotas principais
