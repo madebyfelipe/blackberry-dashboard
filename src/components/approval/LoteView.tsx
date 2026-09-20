@@ -358,7 +358,7 @@ export function LoteView({ initialBatch }: { initialBatch: Batch }) {
               "rounded-pill px-3.5 py-2.5 text-[12px] transition-colors md:py-[7px]",
               filter === c.id
                 ? "bg-border font-semibold text-fg-soft"
-                : "font-medium text-muted outline outline-1 -outline-offset-[0.5px] outline-border hover:text-fg-soft",
+                : "font-medium text-muted inset-ring-1 inset-ring-border hover:text-fg-soft",
             )}
           >
             {c.label} · {c.count}
@@ -479,7 +479,7 @@ function DetailPanel({
       {/* Panel Head */}
       <div className="flex items-center justify-between gap-2">
         <h2 className="truncate text-[16px] font-bold text-fg">{piece.name}</h2>
-        <span className="flex shrink-0 items-center gap-1.5 rounded-pill bg-surface px-2.5 py-1 outline outline-1 -outline-offset-[0.5px] outline-border">
+        <span className="flex shrink-0 items-center gap-1.5 rounded-pill bg-surface px-2.5 py-1 inset-ring-1 inset-ring-border">
           <span
             className="h-2 w-2 rounded-full"
             style={{ backgroundColor: status.dot }}
@@ -582,7 +582,7 @@ function PanelButton({
         "flex h-10 w-full shrink-0 items-center justify-center rounded-pill px-5 text-[14px] font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-50",
         primary
           ? "bg-primary text-on-primary hover:bg-white"
-          : "text-fg-soft outline outline-1 -outline-offset-[0.5px] outline-border hover:bg-surface",
+          : "text-fg-soft inset-ring-1 inset-ring-border hover:bg-surface",
       )}
     >
       {children}

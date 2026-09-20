@@ -159,7 +159,12 @@ export function SwipeApproval({ batch }: { batch: Batch }) {
                 </div>
               )}
               {current && (
+                // A `key` faz cada peça nascer num nó novo. Sem ela o React
+                // reaproveitava o mesmo nó: ele ia de translate(±600px) para
+                // translate(0) com a transição ligada, e o card da peça
+                // seguinte entrava deslizando da borda de volta para o centro.
                 <div
+                  key={current.id}
                   onPointerDown={onPointerDown}
                   onPointerMove={onPointerMove}
                   onPointerUp={onPointerUp}
@@ -178,7 +183,7 @@ export function SwipeApproval({ batch }: { batch: Batch }) {
                       Aprovar
                     </div>
                     <div
-                      className="absolute right-4 top-4 rounded-pill bg-surface px-3 py-1.5 text-[13px] font-semibold text-fg-soft outline outline-1 outline-border-strong"
+                      className="absolute right-4 top-4 rounded-pill bg-surface px-3 py-1.5 text-[13px] font-semibold text-fg-soft inset-ring-1 inset-ring-border-strong"
                       style={{ opacity: rejectOpacity }}
                     >
                       Ajuste

@@ -233,21 +233,21 @@ function SidebarPanel({
               className={cn(
                 // A linha inteira desliza 2px no hover: o item "vem à frente"
                 // sem mexer no espaçamento da lista.
-                "stagger-item group relative flex items-center gap-3 overflow-hidden rounded-field px-4 py-[11px] text-[15px]",
+                "stagger-item group relative flex items-center gap-3 rounded-field px-4 py-[11px] text-[15px]",
                 "transition-[background-color,color,transform] duration-200 hover:translate-x-0.5",
                 active
                   ? "bg-border font-semibold text-fg-soft"
                   : "font-normal text-fg-3 hover:bg-surface hover:text-fg-soft",
               )}
             >
-              {/* Marcador da tela atual — cresce de dentro para fora. */}
-              <span
-                aria-hidden="true"
-                className={cn(
-                  "absolute left-0 top-1/2 h-5 w-[3px] -translate-y-1/2 rounded-pill bg-primary transition-transform duration-200",
-                  active ? "scale-y-100" : "scale-y-0",
-                )}
-              />
+              {/*
+               * A tela atual se anuncia como no export "2. Gradiente": fundo
+               * `bg-border` no raio de 24px, rótulo semibold e ícone claro.
+               * Havia aqui um marcador de 3px colado em `left-0`, mas o item
+               * é uma pílula (raio 24px numa linha de 44px, ou seja, a borda
+               * esquerda é meia-lua): o recorte arredondado comia quase todo
+               * o marcador e sobrava a lasca que o Felipe fotografou.
+               */}
               <Icon size={18} />
               <span className="flex-1">{label}</span>
             </Link>

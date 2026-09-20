@@ -29,7 +29,7 @@ export function StatusPill({
   return (
     <span
       className={cn(
-        "inline-flex w-fit items-center gap-1.5 rounded-pill bg-surface px-2.5 py-1 outline outline-1 -outline-offset-[0.5px] outline-border",
+        "inline-flex w-fit items-center gap-1.5 rounded-pill bg-surface px-2.5 py-1 inset-ring-1 inset-ring-border",
         className,
       )}
     >

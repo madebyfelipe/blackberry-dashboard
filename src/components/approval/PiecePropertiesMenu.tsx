@@ -141,7 +141,7 @@ function Chip({
         "tap flex items-center gap-1.5 rounded-pill px-3 py-1.5 text-[12px] transition-colors",
         active
           ? "bg-primary font-semibold text-on-primary"
-          : "text-muted outline outline-1 -outline-offset-[0.5px] outline-border hover:text-fg-soft",
+          : "text-muted inset-ring-1 inset-ring-border hover:text-fg-soft",
       )}
     >
       {children}
