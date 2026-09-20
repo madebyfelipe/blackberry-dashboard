@@ -1,9 +1,11 @@
 import type { Task } from "../../src/lib/tasks/types";
+import { AGENCIA_A } from "./agency";
 
 /** Uma tarefa completa e previsível; cada teste troca só o que interessa. */
 export function makeTask(over: Partial<Task> = {}): Task {
   return {
     id: "t0",
+    agencyId: AGENCIA_A.agencyId,
     title: "Tarefa",
     client: "Clínica Aurora",
     status: "a-fazer",

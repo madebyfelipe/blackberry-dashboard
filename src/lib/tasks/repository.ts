@@ -1,18 +1,42 @@
 import { read, transaction } from "./store";
 import { isTaskStatus } from "./constants";
 import { isTaskPriority } from "./priority";
+import type { AgencyScope } from "@/lib/agency/types";
 import type { NewTask, Task, TaskPatch } from "./types";
 
-/** Everything in the app reads/writes tasks through this module. */
+/*
+ * Everything in the app reads/writes tasks through this module.
+ *
+ * É aqui que o multi-tenant acontece. Toda função exige o `AgencyScope` como
+ * primeiro argumento, e o escopo só nasce da sessão do servidor
+ * (`auth/session.ts`) — o TypeScript recusa "listar tarefas" sem dizer de qual
+ * agência, em vez de depender de alguém lembrar de filtrar.
+ *
+ * Vale tanto para leitura quanto para escrita: buscar por id e alterar sem
+ * conferir o dono é o furo clássico, então `getTask`, `updateTask` e
+ * `deleteTask` procuram por id *e* agência. Tarefa de outra agência responde
+ * como tarefa inexistente (404), nunca 403 — 403 confirmaria que o id existe.
+ *
+ * Quando o Postgres entrar (issue #11), este filtro vira o `WHERE agency_id`
+ * de cada consulta e ganha RLS por cima; o desenho já está no formato certo
+ * para isso.
+ */
 
-export async function listTasks(): Promise<Task[]> {
+export async function listTasks(scope: AgencyScope): Promise<Task[]> {
   const tasks = await read();
-  // Newest first by creation date.
-  return tasks.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  return tasks
+    .filter((t) => t.agencyId === scope.agencyId)
+    // Newest first by creation date.
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
 }
 
-export async function getTask(id: string): Promise<Task | undefined> {
-  return (await read()).find((t) => t.id === id);
+export async function getTask(
+  scope: AgencyScope,
+  id: string,
+): Promise<Task | undefined> {
+  return (await read()).find(
+    (t) => t.id === id && t.agencyId === scope.agencyId,
+  );
 }
 
 function makeId(): string {
@@ -43,7 +67,10 @@ function cleanDueDate(value: unknown): string | null {
   return d.toISOString();
 }
 
-export async function createTask(input: NewTask): Promise<Task> {
+export async function createTask(
+  scope: AgencyScope,
+  input: NewTask,
+): Promise<Task> {
   const title = input.title?.trim();
   if (!title) throw new ValidationError("Título é obrigatório.");
   const client = (input.client ?? "").trim();
@@ -53,6 +80,9 @@ export async function createTask(input: NewTask): Promise<Task> {
 
   const task: Task = {
     id: makeId(),
+    // Dona é a agência da sessão. `NewTask` nem tem o campo, para não haver
+    // onde um corpo de requisição pedir outra.
+    agencyId: scope.agencyId,
     title,
     client,
     status,
@@ -71,6 +101,7 @@ export async function createTask(input: NewTask): Promise<Task> {
 }
 
 export async function updateTask(
+  scope: AgencyScope,
   id: string,
   patch: TaskPatch,
 ): Promise<Task | undefined> {
@@ -88,7 +119,9 @@ export async function updateTask(
     patch.dueDate === undefined ? undefined : cleanDueDate(patch.dueDate);
 
   return transaction((tasks) => {
-    const t = tasks.find((x) => x.id === id);
+    const t = tasks.find(
+      (x) => x.id === id && x.agencyId === scope.agencyId,
+    );
     if (!t) return undefined;
     if (patch.title !== undefined) t.title = patch.title.trim();
     if (patch.client !== undefined) t.client = patch.client.trim();
@@ -103,9 +136,14 @@ export async function updateTask(
   });
 }
 
-export async function deleteTask(id: string): Promise<boolean> {
+export async function deleteTask(
+  scope: AgencyScope,
+  id: string,
+): Promise<boolean> {
   return transaction((tasks) => {
-    const i = tasks.findIndex((x) => x.id === id);
+    const i = tasks.findIndex(
+      (x) => x.id === id && x.agencyId === scope.agencyId,
+    );
     if (i === -1) return false;
     tasks.splice(i, 1);
     return true;

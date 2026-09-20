@@ -1,3 +1,4 @@
+import { LEGACY_AGENCY_ID, LEGACY_AGENCY_NAME } from "@/lib/agency/id";
 import { hashPasswordSync } from "./password";
 import type { User } from "./types";
 
@@ -17,7 +18,10 @@ export function seedUsers(): User[] {
       name: "Felipe",
       email: "felipe@blackberry.app",
       role: "coordenacao",
-      agency: "Estúdio Norte",
+      // A agência semeada é a dona dos dados de demonstração e o destino da
+      // migração de tudo que foi gravado antes do multi-tenant.
+      agency: LEGACY_AGENCY_NAME,
+      agencyId: LEGACY_AGENCY_ID,
       passwordHash: hashPasswordSync(password),
       passwordVersion: 1,
       createdAt: now,

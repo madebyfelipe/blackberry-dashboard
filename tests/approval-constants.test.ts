@@ -15,6 +15,7 @@ import {
   sizeFromDimensions,
 } from "../src/lib/approval/constants";
 import type { Batch, Piece, PieceStatus } from "../src/lib/approval/types";
+import { AGENCIA_A } from "./helpers/agency";
 
 function peca(id: string, status: PieceStatus, over: Partial<Piece> = {}): Piece {
   return {
@@ -32,6 +33,7 @@ function peca(id: string, status: PieceStatus, over: Partial<Piece> = {}): Piece
 function lote(over: Partial<Batch> = {}): Batch {
   return {
     id: "monte-bar-set",
+    agencyId: AGENCIA_A.agencyId,
     client: "Montê bar",
     label: "Lote setembro · 01-30 set",
     token: "Mn7bQrLZ2kTv0aX",

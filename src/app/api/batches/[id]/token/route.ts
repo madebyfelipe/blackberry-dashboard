@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { regenerateBatchToken, setBatchLinkRevoked } from "@/lib/approval/repository";
-import { requireUser, unauthorized } from "@/lib/auth/session";
+import { requireAgency, unauthorized } from "@/lib/auth/session";
 
 export const dynamic = "force-dynamic";
 
@@ -11,8 +11,10 @@ export async function POST(
   req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  // Gerar/revogar link é ação da agência — nunca de quem tem só o link.
-  if (!(await requireUser())) return unauthorized("Faça login para gerenciar o link.");
+  // Gerar/revogar link é ação da agência dona do lote — nunca de quem tem só
+  // o link, e nunca de outra agência.
+  const session = await requireAgency();
+  if (!session) return unauthorized("Faça login para gerenciar o link.");
   const { id } = await params;
   let body: Record<string, unknown>;
   try {
@@ -28,8 +30,8 @@ export async function POST(
 
   const batch =
     action === "regenerate"
-      ? await regenerateBatchToken(id)
-      : await setBatchLinkRevoked(id, action === "revoke");
+      ? await regenerateBatchToken(session.scope, id)
+      : await setBatchLinkRevoked(session.scope, id, action === "revoke");
 
   if (!batch) {
     return NextResponse.json({ error: "Lote não encontrado." }, { status: 404 });

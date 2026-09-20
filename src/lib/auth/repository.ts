@@ -1,4 +1,5 @@
 import { read, transaction } from "./store";
+import { newAgencyId } from "@/lib/agency/id";
 import { hashPassword, verifyPassword } from "./password";
 import type { Credentials, NewUser, PublicUser, Role, User } from "./types";
 
@@ -72,12 +73,17 @@ export async function registerUser(input: NewUser): Promise<PublicUser> {
     if (users.some((u) => u.email === email)) {
       throw new AuthError("Já existe uma conta com esse e-mail.");
     }
+    const agency =
+      (input.agency ?? "").trim() || `Agência de ${name.split(" ")[0]}`;
     const user: User = {
       id: "u" + Math.random().toString(36).slice(2, 9),
       name,
       email,
       role: isRole(input.role) ? input.role : "coordenacao",
-      agency: (input.agency ?? "").trim() || `Agência de ${name.split(" ")[0]}`,
+      agency,
+      // Cada cadastro abre um tenant novo. Digitar o nome de uma agência que
+      // já existe não coloca ninguém dentro dela (ver `newAgencyId`).
+      agencyId: newAgencyId(agency),
       passwordHash,
       passwordVersion: 1,
       createdAt: new Date().toISOString(),
@@ -103,7 +109,11 @@ export async function authenticate(
   return toPublic(user);
 }
 
-/** Nome e agência (tela de configurações). E-mail e papel não mudam aqui. */
+/**
+ * Nome e agência (tela de configurações). E-mail e papel não mudam aqui — e o
+ * `agencyId` também não: renomear a agência troca o rótulo, nunca o tenant.
+ * Se trocasse, a agência perderia de vista tudo que já produziu.
+ */
 export async function updateProfile(
   userId: string,
   patch: { name?: string; agency?: string },

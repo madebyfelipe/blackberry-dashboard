@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
-import { setPieceMedia } from "@/lib/approval/repository";
+import { getBatch, setPieceMedia } from "@/lib/approval/repository";
 import { MediaError, saveMedia } from "@/lib/media/store";
-import { requireUser } from "@/lib/auth/session";
+import { requireAgency } from "@/lib/auth/session";
 
 export const dynamic = "force-dynamic";
 
@@ -9,7 +9,8 @@ type Ctx = { params: Promise<{ id: string; pieceId: string }> };
 
 /** Anexa (ou troca) a arte de uma peça. Multipart, campo `file`. */
 export async function POST(req: Request, { params }: Ctx) {
-  if (!(await requireUser())) {
+  const session = await requireAgency();
+  if (!session) {
     return NextResponse.json({ error: "Faça login para enviar artes." }, { status: 401 });
   }
   const { id, pieceId } = await params;
@@ -24,10 +25,16 @@ export async function POST(req: Request, { params }: Ctx) {
   }
   if (!file) return NextResponse.json({ error: "Nenhum arquivo enviado." }, { status: 400 });
 
+  // Dono antes dos bytes: arte de um lote que não é desta agência nem chega a
+  // ser gravada.
+  if (!(await getBatch(session.scope, id))) {
+    return NextResponse.json({ error: "Peça não encontrada." }, { status: 404 });
+  }
+
   try {
     const bytes = new Uint8Array(await file.arrayBuffer());
     const media = await saveMedia(bytes, { mime: file.type, name: file.name });
-    const result = await setPieceMedia(id, pieceId, media);
+    const result = await setPieceMedia(session.scope, id, pieceId, media);
     if (!result) {
       return NextResponse.json({ error: "Peça não encontrada." }, { status: 404 });
     }
@@ -42,11 +49,12 @@ export async function POST(req: Request, { params }: Ctx) {
 
 /** Remove a arte da peça (volta ao placeholder). */
 export async function DELETE(_req: Request, { params }: Ctx) {
-  if (!(await requireUser())) {
+  const session = await requireAgency();
+  if (!session) {
     return NextResponse.json({ error: "Faça login para editar o lote." }, { status: 401 });
   }
   const { id, pieceId } = await params;
-  const result = await setPieceMedia(id, pieceId, null);
+  const result = await setPieceMedia(session.scope, id, pieceId, null);
   if (!result) {
     return NextResponse.json({ error: "Peça não encontrada." }, { status: 404 });
   }

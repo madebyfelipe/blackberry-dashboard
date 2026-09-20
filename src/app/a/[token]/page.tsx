@@ -5,6 +5,12 @@ import { ApprovalFlow } from "@/components/approval/ApprovalFlow";
 
 export const dynamic = "force-dynamic";
 
+/*
+ * A tela do cliente roda sem sessão — e portanto sem agência. Quem autoriza é
+ * o token, e ele alcança um lote só (ver `getBatchByToken`): o multi-tenant
+ * não passa por aqui de propósito, e não pode passar, porque não há de onde
+ * tirar uma agência confiável numa requisição sem login.
+ */
 export default async function ApprovalLinkPage({
   params,
 }: {

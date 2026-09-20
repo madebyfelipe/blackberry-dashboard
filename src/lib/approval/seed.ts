@@ -1,3 +1,4 @@
+import { LEGACY_AGENCY_ID, LEGACY_AGENCY_NAME } from "@/lib/agency/id";
 import type { Batch } from "./types";
 
 /** Seed mirrors the "Clínica Aurora - Lote" export, plus a second demo lote. */
@@ -5,6 +6,8 @@ export function seedBatches(): Batch[] {
   return [
     {
       id: "clinica-aurora-set",
+      // Os dois lotes de demonstração são da agência semeada.
+      agencyId: LEGACY_AGENCY_ID,
       client: "Clínica Aurora",
       label: "Lote setembro · 01-30 set",
       token: "BJnMavwFGlmU67F",
@@ -18,8 +21,8 @@ export function seedBatches(): Batch[] {
           reason: "Trocar a cor do texto para melhorar leitura.",
           history: [
             { id: "h1", title: "Ajuste pedido pelo cliente", who: "Marina Duarte · 11 set · 21:14" },
-            { id: "h2", title: "Enviada para aprovação", who: "Estúdio Norte · 11 set · 17:02" },
-            { id: "h3", title: "Peça criada no lote", who: "Estúdio Norte · 09 set · 10:40" },
+            { id: "h2", title: "Enviada para aprovação", who: LEGACY_AGENCY_NAME + " · 11 set · 17:02" },
+            { id: "h3", title: "Peça criada no lote", who: LEGACY_AGENCY_NAME + " · 09 set · 10:40" },
           ],
         },
         piece("p5", "Peça 05", "1080 x 1920", "2026-09-16", "ajuste", "Story · sequência de 2"),
@@ -30,6 +33,7 @@ export function seedBatches(): Batch[] {
     },
     {
       id: "monte-bar-set",
+      agencyId: LEGACY_AGENCY_ID,
       client: "Montê bar",
       label: "Lote setembro · 01-30 set",
       token: "Mn7bQrLZ2kTv0aX",
@@ -62,7 +66,7 @@ function piece(
     kind,
     caption: "Legenda da peça — texto de apoio para o cliente avaliar.",
     history: [
-      { id: id + "-c", title: "Peça criada no lote", who: "Estúdio Norte · " + shortPt(date) },
+      { id: id + "-c", title: "Peça criada no lote", who: LEGACY_AGENCY_NAME + " · " + shortPt(date) },
     ],
   };
 }

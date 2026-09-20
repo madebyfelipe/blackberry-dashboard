@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
-import { addPiece } from "@/lib/approval/repository";
+import { addPiece, getBatch } from "@/lib/approval/repository";
 import { MediaError, saveMedia } from "@/lib/media/store";
-import { requireUser } from "@/lib/auth/session";
+import { requireAgency } from "@/lib/auth/session";
 
 export const dynamic = "force-dynamic";
 
@@ -15,7 +15,8 @@ type Ctx = { params: Promise<{ id: string }> };
  *   tamanho real e formato deduzidos do arquivo — é o "Subir artes".
  */
 export async function POST(req: Request, { params }: Ctx) {
-  if (!(await requireUser())) {
+  const session = await requireAgency();
+  if (!session) {
     return NextResponse.json({ error: "Faça login para editar o lote." }, { status: 401 });
   }
   const { id } = await params;
@@ -24,8 +25,9 @@ export async function POST(req: Request, { params }: Ctx) {
   );
 
   if (!isUpload) {
-    const piece = await addPiece(id);
+    const piece = await addPiece(session.scope, id);
     if (!piece) {
+      // Inclui o lote de outra agência: para esta sessão ele não existe.
       return NextResponse.json({ error: "Lote não encontrado." }, { status: 404 });
     }
     return NextResponse.json({ piece }, { status: 201 });
@@ -42,6 +44,14 @@ export async function POST(req: Request, { params }: Ctx) {
     return NextResponse.json({ error: "Nenhum arquivo enviado." }, { status: 400 });
   }
 
+  /*
+   * Confere o dono antes de gravar o primeiro byte: sem isso, um lote de outra
+   * agência recusaria a peça mas já teria deixado a arte no disco.
+   */
+  if (!(await getBatch(session.scope, id))) {
+    return NextResponse.json({ error: "Lote não encontrado." }, { status: 404 });
+  }
+
   const pieces = [];
   /*
    * Um arquivo recusado não derruba o lote inteiro: as artes válidas entram e
@@ -53,7 +63,7 @@ export async function POST(req: Request, { params }: Ctx) {
     try {
       const bytes = new Uint8Array(await file.arrayBuffer());
       const media = await saveMedia(bytes, { mime: file.type, name: file.name });
-      const piece = await addPiece(id, media);
+      const piece = await addPiece(session.scope, id, media);
       if (!piece) {
         return NextResponse.json({ error: "Lote não encontrado." }, { status: 404 });
       }
