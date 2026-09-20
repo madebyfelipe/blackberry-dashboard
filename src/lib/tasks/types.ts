@@ -9,8 +9,15 @@ export type TaskStatus =
 /** Escala de prioridade — a régua vive em `priority.ts`. */
 export type TaskPriority = "sem" | "baixa" | "media" | "alta" | "urgente";
 
+import type { AgencyId } from "@/lib/agency/types";
+
 export type Task = {
   id: string;
+  /**
+   * Agência dona da tarefa. Vem sempre do escopo da sessão, nunca da
+   * requisição — ver `repository.ts`.
+   */
+  agencyId: AgencyId;
   title: string;
   /** Cliente / contexto (linha secundária) */
   client: string;
@@ -42,4 +49,5 @@ export type NewTask = {
   dueDate?: string | null;
 };
 
-export type TaskPatch = Partial<Omit<Task, "id" | "createdAt">>;
+/** A agência fica de fora: tarefa não muda de dono por um PATCH. */
+export type TaskPatch = Partial<Omit<Task, "id" | "createdAt" | "agencyId">>;

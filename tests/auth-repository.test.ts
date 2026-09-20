@@ -33,6 +33,28 @@ describe("registerUser", () => {
     assert.ok(!("passwordHash" in user), "o hash não pode sair do servidor");
     assert.equal(user.role, "coordenacao", "papel padrão");
     assert.ok(user.agency.length > 0, "agência tem um padrão a partir do nome");
+    assert.ok(user.agencyId.length > 0, "toda conta nasce com um tenant");
+  });
+
+  test("cada cadastro abre um tenant novo, mesmo com o nome de uma agência existente", async () => {
+    const primeira = await registerUser({
+      name: "Felipe",
+      email: `a${n++}@blackberry.app`,
+      password: "blackberry",
+      agency: "Estúdio Norte",
+    });
+    const segunda = await registerUser({
+      name: "Outra pessoa",
+      email: `a${n++}@blackberry.app`,
+      password: "blackberry",
+      agency: "Estúdio Norte",
+    });
+    assert.notEqual(
+      primeira.agencyId,
+      segunda.agencyId,
+      "digitar o nome de uma agência não coloca ninguém dentro dela",
+    );
+    assert.ok(segunda.agencyId.startsWith("estudio-norte-"), "o id continua legível");
   });
 
   test("normaliza o e-mail e recusa duplicata", async () => {
@@ -157,5 +179,16 @@ describe("updateProfile", () => {
     const up = await updateProfile(user.id, { name: "Outro" });
     assert.equal(up.email, user.email);
     assert.equal(up.role, user.role);
+  });
+
+  test("renomear a agência troca o rótulo, nunca o tenant", async () => {
+    const user = await novaConta();
+    const up = await updateProfile(user.id, { agency: "Estúdio Sul" });
+    assert.equal(up.agency, "Estúdio Sul");
+    assert.equal(
+      up.agencyId,
+      user.agencyId,
+      "se o id mudasse, a agência perderia de vista tudo que já produziu",
+    );
   });
 });

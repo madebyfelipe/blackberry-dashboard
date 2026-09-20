@@ -1,5 +1,7 @@
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
+import { agencyScope } from "@/lib/agency/id";
+import type { AgencyScope } from "@/lib/agency/types";
 import { getPasswordVersion, getUserForSession } from "./repository";
 import { SESSION_COOKIE, SESSION_MAX_AGE, readSession, signSession } from "./token";
 import type { PublicUser } from "./types";
@@ -57,6 +59,32 @@ export async function currentUser(): Promise<PublicUser | undefined> {
  */
 export async function requireUser(): Promise<PublicUser | null> {
   return (await currentUser()) ?? null;
+}
+
+/** Sessão e o tenant dela — o par que toda rota da agência precisa. */
+export type AgencySession = { user: PublicUser; scope: AgencyScope };
+
+/**
+ * Sessão + escopo da agência.
+ *
+ * Este é o único lugar de onde um `AgencyScope` nasce em runtime, e é de
+ * propósito: os `repository` exigem o escopo como primeiro argumento, então
+ * quem quiser ler ou gravar dado de outra agência teria que forjar um
+ * `AgencyId` na mão — não existe caminho a partir de query, corpo ou header.
+ *
+ * O usuário vem junto porque rota costuma precisar dos dois: o escopo para o
+ * repository filtrar e o usuário para o que é do dono (o criador da tarefa,
+ * por exemplo).
+ */
+export async function requireAgency(): Promise<AgencySession | null> {
+  const user = await currentUser();
+  return user ? { user, scope: agencyScope(user) } : null;
+}
+
+/** O mesmo escopo, para as telas do shell (Server Components). */
+export async function currentAgencyScope(): Promise<AgencyScope | undefined> {
+  const user = await currentUser();
+  return user && agencyScope(user);
 }
 
 /** Resposta padrão para quem chamou a API sem sessão. */

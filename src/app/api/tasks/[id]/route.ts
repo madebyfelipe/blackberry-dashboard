@@ -5,7 +5,7 @@ import {
   ValidationError,
 } from "@/lib/tasks/repository";
 import type { TaskPatch } from "@/lib/tasks/types";
-import { requireUser, unauthorized } from "@/lib/auth/session";
+import { requireAgency, unauthorized } from "@/lib/auth/session";
 
 export const dynamic = "force-dynamic";
 
@@ -33,7 +33,8 @@ function pickPatch(body: unknown): TaskPatch {
 }
 
 export async function PATCH(req: Request, { params }: Ctx) {
-  if (!(await requireUser())) return unauthorized();
+  const session = await requireAgency();
+  if (!session) return unauthorized();
   const { id } = await params;
   let body: unknown;
   try {
@@ -42,8 +43,12 @@ export async function PATCH(req: Request, { params }: Ctx) {
     return NextResponse.json({ error: "JSON inválido." }, { status: 400 });
   }
   try {
-    const task = await updateTask(id, pickPatch(body));
+    const task = await updateTask(session.scope, id, pickPatch(body));
     if (!task) {
+      /*
+       * Mesma resposta para "não existe" e "é de outra agência": um 403 aqui
+       * confirmaria que o id existe em algum lugar.
+       */
       return NextResponse.json({ error: "Tarefa não encontrada." }, { status: 404 });
     }
     return NextResponse.json({ task });
@@ -56,9 +61,10 @@ export async function PATCH(req: Request, { params }: Ctx) {
 }
 
 export async function DELETE(_req: Request, { params }: Ctx) {
-  if (!(await requireUser())) return unauthorized();
+  const session = await requireAgency();
+  if (!session) return unauthorized();
   const { id } = await params;
-  const ok = await deleteTask(id);
+  const ok = await deleteTask(session.scope, id);
   if (!ok) {
     return NextResponse.json({ error: "Tarefa não encontrada." }, { status: 404 });
   }

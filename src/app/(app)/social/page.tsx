@@ -1,5 +1,7 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { listBatches } from "@/lib/approval/repository";
+import { currentAgencyScope } from "@/lib/auth/session";
 import { batchProgress, progressCaption } from "@/lib/approval/constants";
 import { Breadcrumb } from "@/components/ui/Breadcrumb";
 import { ChevronRightIcon } from "@/components/icons";
@@ -7,7 +9,10 @@ import { ChevronRightIcon } from "@/components/icons";
 export const dynamic = "force-dynamic";
 
 export default async function SocialPage() {
-  const batches = await listBatches();
+  // Só os lotes da agência da sessão chegam à tela.
+  const scope = await currentAgencyScope();
+  if (!scope) redirect("/login?sessao=encerrada");
+  const batches = await listBatches(scope);
 
   return (
     <div className="flex h-full min-h-0 flex-col gap-5 overflow-y-auto px-1 py-5 md:py-6 md:pl-2 md:pr-6">
