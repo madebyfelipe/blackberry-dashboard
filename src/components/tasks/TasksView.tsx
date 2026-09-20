@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import type { Task, TaskStatus } from "@/lib/tasks/types";
 import { STATUSES } from "@/lib/tasks/constants";
@@ -58,6 +58,8 @@ export function TasksView({ initialTasks }: { initialTasks: Task[] }) {
   const [drawer, setDrawer] = useState<TaskModalState | null>(null);
   const [saving, setSaving] = useState(false);
   const searchRef = useRef<HTMLInputElement>(null);
+  // O input responde na hora; a filtragem da lista roda em prioridade baixa.
+  const deferredSearch = useDeferredValue(search);
 
   const isLista = display.view === "lista";
 
@@ -89,11 +91,11 @@ export function TasksView({ initialTasks }: { initialTasks: Task[] }) {
   }, []);
 
   const visible = useMemo(() => {
-    const base = applyFilters(tasks, filters, search, display);
+    const base = applyFilters(tasks, filters, deferredSearch, display);
     const byTab =
       isLista && tab !== "todas" ? base.filter((t) => t.status === tab) : base;
     return sortTasks(byTab, display);
-  }, [tasks, filters, search, display, tab, isLista]);
+  }, [tasks, filters, deferredSearch, display, tab, isLista]);
 
   const groups = useMemo(
     () => groupTasks(visible, display.group, { showEmpty: display.showEmptyGroups }),
