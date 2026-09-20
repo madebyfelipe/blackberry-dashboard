@@ -16,27 +16,34 @@ export type PieceStatusMeta = {
   dot: string;
 };
 
+/*
+ * As cores são os tokens de `globals.css` — a paleta inteira mora lá, e aqui
+ * fica só a régua de status da peça. Todas vão parar em `style`, então o
+ * `var()` resolve no elemento.
+ */
 export const PIECE_STATUS: Record<PieceStatus, PieceStatusMeta> = {
   pendente: {
     id: "pendente",
     label: "Pendente",
-    badgeBg: "#3a3a3a",
-    badgeFg: "#ffffff",
-    dot: "#c9c9c9",
+    badgeBg: "var(--color-badge)",
+    badgeFg: "var(--color-fg)",
+    dot: "var(--color-fg-2)",
   },
   aprovado: {
     id: "aprovado",
     label: "Aprovado",
-    badgeBg: "#4b4b4b",
-    badgeFg: "#ffffff",
-    dot: "#e8e8e8",
+    badgeBg: "var(--color-badge-strong)",
+    badgeFg: "var(--color-fg)",
+    dot: "var(--color-primary)",
   },
   ajuste: {
     id: "ajuste",
     label: "Ajuste pedido",
-    badgeBg: "#e8e8e8",
-    badgeFg: "#141414",
-    dot: "#888888",
+    badgeBg: "var(--color-primary)",
+    badgeFg: "var(--color-on-primary)",
+    // #888888 do export e o #898989 de `muted` são o mesmo cinza na prática
+    // (1/255); fica no token de texto em vez de puxar um token de tarefa.
+    dot: "var(--color-muted)",
   },
 };
 

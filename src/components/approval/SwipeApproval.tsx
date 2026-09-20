@@ -121,7 +121,7 @@ export function SwipeApproval({ batch }: { batch: Batch }) {
       <div className="flex w-full max-w-[440px] flex-1 flex-col">
         {/* Header */}
         <header className="mb-5 flex items-center gap-3">
-          <span className="flex h-9 w-9 items-center justify-center rounded-mark bg-[#616161] text-[14px] font-bold text-fg">
+          <span className="flex h-9 w-9 items-center justify-center rounded-mark bg-dim text-[14px] font-bold text-fg">
             {batch.client.charAt(0)}
           </span>
           <div className="flex-1">
@@ -222,7 +222,7 @@ export function SwipeApproval({ batch }: { batch: Batch }) {
             className="absolute inset-0 animate-fade-in bg-black/60"
             onClick={() => setReason({ open: false, text: "" })}
           />
-          <div className="relative w-full max-w-[440px] animate-pop-in rounded-t-[24px] border border-border bg-surface p-6 sm:rounded-[24px]">
+          <div className="relative w-full max-w-[440px] animate-pop-in rounded-t-card border border-border bg-surface p-6 sm:rounded-card">
             <h3 className="text-[16px] font-semibold text-fg">Pedir ajuste</h3>
             <p className="mt-1 text-[13px] text-muted">
               Conte o que precisa mudar nesta peça.
@@ -233,7 +233,7 @@ export function SwipeApproval({ batch }: { batch: Batch }) {
               onChange={(e) => setReason((r) => ({ ...r, text: e.target.value }))}
               rows={4}
               placeholder="Ex.: trocar a cor do texto para melhorar a leitura."
-              className="mt-4 w-full resize-none rounded-[16px] border border-border-strong bg-bg px-4 py-3 text-[14px] text-fg-soft placeholder:text-muted focus:border-fg-3 focus:outline-none"
+              className="mt-4 w-full resize-none rounded-panel border border-border-strong bg-bg px-4 py-3 text-[14px] text-fg-soft placeholder:text-muted focus:border-fg-3 focus:outline-none"
             />
             <div className="mt-4 flex gap-3">
               <button
@@ -267,7 +267,7 @@ function PieceCard({
   children?: React.ReactNode;
 }) {
   return (
-    <div className="flex h-full flex-col overflow-hidden rounded-[28px] border border-border bg-surface-2">
+    <div className="flex h-full flex-col overflow-hidden rounded-card border border-border bg-surface-2">
       <div className="relative flex-1">
         <PieceThumb
           size={piece.size}

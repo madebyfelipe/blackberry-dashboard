@@ -151,14 +151,14 @@ export function TaskModal({
             value={title}
             onChange={(e) => setTitle(e.target.value)}
             placeholder="Título da tarefa"
-            className="w-full bg-transparent text-[20px] font-semibold text-fg placeholder:text-faint focus:outline-none"
+            className="w-full bg-transparent text-[20px] font-semibold text-fg placeholder:text-muted focus:outline-none"
           />
           <textarea
             value={description}
             onChange={(e) => setDescription(e.target.value)}
             placeholder="Adicionar descrição..."
             rows={2}
-            className="w-full resize-none bg-transparent text-[14px] text-fg-soft placeholder:text-faint focus:outline-none"
+            className="w-full resize-none bg-transparent text-[14px] text-fg-soft placeholder:text-muted focus:outline-none"
           />
         </div>
 
@@ -328,7 +328,7 @@ export function PriorityBars({ bars }: { bars: number }) {
           key={h}
           style={{ height: h }}
           className={cn(
-            "w-[2.5px] rounded-[1px] transition-colors",
+            "w-[2.5px] rounded-pill transition-colors",
             i < bars ? "bg-fg-soft" : "bg-border-strong",
           )}
         />

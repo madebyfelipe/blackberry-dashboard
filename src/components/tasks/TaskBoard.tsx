@@ -119,7 +119,7 @@ export function TaskBoard({
                         {t.title}
                       </span>
                     </div>
-                    <div className="opacity-60 transition-opacity group-hover:opacity-100">
+                    <div className="flex h-6 w-7 shrink-0 items-center justify-center opacity-60 transition-opacity group-hover:opacity-100">
                       <ActionMenu
                         items={[
                           {

@@ -12,15 +12,17 @@ export type StatusMeta = {
  * columns, pills) derives from this array and its order. To change the
  * pipeline, edit ONLY this file.
  *
- * Colors follow the pen.dev export (Lista·Tabela dots): monochrome grays.
+ * A cor de cada ponto é o token `--color-status-*` de `globals.css` — a
+ * paleta mora lá inteira, e aqui fica só o pipeline. Vai para `style`, então
+ * `var()` resolve no elemento.
  */
 export const STATUSES: StatusMeta[] = [
-  { id: "a-fazer", label: "A fazer", dot: "#888888" },
-  { id: "em-progresso", label: "Em progresso", dot: "#c9c9c9" },
-  { id: "em-revisao", label: "Em revisão", dot: "#e0e0e0" },
-  { id: "concluido", label: "Concluído", dot: "#565656" },
-  { id: "pausado", label: "Pausado", dot: "#5a5a5a" },
-  { id: "cancelado", label: "Cancelado", dot: "#404040" },
+  { id: "a-fazer", label: "A fazer", dot: "var(--color-status-todo)" },
+  { id: "em-progresso", label: "Em progresso", dot: "var(--color-status-progress)" },
+  { id: "em-revisao", label: "Em revisão", dot: "var(--color-status-review)" },
+  { id: "concluido", label: "Concluído", dot: "var(--color-status-done)" },
+  { id: "pausado", label: "Pausado", dot: "var(--color-status-paused)" },
+  { id: "cancelado", label: "Cancelado", dot: "var(--color-status-canceled)" },
 ];
 
 export const STATUS_BY_ID: Record<TaskStatus, StatusMeta> = Object.fromEntries(

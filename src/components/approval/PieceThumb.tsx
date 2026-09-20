@@ -49,7 +49,7 @@ export function PieceThumb({
       className={cn(
         "relative flex items-center justify-center overflow-hidden",
         plain
-          ? "rounded-[12px] bg-surface-2"
+          ? "rounded-thumb bg-surface-2"
           : "rounded-card border border-border bg-surface",
         className,
       )}
@@ -84,7 +84,7 @@ export function PieceThumb({
           />
         )
       ) : (
-        <div className="flex flex-col items-center gap-2 text-faint">
+        <div className="flex flex-col items-center gap-2 text-muted">
           <ImageIcon size={plain ? 24 : 22} />
           {!plain && <span className="text-[11px]">{size}</span>}
         </div>

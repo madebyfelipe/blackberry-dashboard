@@ -74,6 +74,26 @@ Dá para criar outra conta em `/criar-conta` — o cadastro já entra logado.
 
 Tudo segue os exports do pen.dev na raiz do repo (`*-export.html`) — a fonte de verdade do visual **black berry** (monocromático). Ao divergir do design, confirmar antes. Tokens e componentes-base ficam em `src/components/ui`.
 
+O vocabulário inteiro — cor, raio e o alvo de toque dos botões redondos — mora
+no `@theme` de `src/app/globals.css`, e o Tailwind v4 o transforma em classe
+(`--color-danger` → `text-danger`, `--radius-menu` → `rounded-menu`,
+`--spacing-control` → `h-control`). Fora dali não entra hex nem `rounded-[Npx]`
+de cor/forma de interface: quem precisa de um cinza novo cria o token. Duas
+regras que valem a pena saber de cor:
+
+- **`faint` é decorativo** (marcadores, divisórias, pontos). Em texto que a
+  pessoa lê ele dá ~2,5:1 — use `muted`, que passa dos 4,5:1 em qualquer uma das
+  superfícies do produto.
+- **`--color-danger` é o único matiz** do sistema (a ação destrutiva do menu).
+  Se ele fica ou vira cinza + peso é decisão de design, e por isso está num
+  token só, comentado em `globals.css`.
+
+A única exceção é `AuroraBackdrop`: o espectro do fundo do login é arte, não cor
+de interface, e está marcado assim no arquivo.
+
+Os testes de `tests/design-tokens.test.ts` seguram a ponta: as cores das réguas
+de status têm de ser `var(--token)` de um token que exista no `@theme`.
+
 ## Arquitetura de dados
 
 O app só conversa com `repository.ts`, que só conversa com `store.ts`. Trocar o armazenamento é um drop-in em `store.ts` sem tocar no resto.

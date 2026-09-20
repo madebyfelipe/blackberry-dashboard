@@ -259,12 +259,12 @@ function CardHead({ size }: { size: "sm" | "lg" }) {
       <span className="flex flex-1 flex-col gap-1">
         <span
           className={cn(
-            "h-1.5 rounded-[3px] bg-border-strong",
+            "h-1.5 rounded-pill bg-border-strong",
             lg ? "w-[70px]" : "w-12",
           )}
         />
         <span
-          className={cn("h-[5px] rounded-[3px] bg-border", lg ? "w-11" : "w-[30px]")}
+          className={cn("h-[5px] rounded-pill bg-border", lg ? "w-11" : "w-[30px]")}
         />
       </span>
     </div>
