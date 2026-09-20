@@ -63,9 +63,10 @@ Dá para criar outra conta em `/criar-conta` — o cadastro já entra logado.
 | --- | --- |
 | `/login` · `/criar-conta` · `/recuperar-senha` | Entrada (black berry) — login e cadastro reais; a recuperação registra o pedido, o disparo de e-mail ainda não existe |
 | `/tarefas` | Tarefas — Lista + Quadro (Kanban), CRUD, drag-and-drop, busca, menu de filtros (`F`) e menu de visualização |
-| `/social` | Lotes de aprovação (visão agência) |
-| `/social/[id]` | Detalhe do lote — grade de peças + painel de decisão + link público |
-| `/social/[id]/editor` | **Editor de lote** — peças, detalhes da peça (data, formato, canal, legenda, hashtags) e preview do post |
+| `/social` | **Clientes** — passo 1 do fluxo: de quem são os lotes (lotes, peças e pendentes de cada um) |
+| `/social/[cliente]` | **Lotes do cliente** — passo 2: progresso de cada lote e o modal "Novo lote" |
+| `/social/[cliente]/[lote]` | Detalhe do lote — grade de peças + painel de decisão + link público |
+| `/social/[cliente]/[lote]/editor` | **Editor de lote** — peças, detalhes da peça (data, formato, canal, legenda, hashtags), preview do post e as ações do link (enviar, gerar, desativar) |
 | `/a/[token]` | **Aprovação pública** (cliente, sem login): tela de início + swipe para aprovar/pedir ajuste |
 | `/configuracoes` | Conta: perfil, troca de senha e sessão |
 | `/inbox`, `/clientes`, `/equipe` | Placeholders prontos para desenhar |

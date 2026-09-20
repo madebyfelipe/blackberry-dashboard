@@ -1,6 +1,6 @@
 # Roadmap — black berry
 
-Documento vivo. Marca o que já existe, o que falta **desenhar** (você) e o que falta **construir** (Claude), até o fim do projeto. Última atualização: **20 set 2026** (contorno arredondado que não fecha e card do swipe voltando ao centro — issues #24 e #17).
+Documento vivo. Marca o que já existe, o que falta **desenhar** (você) e o que falta **construir** (Claude), até o fim do projeto. Última atualização: **20 set 2026** (fluxo cliente › lote › peças, criar lote e Lote minimalista — issues #26, #27 e #25).
 
 Legenda: ✅ pronto · 🟡 parcial/placeholder · ⬜ não começado · 🎨 precisa de tela sua antes de eu construir
 
@@ -20,7 +20,9 @@ Legenda: ✅ pronto · 🟡 parcial/placeholder · ⬜ não começado · 🎨 pr
 - ✅ **Store de arquivo compartilhado** (`lib/store/json-file.ts`) com revalidação por mtime — `next start` roda vários workers, e sem isso a tela renderizada por um worker não via o que o outro acabou de gravar
 
 ## Fase 1 — Aprovação de conteúdo (prioridade absoluta)
-- ✅ Lote (visão agência) **redesenhado** conforme o export "Clínica Aurora · Lote": título + ações redondas (filtro por formato, busca, menu do link, "Copiar link"), chips `Todas · 12`, grade de peças 190px e painel de detalhe encostado na borda direita (meta, histórico, "Aprovar peça" / "Marcar como refeita" / "Abrir no editor") (`/social/[id]`)
+- ✅ **Fluxo cliente › lote › peças** (issues #26 e #27): `/social` virou a escolha do cliente (export "Clínica Aurora - Clientes"), `/social/[cliente]` traz os lotes daquele cliente (export "Lotes de Aprovação") e a tela de peças desceu para `/social/[cliente]/[lote]`. Endereço antigo (`/social/<id>` e `/social/<id>/editor`) redireciona para o novo
+- ✅ **Criar lote** (issue #27, export "ADD7"): modal com título, período e descrição — o cliente vem da tela anterior, o lote nasce rascunho com link próprio e cai direto no editor. Era a dívida que deixava uma agência recém-cadastrada sem saída no `/social`
+- ✅ Lote (visão agência) **no desenho minimalista** (issue #25, export "Clínica Aurora - Lote"): topo só com a trilha e o link público (URL + copiar), chips `Todas 8 · Ajuste 2 · Aprovado 3 · Pendente 3`, grade de peças de 130px com selo de status na arte e painel de detalhe na borda direita (meta, histórico, "Aprovar peça" / "Marcar como refeita" / "Abrir no editor"). As ações do link (WhatsApp, e-mail, copiar mensagem, gerar/desativar) passaram para o menu do editor, e filtro por formato e busca de peça saíram da tela
 - ✅ **Aprovação pela agência** (`POST /api/batches/[id]/pieces/[pieceId]/approve`) — registra "Aprovada pela agência" no histórico, separada da decisão do cliente pelo link público
 - ✅ Lista de lotes (`/social`) com progresso
 - ✅ **Link público por swipe** (`/a/[token]`): arrastar p/ aprovar, reprovar com motivo, progresso, tela final
@@ -65,7 +67,7 @@ Legenda: ✅ pronto · 🟡 parcial/placeholder · ⬜ não começado · 🎨 pr
 - 🟡 Recuperação de senha registra o pedido, mas **não envia e-mail** (falta provedor)
 - ✅ **Trocar a senha derruba as sessões dos outros aparelhos** (versão da senha dentro do token, sem precisar de lista de sessões)
 - ✅ **Multi-tenant**: agência virou entidade com id (`lib/agency`), tarefa e lote carregam `agencyId`, e todo `repository` exige o escopo da sessão como primeiro argumento — não dá para listar nem alterar sem dizer de qual agência, e dado de outra agência responde 404. Link público do cliente segue sem sessão, restrito ao lote do token. Falta o reforço no banco (**RLS**), que entra junto com o Postgres
-- 🟡 Cliente ainda é texto livre na tarefa e no lote (vira entidade com id quando a tela de Clientes for desenhada — 🎨)
+- 🟡 Cliente ainda é texto livre na tarefa e no lote. O fluxo de aprovação já o trata como coisa (`lib/approval/clients.ts` agrupa os lotes por slug do nome e é o que alimenta `/social`), mas id de verdade, segmento e contrato só chegam com a ficha do cliente (#3, 🎨) — até lá, renomear o cliente num lote o separa dos outros
 - ⬜ Trocar `store.ts` por banco (Neon Postgres via `vercel:marketplace`) antes de produção
 - ⬜ Papéis/permissões (Coordenação, Social media, Designer, Cliente) — o papel é gravado, mas ainda não muda o que a pessoa pode fazer
 - ✅ **Configurações**: perfil, troca de senha e sessão
@@ -100,5 +102,4 @@ Quem decide o quê e como o trabalho passa entre Felipe e Claude está em `FLUXO
 - As telas de lote e editor ainda não foram adaptadas ao celular (o shell já foi).
 - O `json-file.ts` relê pelo mtime, mas dois processos ainda podem se sobrepor num leitura-altera-grava simultâneo: é o preço de arquivo como banco, e some com o Postgres.
 - As artes são servidas como foram enviadas, sem derivadas leves.
-- Com o isolamento por agência, uma agência recém-cadastrada abre o `/social` vazio — e não tem como sair de lá: **criar lote** ainda não existe (os dois lotes vêm da semente, e são da agência semeada). Falta a tela 🎨.
 - Não existe **convite de equipe**: cada cadastro abre uma agência nova, então duas pessoas da mesma agência ainda não compartilham o mesmo tenant.

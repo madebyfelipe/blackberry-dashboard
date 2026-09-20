@@ -5,6 +5,7 @@ import {
   PIECE_FORMATS,
   sizeFromDimensions,
 } from "./constants";
+import { slugify } from "./clients";
 import { deleteMedia } from "@/lib/media/store";
 import type { AgencyScope } from "@/lib/agency/types";
 import type { MediaAsset } from "@/lib/media/types";
@@ -246,6 +247,56 @@ export async function sendBatchForApproval(
   });
 }
 
+/**
+ * Cria um lote vazio para um cliente da agência — o "Novo lote" da lista de
+ * lotes. Nasce como rascunho e já com link público próprio: quem decide
+ * quando ele sai é o "Enviar para aprovação" do editor, não a criação.
+ *
+ * O cliente chega como texto (ainda não é entidade); o id do lote sai do
+ * cliente + título, com sufixo quando já existe — dois "Lote setembro" do
+ * mesmo cliente são normais, e um id repetido faria o segundo responder no
+ * lugar do primeiro.
+ */
+export async function createBatch(
+  scope: AgencyScope,
+  input: {
+    client: string;
+    title: string;
+    /** "01-30 set" — vira a segunda metade do rótulo. */
+    period?: string;
+    description?: string;
+  },
+): Promise<Batch | undefined> {
+  const client = input.client.trim();
+  const title = input.title.trim();
+  const period = input.period?.trim();
+  const description = input.description?.trim();
+  if (!client || !title) return undefined;
+
+  return transaction((batches) => {
+    const base = slugify(`${client}-${title}`) || "lote";
+    let id = base;
+    for (let n = 2; batches.some((b) => b.id === id); n++) id = `${base}-${n}`;
+
+    let token = randomToken();
+    while (batches.some((b) => b.token === token)) token = randomToken();
+
+    const batch: Batch = {
+      id,
+      agencyId: scope.agencyId,
+      client,
+      label: period ? `${title} · ${period}` : title,
+      description: description || undefined,
+      stage: "rascunho",
+      token,
+      tokenExpiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+      pieces: [],
+    };
+    batches.push(batch);
+    return { ...batch };
+  });
+}
+
 /** Generate a fresh public token for a batch, clearing any revocation and extending expiry 30 days out. */
 export async function regenerateBatchToken(
   scope: AgencyScope,
@@ -291,7 +342,7 @@ function randomToken(): string {
 
 /**
  * Agency action: aprovar a peça pela própria agência ("Aprovar peça" no painel
- * de detalhe do export "Clínica Aurora · Lote"). Fica registrado como decisão
+ * de detalhe do export "Clínica Aurora - Lote"). Fica registrado como decisão
  * da agência — a decisão do cliente continua vindo só pelo link público.
  */
 export async function approvePieceByAgency(
