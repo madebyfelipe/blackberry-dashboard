@@ -111,8 +111,11 @@ export function TaskBoard({
                       <span
                         className="h-4 w-4 shrink-0 rounded-full transition-transform duration-200 group-hover:scale-110"
                         style={{
-                          outline: `1.6px solid ${STATUS_BY_ID[t.status].dot}`,
-                          outlineOffset: "-0.8px",
+                          // Anel por box-shadow `inset`, não `outline` com
+                          // offset negativo fracionado: o ponto cresce no
+                          // hover (`scale-110`), e aí o traço do outline cai
+                          // em meio pixel de tela e some num trecho da curva.
+                          boxShadow: `inset 0 0 0 1.6px ${STATUS_BY_ID[t.status].dot}`,
                         }}
                       />
                       <span className="truncate text-[14px] font-semibold text-fg">

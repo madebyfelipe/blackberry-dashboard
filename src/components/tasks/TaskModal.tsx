@@ -243,7 +243,7 @@ function IconGhost({
 }
 
 const chipBase =
-  "tap flex items-center gap-1.5 rounded-pill px-4 py-2 text-[13px] outline outline-1 -outline-offset-[0.5px] transition-colors";
+  "tap flex items-center gap-1.5 rounded-pill px-4 py-2 text-[13px] inset-ring-1 transition-colors";
 
 /** Chip com menu de prioridade (a régua vive em `lib/tasks/priority.ts`). */
 function PriorityChip({
@@ -277,8 +277,8 @@ function PriorityChip({
         className={cn(
           chipBase,
           active
-            ? "text-fg-soft outline-border-strong"
-            : "text-fg-3 outline-border hover:bg-border",
+            ? "text-fg-soft inset-ring-border-strong"
+            : "text-fg-3 inset-ring-border hover:bg-border",
         )}
       >
         <span className="text-muted">
@@ -356,7 +356,7 @@ function LabelsChip({
 
   if (open) {
     return (
-      <span className="flex flex-wrap items-center gap-1.5 rounded-pill px-4 py-2 outline outline-1 -outline-offset-[0.5px] outline-border-strong">
+      <span className="flex flex-wrap items-center gap-1.5 rounded-pill px-4 py-2 inset-ring-1 inset-ring-border-strong">
         <span className="text-muted">
           <TagIcon size={14} />
         </span>
@@ -404,8 +404,8 @@ function LabelsChip({
       className={cn(
         chipBase,
         labels.length
-          ? "text-fg-soft outline-border-strong"
-          : "text-fg-3 outline-border hover:bg-border",
+          ? "text-fg-soft inset-ring-border-strong"
+          : "text-fg-3 inset-ring-border hover:bg-border",
       )}
     >
       <span className="text-muted">
@@ -428,7 +428,7 @@ function DueChip({
 
   if (open) {
     return (
-      <span className="flex items-center gap-1.5 rounded-pill px-4 py-2 outline outline-1 -outline-offset-[0.5px] outline-border-strong">
+      <span className="flex items-center gap-1.5 rounded-pill px-4 py-2 inset-ring-1 inset-ring-border-strong">
         <span className="text-muted">
           <CalendarIcon size={14} />
         </span>
@@ -465,8 +465,8 @@ function DueChip({
       className={cn(
         chipBase,
         value
-          ? "text-fg-soft outline-border-strong"
-          : "text-fg-3 outline-border hover:bg-border",
+          ? "text-fg-soft inset-ring-border-strong"
+          : "text-fg-3 inset-ring-border hover:bg-border",
       )}
     >
       <span className="text-muted">
@@ -508,7 +508,7 @@ function ChipField({
 
   if (open) {
     return (
-      <span className="flex items-center gap-1.5 rounded-pill px-4 py-2 outline outline-1 -outline-offset-[0.5px] outline-border-strong">
+      <span className="flex items-center gap-1.5 rounded-pill px-4 py-2 inset-ring-1 inset-ring-border-strong">
         <span className="text-muted">{icon}</span>
         <input
           autoFocus
@@ -538,7 +538,7 @@ function ChipField({
       onClick={() => setOpen(true)}
       className={cn(
         chipBase,
-        value ? "text-fg-soft outline-border" : "text-fg-3 outline-border",
+        value ? "text-fg-soft inset-ring-border" : "text-fg-3 inset-ring-border",
         "hover:bg-border",
       )}
     >

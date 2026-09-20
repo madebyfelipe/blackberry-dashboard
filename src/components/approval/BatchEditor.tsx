@@ -469,10 +469,17 @@ export function BatchEditor({
                       showBadge={false}
                       plain
                       className={cn(
+                        /*
+                         * Aqui o anel continua `outline`, e não `inset-ring`
+                         * como nas pílulas: a arte preenche o quadro e um
+                         * box-shadow `inset` ficaria por baixo dela. O que
+                         * saiu foi o offset negativo fracionado — era ele que
+                         * partia o traço na curva.
+                         */
                         "h-[80px] w-full shrink-0 transition-all duration-200 lg:h-10 lg:w-10",
                         active
-                          ? "outline outline-1 -outline-offset-[0.5px] outline-fg-soft"
-                          : "outline outline-1 -outline-offset-[0.5px] outline-transparent group-hover:outline-border-strong",
+                          ? "outline outline-1 outline-fg-soft"
+                          : "outline outline-1 outline-transparent group-hover:outline-border-strong",
                       )}
                     />
                     <span className="flex min-w-0 flex-1 flex-col gap-0.5">

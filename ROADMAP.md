@@ -1,6 +1,6 @@
 # Roadmap — black berry
 
-Documento vivo. Marca o que já existe, o que falta **desenhar** (você) e o que falta **construir** (Claude), até o fim do projeto. Última atualização: **20 set 2026** (multi-tenant: isolamento por agência em toda a camada de dados).
+Documento vivo. Marca o que já existe, o que falta **desenhar** (você) e o que falta **construir** (Claude), até o fim do projeto. Última atualização: **20 set 2026** (contorno arredondado que não fecha e card do swipe voltando ao centro — issues #24 e #17).
 
 Legenda: ✅ pronto · 🟡 parcial/placeholder · ⬜ não começado · 🎨 precisa de tela sua antes de eu construir
 
@@ -11,6 +11,7 @@ Legenda: ✅ pronto · 🟡 parcial/placeholder · ⬜ não começado · 🎨 pr
 - ✅ Tokens do design **black berry** (`globals.css @theme`) + primitivos (`Button`, `Input`, `StatusPill`, `Avatar`, `Breadcrumb`, `Toast`)
 - ✅ **Design system v2 (gradiente)**: tokens anotados com os nomes `bb-*` do export, `--color-dim` (#616161), `--radius-panel`/`--radius-menu`, sidebar com `bg-sidebar-gradient` e corpo da lista transparente
 - ✅ **Polimento do design system** (issue #14): hex e raios crus saíram do JSX para o `@theme` (`--color-danger`, `--color-badge`/`--color-badge-strong`, `--radius-thumb`, `--spacing-control`, cinzas de status), o "⋯" ganhou o alvo de toque de 40px sem mexer na altura das linhas, os menus de ação voltaram à forma do export (10px/6px) com `aria-haspopup`/`aria-expanded` e navegação por setas, e o texto de apoio em conteúdo real subiu de `faint` (2,5:1) para `muted` (5,3:1)
+- ✅ **Contorno que fecha em todo canto arredondado** (issue #24): o par `outline` + `-outline-offset-[0.5px]` quebrava o traço num trecho da curva (meio pixel de tela). Pílulas, chips e botões passaram a `inset-ring-1` (box-shadow, mesmo recorte da caixa, sem mexer no layout), o ponto de status do quadro virou `inset` e o item ativo da lateral voltou ao export — o marcador de 3px em `left-0` era comido pela pílula de raio 24px e aparecia como lasca
 - ✅ Shell autenticado (sidebar completa) + rotas placeholder
 - ✅ Camada de dados com `repository`/`store` (JSON + fallback memória) e API REST
 - ✅ Sistema de toasts + animações (fade/drawer/pop) + `prefers-reduced-motion`
@@ -23,6 +24,7 @@ Legenda: ✅ pronto · 🟡 parcial/placeholder · ⬜ não começado · 🎨 pr
 - ✅ **Aprovação pela agência** (`POST /api/batches/[id]/pieces/[pieceId]/approve`) — registra "Aprovada pela agência" no histórico, separada da decisão do cliente pelo link público
 - ✅ Lista de lotes (`/social`) com progresso
 - ✅ **Link público por swipe** (`/a/[token]`): arrastar p/ aprovar, reprovar com motivo, progresso, tela final
+- ✅ **Swipe sem card voltando ao centro** (issue #17): cada peça é um nó novo (`key`), então a seguinte entra já no lugar em vez de deslizar da borda; o retorno ao centro quando o arrasto não passa do limite continua igual
 - ✅ Peças mostram a **arte real** quando existe (`PieceThumb` serve os dois estados: com e sem mídia)
 - ✅ **Upload real de mídia** (PNG/JPG/WebP/GIF/MP4/MOV, até 50 MB): "Subir artes" cria uma peça por arquivo, com nome, tamanho lido do cabeçalho e formato deduzido; trocar/remover pelo preview; `/api/media/<id>` serve a arte para o link público
 - ⬜ Derivadas leves da mídia (WebP/poster de vídeo) — hoje o arquivo é servido como veio
