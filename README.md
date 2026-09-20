@@ -54,7 +54,7 @@ Dá para criar outra conta em `/criar-conta` — o cadastro já entra logado.
 
 | Variável | Para quê |
 | --- | --- |
-| `AUTH_SECRET` | Chave que assina o cookie de sessão. **Obrigatória em produção** (mín. 16 caracteres): sem ela o app usa um segredo de desenvolvimento, que não protege nada e invalida as sessões a cada deploy. |
+| `AUTH_SECRET` | Chave que assina o cookie de sessão. **Obrigatória em produção** (mín. 16 caracteres; use 32 bytes aleatórios — `openssl rand -base64 32`): sem ela o build e o servidor se recusam a rodar em produção. Fora de produção, na falta dela vale um segredo de desenvolvimento que está no repositório — ele não protege nada e invalida as sessões a cada deploy. |
 | `DEMO_PASSWORD` | Senha da conta semeada, para instalações compartilhadas. |
 
 ## Rotas principais

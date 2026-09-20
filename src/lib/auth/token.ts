@@ -29,22 +29,54 @@ export type SessionClaims = { sub: string; passwordVersion: number };
  */
 const PRIMEIRA_VERSAO = 1;
 
-/**
- * Segredo de assinatura. Em produção vem de AUTH_SECRET; sem ele, o app cai
- * num segredo de desenvolvimento — o que invalida as sessões a cada deploy e
- * NÃO serve para produção (ver README).
+/** Tamanho mínimo do AUTH_SECRET. Use bem mais que isso: 32 bytes aleatórios. */
+const TAMANHO_MINIMO_DO_SEGREDO = 16;
+
+/*
+ * Segredo de desenvolvimento. Só existe para o app subir na máquina de quem
+ * está programando; em produção ele é recusado (ver `assertAuthSecret`), e não
+ * pela honra: está escrito aqui, à vista de qualquer um que leia o repositório.
  */
-function secret(): string {
+const SEGREDO_DE_DESENVOLVIMENTO = "black-berry-dev-secret-trocar-em-producao";
+
+export const AUTH_SECRET_AUSENTE =
+  "AUTH_SECRET ausente ou curto demais (mínimo " +
+  TAMANHO_MINIMO_DO_SEGREDO +
+  " caracteres). Em produção o app se recusa a rodar sem ele: o segredo de " +
+  "desenvolvimento está no repositório e não protege a sessão de ninguém. " +
+  "Defina AUTH_SECRET (ex.: `openssl rand -base64 32`) em todos os ambientes.";
+
+function segredoDoAmbiente(): string | undefined {
   const fromEnv = process.env.AUTH_SECRET;
-  if (fromEnv && fromEnv.length >= 16) return fromEnv;
-  return "black-berry-dev-secret-trocar-em-producao";
+  return fromEnv && fromEnv.length >= TAMANHO_MINIMO_DO_SEGREDO
+    ? fromEnv
+    : undefined;
 }
 
 export function isProductionSecretMissing(): boolean {
-  return (
-    process.env.NODE_ENV === "production" &&
-    !(process.env.AUTH_SECRET && process.env.AUTH_SECRET.length >= 16)
-  );
+  return process.env.NODE_ENV === "production" && !segredoDoAmbiente();
+}
+
+/**
+ * Lança se estiver faltando o segredo em produção. Chamado no `next.config.ts`
+ * (quebra o build e o `next start`) e no `instrumentation.ts` (quebra a subida
+ * do servidor), além de aqui embaixo, na hora de assinar — assim não existe
+ * caminho em que produção acabe assinando com o segredo de desenvolvimento.
+ */
+export function assertAuthSecret(): void {
+  if (isProductionSecretMissing()) throw new Error(AUTH_SECRET_AUSENTE);
+}
+
+/**
+ * Segredo de assinatura. Em produção vem de AUTH_SECRET e só dele; fora de
+ * produção, na falta dele, vale o de desenvolvimento — que invalida as sessões
+ * a cada deploy e NÃO serve para produção (ver README).
+ */
+function secret(): string {
+  const fromEnv = segredoDoAmbiente();
+  if (fromEnv) return fromEnv;
+  assertAuthSecret();
+  return SEGREDO_DE_DESENVOLVIMENTO;
 }
 
 function b64url(bytes: Uint8Array): string {

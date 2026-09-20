@@ -9,13 +9,41 @@ import test, { describe } from "node:test";
 process.env.AUTH_SECRET = "segredo-de-teste-com-mais-de-16-chars";
 
 const {
+  AUTH_SECRET_AUSENTE,
   SESSION_COOKIE,
   SESSION_MAX_AGE,
+  assertAuthSecret,
   isProductionSecretMissing,
   readSession,
   signSession,
   verifySession,
 } = await import("../src/lib/auth/token");
+
+/*
+ * Roda `fn` fingindo um ambiente — e devolve tudo como estava depois, senão o
+ * primeiro teste que simula produção derruba os outros deste arquivo.
+ */
+async function comAmbiente(
+  ambiente: { NODE_ENV?: string; AUTH_SECRET?: string },
+  fn: () => void | Promise<void>,
+): Promise<void> {
+  // `process.env.NODE_ENV` é somente-leitura nos tipos do Next; o alias
+  // mutável evita mexer no descritor da propriedade.
+  const env = process.env as Record<string, string | undefined>;
+  const antes = { NODE_ENV: env.NODE_ENV, AUTH_SECRET: env.AUTH_SECRET };
+  try {
+    for (const [chave, valor] of Object.entries(ambiente)) {
+      if (valor === undefined) delete env[chave];
+      else env[chave] = valor;
+    }
+    await fn();
+  } finally {
+    for (const [chave, valor] of Object.entries(antes)) {
+      if (valor === undefined) delete env[chave];
+      else env[chave] = valor;
+    }
+  }
+}
 
 describe("token de sessão", () => {
   test("assina e verifica, devolvendo o id do usuário", async () => {
@@ -135,26 +163,86 @@ describe("token de sessão", () => {
     assert.equal(SESSION_MAX_AGE, 60 * 60 * 24 * 30);
   });
 
-  test("isProductionSecretMissing só reclama em produção sem segredo", () => {
-    // `process.env.NODE_ENV` é somente-leitura nos tipos do Next; o alias
-    // mutável evita mexer no descritor da propriedade.
-    const env = process.env as Record<string, string | undefined>;
-    const nodeEnv = env.NODE_ENV;
-    const secret = env.AUTH_SECRET;
-    try {
-      env.NODE_ENV = "production";
-      delete env.AUTH_SECRET;
+  test("isProductionSecretMissing só reclama em produção sem segredo", async () => {
+    await comAmbiente({ NODE_ENV: "production", AUTH_SECRET: undefined }, () => {
       assert.equal(isProductionSecretMissing(), true);
-      env.AUTH_SECRET = "curto";
+    });
+    await comAmbiente({ NODE_ENV: "production", AUTH_SECRET: "curto" }, () => {
       assert.equal(isProductionSecretMissing(), true, "segredo curto não conta");
-      env.AUTH_SECRET = "segredo-de-teste-com-mais-de-16-chars";
-      assert.equal(isProductionSecretMissing(), false);
-      env.NODE_ENV = "development";
-      delete env.AUTH_SECRET;
-      assert.equal(isProductionSecretMissing(), false, "fora de produção não reclama");
-    } finally {
-      env.NODE_ENV = nodeEnv;
-      env.AUTH_SECRET = secret;
-    }
+    });
+    await comAmbiente(
+      { NODE_ENV: "production", AUTH_SECRET: "segredo-de-teste-com-mais-de-16-chars" },
+      () => {
+        assert.equal(isProductionSecretMissing(), false);
+      },
+    );
+    await comAmbiente({ NODE_ENV: "development", AUTH_SECRET: undefined }, () => {
+      assert.equal(
+        isProductionSecretMissing(),
+        false,
+        "fora de produção não reclama",
+      );
+    });
+  });
+});
+
+/*
+ * A recusa em produção é o que impede o segredo de desenvolvimento — que está
+ * escrito no repositório — de assinar sessão de gente de verdade.
+ */
+describe("recusa de subir em produção sem AUTH_SECRET", () => {
+  test("assertAuthSecret lança em produção sem segredo", async () => {
+    await comAmbiente({ NODE_ENV: "production", AUTH_SECRET: undefined }, () => {
+      assert.throws(assertAuthSecret, { message: AUTH_SECRET_AUSENTE });
+    });
+    await comAmbiente({ NODE_ENV: "production", AUTH_SECRET: "curto" }, () => {
+      assert.throws(assertAuthSecret, { message: AUTH_SECRET_AUSENTE });
+    });
+  });
+
+  test("assertAuthSecret passa com segredo, e fora de produção sem ele", async () => {
+    await comAmbiente(
+      { NODE_ENV: "production", AUTH_SECRET: "segredo-de-teste-com-mais-de-16-chars" },
+      () => {
+        assert.doesNotThrow(assertAuthSecret);
+      },
+    );
+    await comAmbiente({ NODE_ENV: "development", AUTH_SECRET: undefined }, () => {
+      assert.doesNotThrow(assertAuthSecret);
+    });
+  });
+
+  test("em produção sem segredo não se assina nada", async () => {
+    await comAmbiente(
+      { NODE_ENV: "production", AUTH_SECRET: undefined },
+      async () => {
+        await assert.rejects(() => signSession("u1"), {
+          message: AUTH_SECRET_AUSENTE,
+        });
+      },
+    );
+  });
+
+  test("em produção sem segredo nenhum token é aceito", async () => {
+    const valido = await signSession("u1");
+    await comAmbiente(
+      { NODE_ENV: "production", AUTH_SECRET: undefined },
+      async () => {
+        // `readSession` nunca lança: sem segredo ela recusa todo mundo, que é
+        // o lado seguro de falhar.
+        assert.equal(await readSession(valido), null);
+        assert.equal(await verifySession(valido), null);
+      },
+    );
+  });
+
+  test("fora de produção o segredo de desenvolvimento ainda serve", async () => {
+    await comAmbiente(
+      { NODE_ENV: "development", AUTH_SECRET: undefined },
+      async () => {
+        const token = await signSession("u1");
+        assert.equal(await verifySession(token), "u1");
+      },
+    );
   });
 });
