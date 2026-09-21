@@ -81,7 +81,9 @@ export const DEFAULT_DISPLAY: Display = {
   showArchived: true,
   perGroup: "todas",
   showEmptyGroups: false,
-  columns: ["status", "client", "assignee", "createdAt"],
+  // O export "Tarefas · Painel (Lista)" desenha STATUS, RESPONSÁVEL e
+  // PRAZO; o cliente não tem coluna — é a segunda linha da célula TAREFA.
+  columns: ["status", "client", "assignee", "dueDate"],
 };
 
 export const GROUP_OPTIONS: { id: GroupKey; label: string }[] = [

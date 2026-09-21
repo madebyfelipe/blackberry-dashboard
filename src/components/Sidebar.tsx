@@ -8,31 +8,36 @@ import { cn } from "@/lib/cn";
 import { useToast } from "@/components/ui/Toast";
 import {
   BellIcon,
+  ChartLineIcon,
+  ChevronsUpDownIcon,
   InboxIcon,
   LogOutIcon,
   MenuIcon,
+  MessageSquareIcon,
+  PanelLeftIcon,
   PanelsIcon,
-  PencilIcon,
   PlayIcon,
-  SearchIcon,
+  PlusIcon,
   SettingsIcon,
   SquareCheckIcon,
   UsersIcon,
   XIcon,
+  ZapIcon,
 } from "@/components/icons";
 
 /*
- * Navegação do shell autenticado.
+ * Navegação do shell autenticado — design system v3.
  *
- * Duas formas, mesmo conteúdo:
- * - a partir de `md`, a barra lateral fixa de 256px do design;
- * - abaixo disso, uma barra de topo enxuta e a mesma lateral entrando como
- *   gaveta sobre a tela.
+ * O painel é preto (não mais o gradiente do v2), raio de 24px, e a lista vem
+ * em três blocos: a linha de "Ações rápidas" com o atalho `/`, o grupo de
+ * caixas de entrada e, abaixo dos rótulos de seção, os destinos de Trabalho e
+ * de Equipe. Item ativo é uma faixa `border` de raio 12 com o rótulo em
+ * semibold.
  *
- * A lateral era `w-64` sem breakpoint: em 390px ela comia a largura toda e
- * sobravam 86px para o conteúdo — o app inteiro ficava inutilizável no
- * celular. A gaveta é uma solução provisória e deliberadamente sóbria (mesmos
- * tokens, mesma ordem de itens), até existir um desenho de mobile.
+ * Duas formas, mesmo conteúdo: a partir de `md` a lateral fixa de 256px; abaixo
+ * disso, barra de topo + a mesma lateral como gaveta (a lateral fixa em 390px
+ * deixava 86px de conteúdo). A gaveta segue provisória até existir desenho de
+ * mobile.
  */
 
 type NavItem = {
@@ -41,13 +46,30 @@ type NavItem = {
   Icon: (p: { size?: number; className?: string }) => React.ReactNode;
 };
 
-const NAV: NavItem[] = [
+/** Caixas de entrada — o bloco de cima, antes dos rótulos de seção. */
+const INBOXES: NavItem[] = [
+  { href: "/notificacoes", label: "Notificações", Icon: BellIcon },
   { href: "/inbox", label: "Inbox", Icon: InboxIcon },
-  { href: "/tarefas", label: "Tarefas", Icon: SquareCheckIcon },
-  { href: "/social", label: "Social media", Icon: PlayIcon },
-  { href: "/clientes", label: "Clientes", Icon: PanelsIcon },
-  { href: "/equipe", label: "Equipe", Icon: UsersIcon },
-  { href: "/configuracoes", label: "Configurações", Icon: SettingsIcon },
+  { href: "/conversas", label: "Conversas", Icon: MessageSquareIcon },
+];
+
+const SECTIONS: { title: string; items: NavItem[] }[] = [
+  {
+    title: "Trabalho",
+    items: [
+      { href: "/tarefas", label: "Tarefas", Icon: SquareCheckIcon },
+      { href: "/social", label: "Social media", Icon: PlayIcon },
+      { href: "/clientes", label: "Clientes", Icon: PanelsIcon },
+      { href: "/relatorios", label: "Relatórios", Icon: ChartLineIcon },
+    ],
+  },
+  {
+    title: "Equipe",
+    items: [
+      { href: "/equipe", label: "Membros", Icon: UsersIcon },
+      { href: "/configuracoes", label: "Configurações", Icon: SettingsIcon },
+    ],
+  },
 ];
 
 const ROLE_LABEL: Record<PublicUser["role"], string> = {
@@ -75,14 +97,14 @@ export function Sidebar({ user }: { user: PublicUser }) {
   return (
     <>
       {/* Barra de topo — só no celular */}
-      <div className="bg-sidebar-gradient flex shrink-0 items-center justify-between rounded-card border border-border px-4 py-3 md:hidden">
+      <div className="flex shrink-0 items-center justify-between rounded-card border border-border bg-surface px-4 py-3 md:hidden">
         <div className="flex items-center gap-3">
           <button
             type="button"
             onClick={() => setDrawer(true)}
             aria-label="Abrir menu"
             aria-expanded={drawer}
-            className="tap flex h-10 w-10 items-center justify-center rounded-full text-fg-3 transition-colors hover:bg-surface hover:text-fg-soft"
+            className="tap flex h-10 w-10 items-center justify-center rounded-full text-fg-3 transition-colors hover:bg-surface-2 hover:text-fg-soft"
           >
             <MenuIcon size={20} />
           </button>
@@ -90,7 +112,7 @@ export function Sidebar({ user }: { user: PublicUser }) {
             <span className="flex h-7 w-7 items-center justify-center rounded-mark bg-dim text-[15px] font-bold text-fg">
               b
             </span>
-            <span className="text-[16px] font-semibold text-fg-soft">
+            <span className="text-[15px] font-semibold text-fg-soft">
               black berry
             </span>
           </Link>
@@ -142,8 +164,10 @@ function SidebarPanel({
   const router = useRouter();
   const { toast } = useToast();
   const [menuOpen, setMenuOpen] = useState(false);
+  const [quickOpen, setQuickOpen] = useState(false);
   const [leaving, setLeaving] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
+  const quickRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!menuOpen) return;
@@ -161,6 +185,38 @@ function SidebarPanel({
     };
   }, [menuOpen]);
 
+  useEffect(() => {
+    if (!quickOpen) return;
+    function onDown(e: MouseEvent) {
+      if (!quickRef.current?.contains(e.target as Node)) setQuickOpen(false);
+    }
+    window.addEventListener("mousedown", onDown);
+    return () => window.removeEventListener("mousedown", onDown);
+  }, [quickOpen]);
+
+  /*
+   * "/" abre as ações rápidas, como o desenho promete na própria linha. Sai do
+   * caminho enquanto a pessoa digita em qualquer campo.
+   */
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      const el = e.target as HTMLElement | null;
+      const typing =
+        el?.tagName === "INPUT" ||
+        el?.tagName === "TEXTAREA" ||
+        el?.isContentEditable;
+      if (typing || e.metaKey || e.ctrlKey || e.altKey) return;
+      if (e.key === "/") {
+        e.preventDefault();
+        setQuickOpen((o) => !o);
+      } else if (e.key === "Escape") {
+        setQuickOpen(false);
+      }
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+
   async function signOut() {
     setLeaving(true);
     try {
@@ -176,83 +232,105 @@ function SidebarPanel({
   const initial = user.name.trim().charAt(0).toUpperCase() || "?";
 
   return (
-    <aside className="bg-sidebar-gradient flex h-full w-full flex-col rounded-card border border-border">
-      {/* Header */}
+    <aside className="flex h-full w-full flex-col rounded-card bg-bg">
+      {/* Header — marca + troca de workspace */}
       <div className="flex items-center justify-between p-6">
         <Link href="/tarefas" className="group flex items-center gap-2.5">
           <span className="flex h-7 w-7 items-center justify-center rounded-mark bg-dim text-[15px] font-bold text-fg transition-transform duration-200 group-hover:scale-110">
             b
           </span>
-          <span className="text-[16px] font-semibold text-fg-soft">
+          <span className="text-[15px] font-semibold text-fg-soft">
             black berry
           </span>
         </Link>
-        <div className="flex items-center gap-1.5 text-fg-3">
-          {onClose ? (
-            <button
-              type="button"
-              aria-label="Fechar menu"
-              onClick={onClose}
-              className="tap transition-colors hover:text-fg-soft"
-            >
-              <XIcon size={18} />
-            </button>
-          ) : (
-            <>
-              <button
-                type="button"
-                aria-label="Buscar"
-                onClick={() => toast("A busca global chega junto com o Inbox.", "info")}
-                className="tap transition-colors hover:text-fg-soft"
-              >
-                <SearchIcon size={18} />
-              </button>
-              <button
-                type="button"
-                aria-label="Criar"
-                onClick={() => router.push("/tarefas?novo=1")}
-                className="tap transition-colors hover:text-fg-soft"
-              >
-                <PencilIcon size={18} />
-              </button>
-            </>
-          )}
-        </div>
+        {onClose ? (
+          <button
+            type="button"
+            aria-label="Fechar menu"
+            onClick={onClose}
+            className="tap text-fg-3 transition-colors hover:text-fg-soft"
+          >
+            <XIcon size={18} />
+          </button>
+        ) : (
+          <button
+            type="button"
+            aria-label="Trocar de agência"
+            onClick={() =>
+              toast(
+                "Uma conta ainda pertence a uma agência só — a troca chega com o convite de equipe.",
+                "info",
+              )
+            }
+            className="tap text-fg-3 transition-colors hover:text-fg-soft"
+          >
+            <ChevronsUpDownIcon size={16} />
+          </button>
+        )}
       </div>
 
       {/* Nav */}
-      <nav className="flex flex-1 flex-col gap-1 overflow-y-auto px-4 py-2">
-        {NAV.map(({ href, label, Icon }, i) => {
-          const active = pathname === href || pathname.startsWith(href + "/");
-          return (
-            <Link
-              key={href}
-              href={href}
-              aria-current={active ? "page" : undefined}
-              style={{ ["--d" as string]: i }}
-              className={cn(
-                // A linha inteira desliza 2px no hover: o item "vem à frente"
-                // sem mexer no espaçamento da lista.
-                "stagger-item group relative flex items-center gap-3 rounded-field px-4 py-[11px] text-[15px]",
-                "transition-[background-color,color,transform] duration-200 hover:translate-x-0.5",
-                active
-                  ? "bg-border font-semibold text-fg-soft"
-                  : "font-normal text-fg-3 hover:bg-surface hover:text-fg-soft",
-              )}
+      <nav className="flex flex-1 flex-col gap-0.5 overflow-y-auto px-4 pb-2 pt-1">
+        {/* Ações rápidas — a única linha com caixa própria */}
+        <div className="relative" ref={quickRef}>
+          <button
+            type="button"
+            aria-haspopup="menu"
+            aria-expanded={quickOpen}
+            onClick={() => setQuickOpen((o) => !o)}
+            className="tap flex w-full items-center gap-3 rounded-nav border border-border bg-surface-2 px-3 py-[9px] text-left transition-colors hover:bg-border"
+          >
+            <ZapIcon size={16} className="text-fg-3" />
+            <span className="flex-1 text-[13px] text-fg-3">Ações rápidas</span>
+            <span className="flex h-5 w-5 items-center justify-center rounded-check border border-border-strong text-[11px] font-medium text-muted">
+              /
+            </span>
+          </button>
+
+          {quickOpen && (
+            <div
+              role="menu"
+              className="absolute left-0 top-[calc(100%+6px)] z-50 w-full animate-pop-in overflow-hidden rounded-menu border border-border bg-surface-2 p-1.5 shadow-[0_16px_40px_rgba(0,0,0,0.55)]"
             >
-              {/*
-               * A tela atual se anuncia como no export "2. Gradiente": fundo
-               * `bg-border` no raio de 24px, rótulo semibold e ícone claro.
-               * Havia aqui um marcador de 3px colado em `left-0`, mas o item
-               * é uma pílula (raio 24px numa linha de 44px, ou seja, a borda
-               * esquerda é meia-lua): o recorte arredondado comia quase todo
-               * o marcador e sobrava a lasca que o Felipe fotografou.
-               */}
-              <Icon size={18} />
-              <span className="flex-1">{label}</span>
-            </Link>
-          );
-        })}
+              <QuickAction
+                label="Nova tarefa"
+                onSelect={() => {
+                  setQuickOpen(false);
+                  router.push("/tarefas?novo=1");
+                }}
+              />
+              <QuickAction
+                label="Novo cliente"
+                onSelect={() => {
+                  setQuickOpen(false);
+                  router.push("/clientes?novo=1");
+                }}
+              />
+            </div>
+          )}
+        </div>
+
+        <div className="flex flex-col gap-0.5 pt-2.5">
+          {INBOXES.map((item, i) => (
+            <NavLink key={item.href} item={item} pathname={pathname} index={i} />
+          ))}
+        </div>
+
+        {SECTIONS.map((section, s) => (
+          <div key={section.title} className="flex flex-col gap-0.5">
+            <p className="px-3 pb-1.5 pt-3.5 text-[11px] font-semibold tracking-[0.4px] text-muted">
+              {section.title}
+            </p>
+            {section.items.map((item, i) => (
+              <NavLink
+                key={item.href}
+                item={item}
+                pathname={pathname}
+                index={INBOXES.length + s * 4 + i}
+              />
+            ))}
+          </div>
+        ))}
       </nav>
 
       {/* Footer — conta */}
@@ -262,28 +340,36 @@ function SidebarPanel({
           onClick={() => setMenuOpen((o) => !o)}
           aria-expanded={menuOpen}
           aria-haspopup="menu"
-          className="tap flex min-w-0 flex-1 items-center gap-3 rounded-field p-1 text-left transition-colors hover:bg-surface/70"
+          className="tap flex min-w-0 flex-1 items-center gap-3 rounded-field p-1 text-left transition-colors hover:bg-surface-2/70"
         >
           <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-pill bg-border-strong text-[14px] font-medium text-fg">
             {initial}
           </span>
           <span className="flex min-w-0 flex-col gap-0.5">
-            <span className="truncate text-[14px] font-semibold text-fg-soft">
+            <span className="truncate text-[11px] font-semibold text-fg-soft">
               {user.name}
             </span>
-            <span className="truncate text-[12px] text-fg-3">
+            <span className="truncate text-[11px] text-fg-3">
               {ROLE_LABEL[user.role]}
             </span>
           </span>
         </button>
 
+        {/*
+         * O desenho põe aqui o ícone de recolher a lateral. Recolher tem um
+         * estado próprio — a lateral estreita, só com os ícones — e esse
+         * estado ainda não foi desenhado; inventá-lo seria inventar tela. Até
+         * lá o botão existe, com a forma do export, e diz isso em voz alta.
+         */}
         <button
           type="button"
-          aria-label="Notificações"
-          onClick={() => toast("As notificações chegam com o Inbox.", "info")}
+          aria-label="Recolher a lateral"
+          onClick={() =>
+            toast("Recolher a lateral chega com o desenho dela.", "info")
+          }
           className="tap shrink-0 text-fg-3 transition-colors hover:text-fg-soft"
         >
-          <BellIcon size={20} />
+          <PanelLeftIcon size={18} />
         </button>
 
         {menuOpen && (
@@ -323,5 +409,55 @@ function SidebarPanel({
         )}
       </div>
     </aside>
+  );
+}
+
+function NavLink({
+  item,
+  pathname,
+  index,
+}: {
+  item: NavItem;
+  pathname: string;
+  index: number;
+}) {
+  const { href, label, Icon } = item;
+  const active = pathname === href || pathname.startsWith(href + "/");
+  return (
+    <Link
+      href={href}
+      aria-current={active ? "page" : undefined}
+      style={{ ["--d" as string]: index }}
+      className={cn(
+        "stagger-item flex items-center gap-3 rounded-nav px-3 py-[9px] text-[13px]",
+        "transition-[background-color,color,transform] duration-200 hover:translate-x-0.5",
+        active
+          ? "bg-border font-semibold text-fg-soft"
+          : "font-normal text-fg-3 hover:bg-surface-2 hover:text-fg-soft",
+      )}
+    >
+      <Icon size={16} />
+      <span className="flex-1 truncate">{label}</span>
+    </Link>
+  );
+}
+
+function QuickAction({
+  label,
+  onSelect,
+}: {
+  label: string;
+  onSelect: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      role="menuitem"
+      onClick={onSelect}
+      className="flex w-full items-center gap-2.5 rounded-mark px-2.5 py-2 text-left text-[13px] text-fg-soft transition-colors hover:bg-border"
+    >
+      <PlusIcon size={14} className="text-muted" />
+      {label}
+    </button>
   );
 }

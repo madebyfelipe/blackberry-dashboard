@@ -8,8 +8,15 @@ import { escreverData, usarDataDirTemporario } from "./helpers/data-dir";
 usarDataDirTemporario("tasks");
 escreverData("tasks.json", []);
 
-const { ValidationError, createTask, deleteTask, getTask, listTasks, updateTask } =
-  await import("../src/lib/tasks/repository");
+const {
+  ValidationError,
+  addTaskComment,
+  createTask,
+  deleteTask,
+  getTask,
+  listTasks,
+  updateTask,
+} = await import("../src/lib/tasks/repository");
 
 /*
  * Um único tenant neste arquivo: aqui se testa a régua de validação e
@@ -182,5 +189,84 @@ describe("deleteTask e leitura", () => {
     const lista = await listTasks(AGENCIA_A);
     lista.find((x) => x.id === t.id)!.title = "Mexido";
     assert.equal((await getTask(AGENCIA_A, t.id))?.title, "Estável");
+  });
+});
+
+describe("addTaskComment", () => {
+  test("acrescenta ao fim, com autor e carimbo de quem chamou", async () => {
+    const t = await criar({ title: "Com conversa" });
+    assert.deepEqual(t.comments, [], "tarefa nasce sem conversa");
+
+    await addTaskComment(AGENCIA_A, t.id, {
+      author: "Ana Costa",
+      text: "  Primeiro  ",
+    });
+    const depois = await addTaskComment(AGENCIA_A, t.id, {
+      author: "Felipe Silva",
+      text: "Segundo",
+    });
+
+    assert.deepEqual(
+      depois?.comments.map((c) => [c.author, c.text]),
+      [
+        ["Ana Costa", "Primeiro"],
+        ["Felipe Silva", "Segundo"],
+      ],
+      "ordem é a da conversa, e o texto é aparado",
+    );
+    assert.ok(Date.parse(depois!.comments[0].createdAt) > 0, "createdAt é ISO");
+    assert.ok(depois!.comments[0].id, "cada comentário tem id próprio");
+  });
+
+  test("comentário vazio é erro, não linha em branco", async () => {
+    const t = await criar();
+    await assert.rejects(
+      () => addTaskComment(AGENCIA_A, t.id, { author: "Ana", text: "   " }),
+      ValidationError,
+    );
+    assert.deepEqual((await getTask(AGENCIA_A, t.id))?.comments, []);
+  });
+
+  test("texto longo demais é recusado", async () => {
+    const t = await criar();
+    await assert.rejects(
+      () =>
+        addTaskComment(AGENCIA_A, t.id, {
+          author: "Ana",
+          text: "x".repeat(2001),
+        }),
+      ValidationError,
+    );
+  });
+
+  test("tarefa inexistente devolve undefined, não cria nada", async () => {
+    assert.equal(
+      await addTaskComment(AGENCIA_A, "nao-existe", {
+        author: "Ana",
+        text: "oi",
+      }),
+      undefined,
+    );
+  });
+
+  test("autor sem nome vira o traço de sempre", async () => {
+    const t = await criar();
+    const up = await addTaskComment(AGENCIA_A, t.id, { author: "  ", text: "oi" });
+    assert.equal(up?.comments[0].author, "—");
+  });
+
+  test("mexer no resultado não altera o store", async () => {
+    const t = await criar();
+    const up = await addTaskComment(AGENCIA_A, t.id, {
+      author: "Ana",
+      text: "oi",
+    });
+    up!.comments.push({
+      id: "x",
+      author: "Intruso",
+      text: "fora",
+      createdAt: new Date().toISOString(),
+    });
+    assert.equal((await getTask(AGENCIA_A, t.id))?.comments.length, 1);
   });
 });

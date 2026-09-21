@@ -41,3 +41,17 @@ export async function apiUpdateTask(
 export async function apiDeleteTask(id: string): Promise<void> {
   await parse(await fetch(`/api/tasks/${id}`, { method: "DELETE" }));
 }
+
+export async function apiAddTaskComment(
+  id: string,
+  text: string,
+): Promise<Task> {
+  const data = await parse(
+    await fetch(`/api/tasks/${id}/comments`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ text }),
+    }),
+  );
+  return data.task as Task;
+}

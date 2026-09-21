@@ -1,6 +1,6 @@
 import { createStore } from "@/lib/store";
 import { agencyIdOrLegacy } from "@/lib/agency/id";
-import type { Task } from "./types";
+import type { Task, TaskComment } from "./types";
 import { isTaskPriority } from "./priority";
 import { seedTasks } from "./seed";
 
@@ -12,7 +12,7 @@ import { seedTasks } from "./seed";
 
 /**
  * Migração de leitura: arquivos gravados antes dos campos novos (descrição,
- * prioridade, etiquetas, criador, prazo) continuam válidos — o que faltar
+ * prioridade, etiquetas, criador, prazo, comentários) continuam válidos — o que faltar
  * entra com o padrão. Assim nenhum consumidor precisa tratar `undefined`.
  *
  * A agência entra pela mesma porta: tarefa gravada antes do multi-tenant não
@@ -33,7 +33,22 @@ function normalize(raw: Partial<Task> & { id: string }): Task {
     labels: Array.isArray(raw.labels) ? raw.labels.filter(Boolean) : [],
     creator: raw.creator ?? "—",
     dueDate: raw.dueDate ?? null,
+    comments: normalizeComments(raw.comments),
   };
+}
+
+/** Conversa gravada antes da tela de descrição: não existe, e vira lista vazia. */
+function normalizeComments(raw: unknown): TaskComment[] {
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .filter((c): c is TaskComment => !!c && typeof c === "object")
+    .map((c) => ({
+      id: String(c.id ?? ""),
+      author: String(c.author ?? "—"),
+      text: String(c.text ?? ""),
+      createdAt: String(c.createdAt ?? new Date().toISOString()),
+    }))
+    .filter((c) => c.id && c.text);
 }
 
 const store = createStore<Task[]>({

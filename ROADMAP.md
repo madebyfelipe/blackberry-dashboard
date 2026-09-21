@@ -1,6 +1,6 @@
 # Roadmap — black berry
 
-Documento vivo. Marca o que já existe, o que falta **desenhar** (você) e o que falta **construir** (Claude), até o fim do projeto. Última atualização: **21 set 2026** (Editor de lote reconstruído com carrossel, issue #2).
+Documento vivo. Marca o que já existe, o que falta **desenhar** (você) e o que falta **construir** (Claude), até o fim do projeto. Última atualização: **21 set 2026** (design system v3 nas telas redesenhadas + tela de Clientes + descrição da tarefa).
 
 Legenda: ✅ pronto · 🟡 parcial/placeholder · ⬜ não começado · 🎨 precisa de tela sua antes de eu construir
 
@@ -12,7 +12,9 @@ Legenda: ✅ pronto · 🟡 parcial/placeholder · ⬜ não começado · 🎨 pr
 - ✅ **Design system v2 (gradiente)**: tokens anotados com os nomes `bb-*` do export, `--color-dim` (#616161), `--radius-panel`/`--radius-menu`, sidebar com `bg-sidebar-gradient` e corpo da lista transparente
 - ✅ **Polimento do design system** (issue #14): hex e raios crus saíram do JSX para o `@theme` (`--color-danger`, `--color-badge`/`--color-badge-strong`, `--radius-thumb`, `--spacing-control`, cinzas de status), o "⋯" ganhou o alvo de toque de 40px sem mexer na altura das linhas, os menus de ação voltaram à forma do export (10px/6px) com `aria-haspopup`/`aria-expanded` e navegação por setas, e o texto de apoio em conteúdo real subiu de `faint` (2,5:1) para `muted` (5,3:1)
 - ✅ **Contorno que fecha em todo canto arredondado** (issue #24): o par `outline` + `-outline-offset-[0.5px]` quebrava o traço num trecho da curva (meio pixel de tela). Pílulas, chips e botões passaram a `inset-ring-1` (box-shadow, mesmo recorte da caixa, sem mexer no layout), o ponto de status do quadro virou `inset` e o item ativo da lateral voltou ao export — o marcador de 3px em `left-0` era comido pela pílula de raio 24px e aparecia como lasca
+- ✅ **Design system v3** (telas redesenhadas): painel de conteúdo de 28px sobre o preto, abas em pílula, barra de ferramentas (Filtros · busca · Personalizar), lista de 44px por linha com caixa de seleção e barra flutuante de ações, card de 14px comum ao Quadro e à Grade, selo de status e as duas marcas redondas. Mora em `src/components/ui/{Screen,Tabs,Toolbar,DataTable,SelectionBar,EntityCard,Badge,Mark,Popover}.tsx`; os tokens novos (incluindo a escala de cor da saúde do cliente) estão no `@theme` de `globals.css`. Aplicado em Tarefas (Lista e Quadro), Descrição da tarefa, Clientes (Lista e Grade) e no shell
 - ✅ Shell autenticado (sidebar completa) + rotas placeholder
+- ✅ **Lateral no v3**: fundo preto, "Ações rápidas" com o atalho `/`, caixas de entrada (Notificações, Inbox, Conversas) e as seções Trabalho (Tarefas, Social media, Clientes, Relatórios) e Equipe (Membros, Configurações). Os destinos ainda sem tela entraram como placeholder — nunca como tela inventada
 - ✅ Camada de dados com `repository`/`store` (JSON + fallback memória) e API REST
 - ✅ Sistema de toasts + animações (fade/drawer/pop) + `prefers-reduced-motion`
 - ✅ **Camada de movimento** (`globals.css`): curva única de entrada, cascata de listas por `--d`, troca de tela (`template.tsx`), esqueletos (`loading.tsx`) e feedback de toque (`.tap`) — só `transform`/`opacity`
@@ -40,12 +42,15 @@ Legenda: ✅ pronto · 🟡 parcial/placeholder · ⬜ não começado · 🎨 pr
 
 ## Fase 2 — Operação / Tarefas
 - ✅ Lista + Quadro (Kanban) sobre os mesmos dados, CRUD, busca, tabs de status, drag-and-drop, updates otimistas
-- ✅ **Quadro fiel ao export "2. Board · Kanban"**: colunas de largura igual, cards sem fundo (só borda), contador da coluna e alternador Lista/Quadro no header do quadro
-- ✅ Botão de busca das Tarefas: redondo e fixo — o campo abre em overlay ancorado à direita em vez de empurrar a linha
-- ✅ **Menu de filtros** (`FilterMenu`, atalho `F`) e **menu de visualização** (`DisplayMenu`) nos dois botões do header — o seletor Lista/Grade agora vive dentro do menu de visualização, junto com agrupamento, sub-agrupamento, ordenação, arquivadas, tarefas por grupo, grupos vazios e propriedades visíveis (`src/lib/tasks/view.ts`)
+- ✅ **Lista e Quadro no design system v3** (exports "Tarefas · Painel (Lista)" e "(Quadro)"): a lista virou tabela de 44px por linha com marca, cliente na segunda linha, selo de status, responsável com avatar e prazo; o quadro ganhou o card de 14px com selo, régua e rodapé. O contador da coluna, as colunas de largura igual e o alternador Lista/Quadro do v2 continuam
+- ✅ Busca das Tarefas: no v3 ela mora na barra de ferramentas do corpo, ao lado de "Filtros" (o botão redondo em overlay era a forma do v2)
+- ✅ **Menu de filtros** (`FilterMenu`, atalho `F`) e **menu "Personalizar"** (`DisplayMenu`), agora nos dois gatilhos da barra de ferramentas — o seletor Lista/Quadro vive dentro do "Personalizar", junto com agrupamento, sub-agrupamento, ordenação, arquivadas, tarefas por grupo, grupos vazios e propriedades visíveis (`src/lib/tasks/view.ts`)
 - ✅ **Quadro: "Adicionar tarefa" só no hover da coluna** (ou no foco pelo teclado), como no comportamento original
 - ✅ **Campos ricos da tarefa**: descrição, prioridade, etiquetas, criador (vem da sessão) e prazo interno — com colunas, agrupamento e ordenação por prioridade/prazo
 - ✅ **Filtros de Prioridade, Etiquetas e Criador filtram de verdade**; o menu de Datas ganhou a seção de prazo (atrasadas, vencem hoje, próximos 7 dias, sem prazo)
+- ✅ **Descrição da tarefa** (`/tarefas/[id]`, export "Tarefas · Descrição da tarefa"): a tela que o clique numa tarefa e a criação de uma tarefa nova abrem. Editor e visualizador ao mesmo tempo — título, cliente, descrição e todas as propriedades se alteram no lugar, com salvamento otimista e sem botão "Salvar". A coluna direita (PROPRIEDADES, 340px) tem rolagem própria e fica parada enquanto o conteúdo rola; no celular as duas viram uma coluna
+- ✅ **Conversa da tarefa**: `Task.comments` + `POST /api/tasks/<id>/comments`, autor vindo da sessão. É a seção ATIVIDADE do export, junto com o registro de criação
+- ✅ **Seleção em massa na Lista**: caixa por linha, "marcar todas" no cabeçalho e a barra flutuante do export (contagem, Exportar, Arquivar, Excluir, Mais). Excluir funciona com desfazer; Exportar e Arquivar avisam que ainda não existem, em vez de fingir
 - 🟡 Filtros que dependem de recursos inexistentes (Agente, Sessão do agente, Relações…) seguem no desenho, avisando em vez de filtrar
 - ⬜ Campos da peça que faltam: tipo, objetivo, pilar, resp. arte/texto, data de publicação, arquivo, versão
 - ⬜ **Calendário editorial** (visão de mês/semana das publicações): o export da issue #2 virou o novo Editor de lote (ver Fase 1) — as decisões da issue sobre mês/semana, arrastar para reagendar etc. seguem sem resposta
@@ -55,25 +60,27 @@ Legenda: ✅ pronto · 🟡 parcial/placeholder · ⬜ não começado · 🎨 pr
 - 🎨 Telas de Calendário (mês/semana), Carga do time e Briefing — falta desenho
 
 ## Fase 3 — Retenção / CRM
-- ⬜ Ficha do cliente (contatos, acessos, drive, identidade, contrato, valor, vencimento, renovação)
+- ✅ **Tela de Clientes** (`/clientes`, exports "Clientes · Painel (Lista)" e "(Grade)"): a carteira da agência como entidade de verdade (`src/lib/clients/*`) — nome, segmento, serviços, responsável, dia do faturamento e a régua de saúde (Ativo · Renovação · Em risco · Pausado · Novo · VIP). Lista e Grade sobre os mesmos dados, abas por saúde, filtros (status, segmento, responsável, serviço), busca, seleção em massa e criação/edição pelo modal — o mesmo padrão de criação da tarefa
+- 🟡 Ficha do cliente (contatos, acessos, drive, identidade, contrato, valor, vencimento, renovação): a entidade existe e a lista é a porta de entrada; a **ficha completa** (`/clientes/[id]`) ainda não tem desenho
+- 🎨 **Briefing do cliente** — tela própria, ainda por desenhar. A arquitetura está pronta para recebê-la (o cliente já é entidade com id, e a rota cabe em `/clientes/[id]/briefing`); de propósito **não** existe nenhum campo de briefing no modelo, para não haver campo fictício a migrar depois
 - ⬜ Controle **Contratado × Entregue × Saldo** (alertas de saldo negativo)
 - ⬜ **Health Score** 0–100 (velocidade de aprovação, taxa de reprovação, aderência, adimplência; pesos configuráveis)
 - ⬜ Timeline completa da conta
 - ⬜ Relatório mensal em PDF
-- 🎨 Telas de CRM (`/clientes`), Health Score, Timeline — falta desenho
+- 🎨 Telas de ficha do cliente (`/clientes/[id]`), briefing, Health Score e Timeline — falta desenho
 
 ## Transversal / Plataforma
 - ✅ **Auth real** (e-mail/senha p/ agência + token p/ cliente): scrypt, cookie httpOnly assinado por HMAC, `proxy.ts` protegendo o shell, login/cadastro/recuperação, sair e troca de senha
 - 🟡 Recuperação de senha registra o pedido, mas **não envia e-mail** (falta provedor)
 - ✅ **Trocar a senha derruba as sessões dos outros aparelhos** (versão da senha dentro do token, sem precisar de lista de sessões)
 - ✅ **Multi-tenant**: agência virou entidade com id (`lib/agency`), tarefa e lote carregam `agencyId`, e todo `repository` exige o escopo da sessão como primeiro argumento — não dá para listar nem alterar sem dizer de qual agência, e dado de outra agência responde 404. Link público do cliente segue sem sessão, restrito ao lote do token. Falta o reforço no banco (**RLS**), que entra junto com o Postgres
-- 🟡 Cliente ainda é texto livre na tarefa e no lote. O fluxo de aprovação já o trata como coisa (`lib/approval/clients.ts` agrupa os lotes por slug do nome e é o que alimenta `/social`), mas id de verdade, segmento e contrato só chegam com a ficha do cliente (#3, 🎨) — até lá, renomear o cliente num lote o separa dos outros
+- 🟡 Cliente ainda é texto livre na tarefa e no lote — **e agora existe em paralelo a entidade `lib/clients`**. O fluxo de aprovação já o trata como coisa (`lib/approval/clients.ts` agrupa os lotes por slug do nome e é o que alimenta `/social`), e `/clientes` já guarda id, segmento, serviços, responsável e faturamento. O que falta é **ligar as duas pontas**: tarefa e lote passarem a apontar para `Client.id` em vez do nome digitado. Até lá, renomear o cliente num lote o separa dos outros, e a carteira de `/clientes` não sabe dos lotes
 - ✅ **Persistência em banco** (issue #11): `src/lib/store/index.ts` escolhe Postgres (Neon, `vercel:marketplace`) quando `DATABASE_URL` existe, arquivo JSON senão — os quatro stores (tarefas, lotes, contas, mídia) e o `transaction` (agora com `SELECT ... FOR UPDATE`, sem depender de mtime) ganharam o backend sem mexer em `repository.ts`, view ou rota. Artes: Vercel Blob com `BLOB_READ_WRITE_TOKEN`, disco/memória sem. Falta Felipe criar o banco e o Blob store na Vercel e definir as duas variáveis — sem elas a instância de produção segue em modo memória (dado some no próximo boot, mesmo risco de antes)
 - 🟡 Filtro por agência ainda é feito em JS sobre o blob inteiro (`repository.ts`), não `WHERE agency_id`; **RLS de verdade só entra com tabela por área**, que é um passo à parte (schema relacional, não o `jsonb` de transição de agora)
 - ⬜ Papéis/permissões (Coordenação, Social media, Designer, Cliente) — o papel é gravado, mas ainda não muda o que a pessoa pode fazer
 - ✅ **Configurações**: perfil, troca de senha e sessão
-- ⬜ Inbox, Equipe (hoje placeholders)
-- ✅ **Testes automatizados** (`tests/`, runner do próprio Node, 153 casos das funções puras, incluindo o isolamento entre agências) **+ CI** (`.github/workflows/ci.yml`: tipos, testes e build a cada push e pull request)
+- ⬜ Inbox, Notificações, Conversas, Relatórios, Membros (hoje placeholders — todos aparecem na lateral do v3)
+- ✅ **Testes automatizados** (`tests/`, runner do próprio Node, 217 casos das funções puras, incluindo o isolamento entre agências e a régua de clientes) **+ CI** (`.github/workflows/ci.yml`: tipos, testes e build a cada push e pull request)
 
 ## Fora do MVP (não construir sem pedido)
 Agendamento/publicação automática · métricas de redes · financeiro · NF/boleto · timesheet · CRM de prospecção.
@@ -95,13 +102,16 @@ Quem decide o quê e como o trabalho passa entre Felipe e Claude está em `FLUXO
 ### Próximos passos sugeridos (ordem)
 1. **Felipe cria o Neon Postgres e o Vercel Blob store** (Vercel → Storage) e define `DATABASE_URL`/`BLOB_READ_WRITE_TOKEN` — o código dos dois já está pronto (issue #11); sem as variáveis a produção continua em modo memória.
 2. **Schema relacional + RLS**: hoje cada área é um `jsonb` inteiro por linha (drop-in seguro, zero mudança de view/rota); virar tabela de verdade por área (`WHERE agency_id`, política de RLS) é o passo que fecha a dívida de multi-tenant no banco.
-3. **Calendário editorial** lendo a data de publicação que o editor já grava, e a carga do time a partir do responsável.
-4. **Envio automático do link** (WhatsApp/e-mail pelo servidor) + lembretes — depende da decisão de provedor (issue #13) e da ficha do cliente (#3, 🎨) para ter contato de verdade.
-5. Começar CRM/Health Score (Fase 3).
+3. **Ligar tarefa e lote ao `Client.id`** — hoje os três guardam o cliente de formas diferentes (texto livre na tarefa e no lote, entidade em `/clientes`). É o que destrava Health Score, timeline da conta e o filtro por cliente de verdade.
+4. **Calendário editorial** lendo a data de publicação que o editor já grava, e a carga do time a partir do responsável.
+5. **Envio automático do link** (WhatsApp/e-mail pelo servidor) + lembretes — depende da decisão de provedor (issue #13) e da ficha do cliente (#3, 🎨) para ter contato de verdade.
+6. Continuar o CRM/Health Score (Fase 3) sobre a entidade de cliente que acabou de nascer.
 
 ### Dívidas conhecidas
 - `AUTH_SECRET` não está definido na Vercel. O código já não aceita mais rodar assim: em produção sem o segredo o servidor recusa subir (`src/instrumentation.ts`) e assinar/conferir cookie lança (`src/lib/auth/token.ts`) — não existe mais o silêncio de cair no segredo de desenvolvimento. Falta o Felipe definir a variável no painel (`openssl rand -base64 32` → Settings → Environment Variables); até lá, a instância em produção não sobe.
 - A tela de lote (grade de peças + painel de detalhe) ainda não foi adaptada ao celular (o shell já foi; o editor, reconstruído na issue #2, já cabe em 390px).
 - O `json-file.ts` relê pelo mtime, mas dois processos ainda podem se sobrepor num leitura-altera-grava simultâneo: é o preço de arquivo como banco. **Some com o Postgres** (`postgres.ts`, lock de linha) assim que `DATABASE_URL` estiver definida — até lá, produção sem a variável segue no arquivo/memória de sempre.
 - As artes são servidas como foram enviadas, sem derivadas leves.
+- **As telas de aprovação seguem no design system v2.** O redesenho chegou só para Tarefas, Descrição da tarefa e Clientes; Social media, Lote, Editor de lote e o link público continuam com a linguagem antiga até virem os exports v3 delas.
+- **Contraste dos selos de status da tarefa.** O export v3 desenha "Concluído" (#565656), "Pausado" (#5a5a5a) e "Cancelado" (#404040) sobre o fundo #1f1f1f do selo — entre 1,3:1 e 1,7:1, bem abaixo dos 4,5:1. Está implementado exatamente como desenhado; se a leitura incomodar, é uma decisão de design do Felipe (clarear o texto ou escurecer o fundo), não minha.
 - Não existe **convite de equipe**: cada cadastro abre uma agência nova, então duas pessoas da mesma agência ainda não compartilham o mesmo tenant.

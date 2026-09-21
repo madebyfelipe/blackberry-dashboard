@@ -711,3 +711,100 @@ export function CirclePlayIcon(p: IconProps) {
     </Svg>
   );
 }
+
+/*
+ * Ícones das telas do design system v3 — navegação lateral (troca de
+ * workspace, ações rápidas, conversas, relatórios, recolher), barra de
+ * seleção da lista (exportar, arquivar) e a descrição da tarefa (pasta do
+ * projeto, registro de atividade, enviar comentário).
+ */
+
+export function ChevronsUpDownIcon(p: IconProps) {
+  return (
+    <Svg {...p}>
+      <path d="m7 15 5 5 5-5" />
+      <path d="m7 9 5-5 5 5" />
+    </Svg>
+  );
+}
+
+export function ZapIcon(p: IconProps) {
+  return (
+    <Svg {...p}>
+      <path d="M4 14a1 1 0 0 1-.78-1.63l9.9-10.2a.5.5 0 0 1 .86.46l-1.92 6.02A1 1 0 0 0 13 10h7a1 1 0 0 1 .78 1.63l-9.9 10.2a.5.5 0 0 1-.86-.46l1.92-6.02A1 1 0 0 0 11 14z" />
+    </Svg>
+  );
+}
+
+export function MessageSquareIcon(p: IconProps) {
+  return (
+    <Svg {...p}>
+      <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+    </Svg>
+  );
+}
+
+export function ChartLineIcon(p: IconProps) {
+  return (
+    <Svg {...p}>
+      <path d="M3 3v16a2 2 0 0 0 2 2h16" />
+      <path d="m19 9-5 5-4-4-3 3" />
+    </Svg>
+  );
+}
+
+export function PanelLeftIcon(p: IconProps) {
+  return (
+    <Svg {...p}>
+      <rect width="18" height="18" x="3" y="3" rx="2" />
+      <path d="M9 3v18" />
+    </Svg>
+  );
+}
+
+export function ShareIcon(p: IconProps) {
+  return (
+    <Svg {...p}>
+      <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8" />
+      <polyline points="16 6 12 2 8 6" />
+      <line x1="12" x2="12" y1="2" y2="15" />
+    </Svg>
+  );
+}
+
+export function ArchiveIcon(p: IconProps) {
+  return (
+    <Svg {...p}>
+      <rect width="20" height="5" x="2" y="3" rx="1" />
+      <path d="M4 8v11a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8" />
+      <path d="M10 12h4" />
+    </Svg>
+  );
+}
+
+export function FolderIcon(p: IconProps) {
+  return (
+    <Svg {...p}>
+      <path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z" />
+    </Svg>
+  );
+}
+
+export function CirclePlusIcon(p: IconProps) {
+  return (
+    <Svg {...p}>
+      <circle cx="12" cy="12" r="10" />
+      <path d="M8 12h8" />
+      <path d="M12 8v8" />
+    </Svg>
+  );
+}
+
+export function ArrowUpIcon(p: IconProps) {
+  return (
+    <Svg {...p}>
+      <path d="m5 12 7-7 7 7" />
+      <path d="M12 19V5" />
+    </Svg>
+  );
+}

@@ -2,9 +2,19 @@
 
 /*
  * black berry — design tokens
- * Source of truth: pen.dev exports — "2. Design System · black berry" (v2,
- * com gradiente). Os nomes bb-* do export estão anotados ao lado de cada token.
- * Monocromático / escuro. Não introduzir matizes sem confirmar o design.
+ *
+ * Fonte de verdade: os exports do pen.dev na raiz do repo. O vocabulário tem
+ * duas camadas empilhadas, e a de cima manda quando as duas discordam:
+ *
+ * - v2 (gradiente) — "2. Design System · black berry"; os nomes bb-* do
+ *   export estão anotados ao lado de cada token. Ainda vale para as telas de
+ *   aprovação (Social media, Lote, Editor de lote, link público).
+ * - v3 — Tarefas (Lista e Quadro), Descrição da tarefa e Clientes (Lista e
+ *   Grade). É a referência das telas novas: painel de 28px sobre fundo preto,
+ *   lista de 44px por linha, cards de 14px, selo de status e — pela primeira
+ *   vez no produto — cor com significado (a saúde do cliente).
+ *
+ * Escuro nos dois casos. Matiz novo só entra com desenho do Felipe.
  */
 @theme {
   /* Surfaces */
@@ -75,6 +85,58 @@
   --color-draft-badge: #20202a;
   --color-draft-dot: #9a9aa8;
 
+  /*
+   * ---------------------------------------------------------------------
+   * Design system v3 — telas redesenhadas (Tarefas · Lista, Tarefas ·
+   * Quadro, Descrição da tarefa, Clientes · Lista, Clientes · Grade).
+   *
+   * Vale a mesma regra de sempre: fora daqui não entra hex de interface.
+   * Onde o desenho novo conflita com o antigo, o novo manda — é a
+   * referência a partir de agora.
+   * ---------------------------------------------------------------------
+   */
+
+  /* Superfícies */
+  --color-surface-3: #242424; /* marca dos cards e divisória interna */
+  --color-row-raised: #1d1d1d; /* linha sob o ponteiro ou selecionada */
+  --color-badge-neutral: #1f1f1f; /* fundo do selo de status da tarefa */
+  --color-overlay: #171717; /* barra de seleção flutuante sobre a lista */
+
+  /* Traços */
+  --color-panel-ring: #ffffff14; /* contorno do painel de conteúdo */
+  --color-rule: #232323; /* régua da barra de ferramentas e do cabeçalho */
+  --color-rule-soft: #191919; /* régua entre linhas da lista */
+  --color-divider: #242424; /* divisória dentro do card e da barra */
+  --color-border-soft: #2e2e2e; /* contorno da marca redonda */
+
+  /* Texto */
+  --color-fg-4: #b6b6b6; /* iniciais da marca de 36px (card) */
+  --color-initials: #9a9a9a; /* iniciais da marca de 26px (linha) */
+  --color-initials-strong: #c4c4c4; /* iniciais do avatar de pessoa */
+  --color-label: #6f6f6f; /* rótulo de coluna e de campo (11px, caixa alta) */
+  --color-placeholder: #5e5e5e; /* placeholder da busca da barra */
+  --color-sub: #7a7a7a; /* linha secundária da célula de tarefa */
+  --color-value: #e0e0e0; /* valor de campo dentro do card (PRAZO, FATURAMENTO) */
+
+  /*
+   * Escala de status do cliente — o primeiro lugar do produto em que a cor
+   * carrega significado. Até aqui `--color-danger` era o único matiz; as
+   * telas de Clientes trazem seis pares fundo/texto, e é por eles que a
+   * pessoa lê a saúde da carteira de relance. Os valores são os do export.
+   */
+  --color-client-ativo-bg: #0f2419;
+  --color-client-ativo-fg: #4ade80;
+  --color-client-renovacao-bg: #2a2111;
+  --color-client-renovacao-fg: #fbbf24;
+  --color-client-risco-bg: #2a1517;
+  --color-client-risco-fg: #f87171;
+  --color-client-pausado-bg: #1f1f1f;
+  --color-client-pausado-fg: #909090;
+  --color-client-novo-bg: #111f2e;
+  --color-client-novo-fg: #60a5fa;
+  --color-client-vip-bg: #241d33;
+  --color-client-vip-fg: #a78bfa;
+
   /* Radii */
   --radius-field: 24px;
   --radius-pill: 999px;
@@ -83,6 +145,11 @@
   --radius-menu: 10px; /* menus flutuantes (o export "Filtros · Menu" manda) */
   --radius-mark: 6px; /* marca, chips de menu, linhas de menu */
   --radius-thumb: 12px; /* recorte da arte: grade de peças do Lote e do editor */
+  --radius-screen: 28px; /* painel de conteúdo das telas redesenhadas */
+  --radius-tile: 14px; /* card do quadro e da grade de clientes */
+  --radius-nav: 12px; /* item da navegação lateral e da barra de seleção */
+  --radius-check: 5px; /* caixa de seleção da lista */
+  --radius-chip: 8px; /* botão dentro da barra de seleção */
 
   /*
    * Medidas — alvo de toque dos botões redondos (RoundIconButton, "⋯"). 40px

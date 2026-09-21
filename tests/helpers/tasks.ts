@@ -16,6 +16,7 @@ export function makeTask(over: Partial<Task> = {}): Task {
     labels: [],
     creator: "Felipe",
     dueDate: null,
+    comments: [],
     ...over,
   };
 }
