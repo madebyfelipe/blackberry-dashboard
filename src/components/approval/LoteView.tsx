@@ -213,7 +213,8 @@ export function LoteView({
                    */}
                   <PieceThumb
                     size={p.size}
-                    media={p.media}
+                    media={p.media?.[0]}
+                    count={p.media?.length}
                     status={p.status}
                     className={cn(
                       "h-[130px] w-full transition-all duration-200 group-hover:-translate-y-0.5",

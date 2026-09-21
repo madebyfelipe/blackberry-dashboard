@@ -1,6 +1,6 @@
 # Roadmap — black berry
 
-Documento vivo. Marca o que já existe, o que falta **desenhar** (você) e o que falta **construir** (Claude), até o fim do projeto. Última atualização: **21 set 2026** (tela Calendário editorial, issue #2).
+Documento vivo. Marca o que já existe, o que falta **desenhar** (você) e o que falta **construir** (Claude), até o fim do projeto. Última atualização: **21 set 2026** (Editor de lote reconstruído com carrossel, issue #2).
 
 Legenda: ✅ pronto · 🟡 parcial/placeholder · ⬜ não começado · 🎨 precisa de tela sua antes de eu construir
 
@@ -34,7 +34,7 @@ Legenda: ✅ pronto · 🟡 parcial/placeholder · ⬜ não começado · 🎨 pr
 - ✅ Registro de decisão com **IP + versão exata** apresentada (`snapshot` no `DecisionEvent`, captura IP via `x-forwarded-for`)
 - ✅ Token expirável/revogável + geração de link por lote (menu de ações no `/social/[id]`, expira em 30 dias ao regenerar, tela pública mostra estado "link inativo")
 - 🟡 **Envio do link**: WhatsApp, e-mail e "copiar mensagem" saem do menu do lote com o texto pronto e a URL do ambiente atual — falta o disparo automático pelo servidor e os lembretes
-- ✅ **Editor de lote** (`/social/[id]/editor`): peças + detalhes (data, formato, canal, legenda com contador, hashtags) + preview do post, autosave de rascunho, "Adicionar peça" e "Enviar para aprovação"
+- ✅ **Editor de lote reconstruído** (issue #2, export "Clínica Aurora - Montagem de lote Criativos"): substituiu o editor anterior (peças/legenda/hashtags/preview lado a lado) por um composer de um criativo por vez — nome, formato, carrossel de artes e legenda (atalhos de #/@) — com a lista "Criativos do lote" ao lado. Mora em `/social/[cliente]/[lote]/editor`, no fim da jornada Social media › cliente › "+" (`NewBatchModal`: título/período/descrição) › editor. `Piece.media` virou `MediaAsset[]`: uma peça pode ter várias artes (carrossel de verdade), reaproveitado por toda a aprovação (badge "1/N" no `PieceThumb`) — falta só o visualizador de carrossel no link público do cliente (issue #8)
 - ✅ **Abertura do link público** (`/a/[token]`): hero com carrossel das peças, resumo do lote e CTA para o swipe
 - 🎨 Tela pública: estados de **carrossel/vídeo** e visual de "mockup de feed Instagram" — falta desenho (o preview do editor já é uma primeira versão)
 
@@ -48,11 +48,11 @@ Legenda: ✅ pronto · 🟡 parcial/placeholder · ⬜ não começado · 🎨 pr
 - ✅ **Filtros de Prioridade, Etiquetas e Criador filtram de verdade**; o menu de Datas ganhou a seção de prazo (atrasadas, vencem hoje, próximos 7 dias, sem prazo)
 - 🟡 Filtros que dependem de recursos inexistentes (Agente, Sessão do agente, Relações…) seguem no desenho, avisando em vez de filtrar
 - ⬜ Campos da peça que faltam: tipo, objetivo, pilar, resp. arte/texto, data de publicação, arquivo, versão
-- ✅ **Calendário editorial** (issue #2, export "Clínica Aurora - Montagem de lote Criativos"): `/calendario`, nova entrada na sidebar — composer de um criativo por vez (nome, formato, arquivo, legenda) com a lista "Criativos do lote" ao lado. O export não é uma visão de mês/semana (as decisões da issue sobre isso seguem em aberto) nem traz seletor de cliente/lote — a tela abre no lote em rascunho da agência. Cada criativo é uma peça do lote como outra qualquer, pelos mesmos endpoints do Editor de lote; o carrossel de várias artes do desenho aguarda o modelo de dado da issue #8
+- ⬜ **Calendário editorial** (visão de mês/semana das publicações): o export da issue #2 virou o novo Editor de lote (ver Fase 1) — as decisões da issue sobre mês/semana, arrastar para reagendar etc. seguem sem resposta
 - ⬜ **Carga do time**
 - ⬜ Briefings por tipo de peça (chegam preenchidos ao designer)
 - ⬜ Biblioteca de marca · Banco de ideias · Pauta recorrente a partir do contrato
-- 🎨 Telas de Carga do time e Briefing — falta desenho
+- 🎨 Telas de Calendário (mês/semana), Carga do time e Briefing — falta desenho
 
 ## Fase 3 — Retenção / CRM
 - ⬜ Ficha do cliente (contatos, acessos, drive, identidade, contrato, valor, vencimento, renovação)
@@ -101,7 +101,7 @@ Quem decide o quê e como o trabalho passa entre Felipe e Claude está em `FLUXO
 
 ### Dívidas conhecidas
 - `AUTH_SECRET` não está definido na Vercel. O código já não aceita mais rodar assim: em produção sem o segredo o servidor recusa subir (`src/instrumentation.ts`) e assinar/conferir cookie lança (`src/lib/auth/token.ts`) — não existe mais o silêncio de cair no segredo de desenvolvimento. Falta o Felipe definir a variável no painel (`openssl rand -base64 32` → Settings → Environment Variables); até lá, a instância em produção não sobe.
-- As telas de lote e editor ainda não foram adaptadas ao celular (o shell já foi).
+- A tela de lote (grade de peças + painel de detalhe) ainda não foi adaptada ao celular (o shell já foi; o editor, reconstruído na issue #2, já cabe em 390px).
 - O `json-file.ts` relê pelo mtime, mas dois processos ainda podem se sobrepor num leitura-altera-grava simultâneo: é o preço de arquivo como banco. **Some com o Postgres** (`postgres.ts`, lock de linha) assim que `DATABASE_URL` estiver definida — até lá, produção sem a variável segue no arquivo/memória de sempre.
 - As artes são servidas como foram enviadas, sem derivadas leves.
 - Não existe **convite de equipe**: cada cadastro abre uma agência nova, então duas pessoas da mesma agência ainda não compartilham o mesmo tenant.

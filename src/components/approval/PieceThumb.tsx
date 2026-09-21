@@ -19,6 +19,7 @@ export function PieceThumb({
   size,
   status,
   media,
+  count,
   src,
   showBadge = true,
   plain = false,
@@ -29,6 +30,8 @@ export function PieceThumb({
   size: string;
   status?: PieceStatus;
   media?: MediaAsset;
+  /** Total de artes do carrossel — mostra "1/N" quando mais de uma. */
+  count?: number;
   /** URL direta, quando não há um MediaAsset (compatibilidade). */
   src?: string;
   showBadge?: boolean;
@@ -94,6 +97,13 @@ export function PieceThumb({
       {url && isVideo && (
         <span className="absolute right-2.5 top-2.5 flex h-6 w-6 items-center justify-center rounded-full bg-black/60 text-fg-soft backdrop-blur-sm">
           <FilmIcon size={13} />
+        </span>
+      )}
+
+      {/* Carrossel: avisa que tem mais arte além da primeira. */}
+      {!!count && count > 1 && (
+        <span className="absolute right-1.5 top-1.5 rounded-pill bg-black/60 px-1.5 py-0.5 text-[9px] font-semibold text-fg-soft backdrop-blur-sm">
+          1/{count}
         </span>
       )}
 

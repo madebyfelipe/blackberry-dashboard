@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getBatch, setPieceMedia } from "@/lib/approval/repository";
+import { addPieceMedia, getBatch, removePieceMedia } from "@/lib/approval/repository";
 import { MediaError, saveMedia } from "@/lib/media/store";
 import { requireAgency } from "@/lib/auth/session";
 
@@ -7,7 +7,7 @@ export const dynamic = "force-dynamic";
 
 type Ctx = { params: Promise<{ id: string; pieceId: string }> };
 
-/** Anexa (ou troca) a arte de uma peça. Multipart, campo `file`. */
+/** Acrescenta uma arte ao carrossel da peça. Multipart, campo `file`. */
 export async function POST(req: Request, { params }: Ctx) {
   const session = await requireAgency();
   if (!session) {
@@ -34,7 +34,7 @@ export async function POST(req: Request, { params }: Ctx) {
   try {
     const bytes = new Uint8Array(await file.arrayBuffer());
     const media = await saveMedia(bytes, { mime: file.type, name: file.name });
-    const result = await setPieceMedia(session.scope, id, pieceId, media);
+    const result = await addPieceMedia(session.scope, id, pieceId, media);
     if (!result) {
       return NextResponse.json({ error: "Peça não encontrada." }, { status: 404 });
     }
@@ -47,16 +47,20 @@ export async function POST(req: Request, { params }: Ctx) {
   }
 }
 
-/** Remove a arte da peça (volta ao placeholder). */
-export async function DELETE(_req: Request, { params }: Ctx) {
+/** Remove uma arte do carrossel da peça — `?mediaId=`. */
+export async function DELETE(req: Request, { params }: Ctx) {
   const session = await requireAgency();
   if (!session) {
     return NextResponse.json({ error: "Faça login para editar o lote." }, { status: 401 });
   }
   const { id, pieceId } = await params;
-  const result = await setPieceMedia(session.scope, id, pieceId, null);
+  const mediaId = new URL(req.url).searchParams.get("mediaId");
+  if (!mediaId) {
+    return NextResponse.json({ error: "Falta dizer qual arte remover." }, { status: 400 });
+  }
+  const result = await removePieceMedia(session.scope, id, pieceId, mediaId);
   if (!result) {
-    return NextResponse.json({ error: "Peça não encontrada." }, { status: 404 });
+    return NextResponse.json({ error: "Peça ou arte não encontrada." }, { status: 404 });
   }
   return NextResponse.json(result);
 }

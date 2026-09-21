@@ -4,7 +4,6 @@ import { useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { Batch, Piece, PieceFormat } from "@/lib/approval/types";
 import { CAPTION_LIMIT, pieceFormat } from "@/lib/approval/constants";
-import { slugify } from "@/lib/approval/clients";
 import { formatPieceDate } from "@/lib/format";
 import { Breadcrumb } from "@/components/ui/Breadcrumb";
 import { useToast } from "@/components/ui/Toast";
@@ -36,21 +35,18 @@ import {
 } from "@/components/icons";
 
 /*
- * Calendário editorial — issue #2, export "Clínica Aurora - Montagem de lote
- * Criativos".
+ * Editor de lote — export "Clínica Aurora - Montagem de lote Criativos"
+ * (issue #2), substituindo o editor anterior (export "Clínica Aurora -
+ * Editor de Lote").
  *
- * O desenho monta um criativo por vez: nome, formato, arquivo e legenda à
- * esquerda; a lista "Criativos do lote" à direita mostra o que já foi
- * montado. Não há seletor de cliente/lote na tela — quem escolhe o lote é o
- * server component (`calendario/page.tsx`, o rascunho mais recente da
- * agência) — então aqui dentro tudo lê e grava nesse lote só, pelos mesmos
- * endpoints que o Editor de lote já usa (`addPiece`/`updatePieceDraft`/
- * `setPieceMedia`): um criativo daqui é uma peça do lote como outra
- * qualquer, só que criada por este composer em vez do editor completo.
+ * A jornada é: Social media > cliente > "+" (NewBatchModal, título/período/
+ * descrição) > esta tela, onde entram os criativos do lote — nome, formato,
+ * arquivos (carrossel) e legenda, um de cada vez, com a lista "Criativos do
+ * lote" ao lado mostrando o que já foi montado.
  *
- * O carrossel do desenho (3 miniaturas + "adicionar") ainda não tem modelo
- * de dado — `Piece.media` é uma arte só (issue #8 aguarda essa decisão) — então
- * o composer aceita um arquivo por criativo, como o resto do produto.
+ * Um criativo daqui é uma peça do lote como outra qualquer — sem rota nova:
+ * `addPiece`/`updatePieceDraft`/`addPieceMedia`/`removePieceMedia`, os
+ * mesmos que o resto do fluxo de aprovação usa.
  */
 
 const FORMAT_OPTIONS: {
@@ -74,17 +70,30 @@ function pieceDateLabel(iso: string): string {
   return d.toDateString() === new Date().toDateString() ? "hoje" : formatPieceDate(iso);
 }
 
-export function CreativeComposer({ batch: initialBatch }: { batch: Batch }) {
+export function CreativeComposer({
+  batch: initialBatch,
+  clientSlug,
+  initialPieceId,
+}: {
+  batch: Batch;
+  clientSlug: string;
+  initialPieceId?: string;
+}) {
   const { toast } = useToast();
   const router = useRouter();
   const [batch, setBatch] = useState<Batch>(initialBatch);
-  const clientSlug = slugify(batch.client);
+
+  const initialPiece = initialPieceId
+    ? initialBatch.pieces.find((p) => p.id === initialPieceId)
+    : undefined;
 
   // O criativo aberto no composer — null enquanto nada foi salvo ainda.
-  const [composerId, setComposerId] = useState<string | null>(null);
-  const [name, setName] = useState("");
-  const [format, setFormat] = useState<PieceFormat>("carrossel");
-  const [caption, setCaption] = useState("");
+  const [composerId, setComposerId] = useState<string | null>(initialPiece?.id ?? null);
+  const [name, setName] = useState(initialPiece?.name ?? "");
+  const [format, setFormat] = useState<PieceFormat>(
+    initialPiece ? pieceFormat(initialPiece) : "carrossel",
+  );
+  const [caption, setCaption] = useState(initialPiece?.caption ?? "");
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
 
@@ -161,7 +170,7 @@ export function CreativeComposer({ batch: initialBatch }: { batch: Batch }) {
       });
       if (!res.ok) throw new Error((await res.json()).error ?? "Falha ao salvar.");
       applyResult((await res.json()) as { batch: Batch; piece: Piece });
-      toast("Rascunho salvo.");
+      toast("Criativo salvo.");
     } catch (e) {
       toast(e instanceof Error ? e.message : "Falha ao salvar.", "error");
     } finally {
@@ -183,24 +192,34 @@ export function CreativeComposer({ batch: initialBatch }: { batch: Batch }) {
     setCaption(p.caption ?? "");
   }
 
+  /** Sobe um arquivo e acrescenta ao carrossel do criativo aberto. */
+  async function addSlide(pieceId: string, file: File) {
+    const form = new FormData();
+    form.append("file", file);
+    const res = await fetch(`/api/batches/${batch.id}/pieces/${pieceId}/media`, {
+      method: "POST",
+      body: form,
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data?.error ?? "Falha ao subir a arte.");
+    applyResult(data as { batch: Batch; piece: Piece });
+  }
+
+  /**
+   * Um ou vários arquivos de uma vez — cada um vira uma lâmina do carrossel,
+   * em ordem. Resolve o id do criativo uma única vez antes do laço: chamar
+   * `ensurePieceId` de novo a cada arquivo leria `composerId` do estado, que
+   * só atualiza no próximo render — cada arquivo criaria o seu próprio
+   * criativo em vez de entrar no mesmo.
+   */
   async function handleFiles(files: File[]) {
-    const file = files[0];
-    if (!file) return;
-    if (files.length > 1) {
-      toast("Só a primeira arte foi usada — carrossel de várias artes ainda não é suportado.", "info");
-    }
+    if (files.length === 0) return;
     setUploading(true);
     try {
       const id = await ensurePieceId();
-      const form = new FormData();
-      form.append("file", file);
-      const res = await fetch(`/api/batches/${batch.id}/pieces/${id}/media`, {
-        method: "POST",
-        body: form,
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data?.error ?? "Falha ao subir a arte.");
-      applyResult(data as { batch: Batch; piece: Piece });
+      for (const file of files) {
+        await addSlide(id, file);
+      }
     } catch (e) {
       toast(e instanceof Error ? e.message : "Falha ao subir a arte.", "error");
     } finally {
@@ -208,12 +227,13 @@ export function CreativeComposer({ batch: initialBatch }: { batch: Batch }) {
     }
   }
 
-  async function removeMedia() {
-    if (!composerId || !composerPiece?.media) return;
+  async function removeSlide(mediaId: string) {
+    if (!composerId) return;
     try {
-      const res = await fetch(`/api/batches/${batch.id}/pieces/${composerId}/media`, {
-        method: "DELETE",
-      });
+      const res = await fetch(
+        `/api/batches/${batch.id}/pieces/${composerId}/media?mediaId=${mediaId}`,
+        { method: "DELETE" },
+      );
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data?.error ?? "Falha ao remover a arte.");
       applyResult(data as { batch: Batch; piece: Piece });
@@ -223,17 +243,19 @@ export function CreativeComposer({ batch: initialBatch }: { batch: Batch }) {
   }
 
   const captionLength = caption.length;
-  const media = composerPiece?.media;
+  const slides = composerPiece?.media ?? [];
 
   return (
     <div className="flex h-full min-h-0 flex-col gap-5 overflow-y-auto px-1 py-5 md:py-6 md:pl-2 md:pr-6">
-      {/* Header Row — trilha à esquerda, ações à direita (export não traz cliente/lote na trilha) */}
+      {/* Header Row — trilha à esquerda, ações à direita */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <Breadcrumb
           items={[
             { label: "black berry", href: "/tarefas" },
             { label: "Social media", href: "/social" },
-            { label: "Criativos" },
+            { label: batch.client, href: `/social/${clientSlug}` },
+            { label: batch.label, href: `/social/${clientSlug}/${batch.id}` },
+            { label: "Editor" },
           ]}
         />
 
@@ -276,16 +298,14 @@ export function CreativeComposer({ batch: initialBatch }: { batch: Batch }) {
           >
             <Settings2Icon size={18} />
           </RoundIconButton>
-
-          <button
-            type="button"
-            onClick={() => void saveDraft()}
+          <RoundIconButton
+            label="Salvar alterações"
+            tone="primary"
             disabled={saving}
-            className="tap flex h-11 shrink-0 items-center gap-2 rounded-panel bg-primary px-5 text-[13px] font-semibold text-on-primary transition-colors hover:bg-white disabled:opacity-60"
+            onClick={() => void saveDraft()}
           >
-            {saving ? <Spinner size={15} /> : <SaveIcon size={16} />}
-            Salvar alterações
-          </button>
+            {saving ? <Spinner size={16} /> : <SaveIcon size={18} />}
+          </RoundIconButton>
         </div>
       </div>
 
@@ -330,36 +350,49 @@ export function CreativeComposer({ batch: initialBatch }: { batch: Batch }) {
           </div>
 
           <div className="flex flex-col gap-2">
-            <span className="text-[12px] font-semibold text-muted">Arquivos do criativo</span>
-            {media ? (
-              <div className="flex gap-2">
-                <div className="group/thumb relative h-14 flex-1">
-                  <PieceThumb
-                    size={composerPiece?.size ?? ""}
-                    media={media}
-                    showBadge={false}
-                    plain
-                    className="h-14 w-full"
-                  />
-                  <button
-                    type="button"
-                    onClick={removeMedia}
-                    aria-label="Remover arte"
-                    className="tap absolute right-1.5 top-1.5 flex h-6 w-6 items-center justify-center rounded-mark bg-black/70 text-fg-soft opacity-0 backdrop-blur-sm transition-opacity group-hover/thumb:opacity-100"
-                  >
-                    <TrashIcon size={12} />
-                  </button>
-                </div>
+            <div className="flex items-center justify-between">
+              <span className="text-[12px] font-semibold text-muted">Arquivos do criativo</span>
+              {slides.length > 1 && (
+                <span className="text-[11px] text-muted">{slides.length} lâminas</span>
+              )}
+            </div>
+            {slides.length > 0 ? (
+              <div className="flex flex-wrap gap-2">
+                {slides.map((asset) => (
+                  <div key={asset.id} className="group/thumb relative h-14 w-14 shrink-0">
+                    <PieceThumb
+                      size={composerPiece?.size ?? ""}
+                      media={asset}
+                      showBadge={false}
+                      plain
+                      className="h-14 w-14"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => removeSlide(asset.id)}
+                      aria-label={`Remover ${asset.name}`}
+                      className="tap absolute right-1 top-1 flex h-5 w-5 items-center justify-center rounded-mark bg-black/70 text-fg-soft opacity-0 backdrop-blur-sm transition-opacity group-hover/thumb:opacity-100"
+                    >
+                      <TrashIcon size={11} />
+                    </button>
+                  </div>
+                ))}
                 <MediaDropzone
+                  multiple
                   disabled={uploading}
                   onFiles={handleFiles}
                   className="flex h-14 w-14 shrink-0 items-center justify-center rounded-thumb border border-border-strong bg-surface hover:bg-surface-2"
                 >
-                  {uploading ? <Spinner size={16} className="text-fg-3" /> : <PlusIcon size={18} className="text-fg-3" />}
+                  {uploading ? (
+                    <Spinner size={16} className="text-fg-3" />
+                  ) : (
+                    <PlusIcon size={18} className="text-fg-3" />
+                  )}
                 </MediaDropzone>
               </div>
             ) : (
               <MediaDropzone
+                multiple
                 disabled={uploading}
                 onFiles={handleFiles}
                 className="flex flex-col items-center gap-1.5 rounded-panel border border-dashed border-border bg-bg px-5 py-6 text-center hover:border-border-strong"
@@ -372,7 +405,9 @@ export function CreativeComposer({ batch: initialBatch }: { batch: Batch }) {
                 <span className="text-[13px] font-medium text-fg-soft">
                   {uploading ? "Enviando…" : "Arraste os arquivos ou clique para enviar"}
                 </span>
-                <span className="text-[11px] text-muted">PNG, JPG, WEBP, GIF ou MP4/MOV até 50 MB</span>
+                <span className="text-[11px] text-muted">
+                  PNG, JPG, WEBP, GIF ou MP4/MOV até 50 MB — mais de um vira carrossel
+                </span>
               </MediaDropzone>
             )}
           </div>
@@ -433,7 +468,7 @@ export function CreativeComposer({ batch: initialBatch }: { batch: Batch }) {
               className="tap flex h-11 flex-1 items-center justify-center gap-2 rounded-panel border border-border-strong text-[13px] font-semibold text-fg-soft transition-colors hover:bg-surface disabled:opacity-60"
             >
               {saving ? <Spinner size={15} /> : <SaveIcon size={16} />}
-              Salvar rascunho
+              Salvar criativo
             </button>
             <RoundIconButton
               tone="primary"
@@ -479,8 +514,15 @@ export function CreativeComposer({ batch: initialBatch }: { batch: Batch }) {
                   )}
                 >
                   <div className="relative h-11 w-11 shrink-0">
-                    <PieceThumb size={p.size} media={p.media} showBadge={false} plain className="h-11 w-11">
-                      {!p.media && (
+                    <PieceThumb
+                      size={p.size}
+                      media={p.media?.[0]}
+                      count={p.media?.length}
+                      showBadge={false}
+                      plain
+                      className="h-11 w-11"
+                    >
+                      {!p.media?.length && (
                         <span className="absolute bottom-1 left-1 flex h-[18px] w-[18px] items-center justify-center rounded-mark bg-black/60">
                           <FormatIcon size={11} className="text-fg-soft" />
                         </span>
@@ -521,7 +563,7 @@ export function CreativeComposer({ batch: initialBatch }: { batch: Batch }) {
                         onSelect: () => void openPiece(p),
                       },
                       {
-                        label: "Abrir no lote",
+                        label: "Ver o lote",
                         icon: <ExternalLinkIcon size={14} />,
                         onSelect: () => router.push(`/social/${clientSlug}/${batch.id}`),
                       },

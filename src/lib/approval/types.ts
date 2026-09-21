@@ -36,8 +36,11 @@ export type Piece = {
   hashtags?: string;
   format?: PieceFormat;
   channel?: PieceChannel;
-  /** Arte enviada pela agência. Sem ela, a peça cai no placeholder. */
-  media?: MediaAsset;
+  /**
+   * Artes enviadas pela agência, na ordem do carrossel. Sem nenhuma, a peça
+   * cai no placeholder; com mais de uma, é carrossel.
+   */
+  media?: MediaAsset[];
   /** reason given on "ajuste" / reprovação */
   reason?: string;
   history: DecisionEvent[];
