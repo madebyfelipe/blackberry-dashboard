@@ -130,7 +130,7 @@ export async function addPiece(
       channel: "instagram",
       caption: "",
       hashtags: "",
-      media,
+      media: media ? [media] : undefined,
       history: [
         {
           id: "h" + Math.random().toString(36).slice(2, 8),
@@ -163,24 +163,24 @@ function fileLabel(filename: string): string {
 }
 
 /**
- * Troca (ou remove) a arte de uma peça. A arte anterior é apagada do
- * armazenamento — o histórico guarda a decisão, não o arquivo velho.
+ * Acrescenta uma arte ao carrossel da peça — a primeira define formato e
+ * tamanho (como no "Subir artes"); as seguintes só entram na ordem.
  */
-export async function setPieceMedia(
+export async function addPieceMedia(
   scope: AgencyScope,
   batchId: string,
   pieceId: string,
-  media: MediaAsset | null,
+  media: MediaAsset,
 ): Promise<{ batch: Batch; piece: Piece } | undefined> {
-  const result = await transaction((batches) => {
+  return transaction((batches) => {
     const batch = ownedBatch(batches, scope, batchId);
     const piece = batch?.pieces.find((p) => p.id === pieceId);
     if (!batch || !piece) return undefined;
 
-    const previous = piece.media;
-    piece.media = media ?? undefined;
+    const wasEmpty = !piece.media?.length;
+    piece.media = [...(piece.media ?? []), media];
 
-    if (media?.width && media?.height) {
+    if (wasEmpty && media.width && media.height) {
       piece.size = sizeFromDimensions(media.width, media.height);
       const format = formatFromDimensions(media.width, media.height, media.kind);
       piece.format = format;
@@ -191,34 +191,52 @@ export async function setPieceMedia(
     piece.history = [
       {
         id: "h" + Math.random().toString(36).slice(2, 8),
-        title: media
-          ? previous
-            ? "Arte substituída"
-            : "Arte enviada"
-          : "Arte removida",
+        title: wasEmpty ? "Arte enviada" : "Arte adicionada ao carrossel",
         who: agencyStamp(scope),
       },
       ...piece.history,
     ];
 
     batch.draftSavedAt = new Date().toISOString();
-    return {
-      batch: { ...batch },
-      piece: { ...piece },
-      previousMediaId: previous?.id,
-    };
+    return { batch: { ...batch }, piece: { ...piece } };
+  });
+}
+
+/**
+ * Remove uma arte do carrossel da peça pelo id. A arte só é apagada do
+ * armazenamento depois de a peça deixar de apontar para ela — e só se a
+ * peça era mesmo desta agência, senão qualquer sessão derrubaria a arte de
+ * qualquer lote pela URL.
+ */
+export async function removePieceMedia(
+  scope: AgencyScope,
+  batchId: string,
+  pieceId: string,
+  mediaId: string,
+): Promise<{ batch: Batch; piece: Piece } | undefined> {
+  const result = await transaction((batches) => {
+    const batch = ownedBatch(batches, scope, batchId);
+    const piece = batch?.pieces.find((p) => p.id === pieceId);
+    if (!batch || !piece) return undefined;
+    if (!piece.media?.some((m) => m.id === mediaId)) return undefined;
+
+    piece.media = piece.media.filter((m) => m.id !== mediaId);
+    piece.history = [
+      {
+        id: "h" + Math.random().toString(36).slice(2, 8),
+        title: "Arte removida",
+        who: agencyStamp(scope),
+      },
+      ...piece.history,
+    ];
+
+    batch.draftSavedAt = new Date().toISOString();
+    return { batch: { ...batch }, piece: { ...piece } };
   });
 
-  /*
-   * A arte só é apagada depois de a peça deixar de apontar para ela — e só se
-   * a peça era mesmo desta agência. Apagar antes de conferir o dono deixaria
-   * qualquer sessão derrubar a arte de qualquer lote pela URL.
-   */
   if (!result) return undefined;
-  if (result.previousMediaId && result.previousMediaId !== media?.id) {
-    await deleteMedia(result.previousMediaId);
-  }
-  return { batch: result.batch, piece: result.piece };
+  await deleteMedia(mediaId);
+  return result;
 }
 
 /** Fecha o rascunho: o lote passa a valer para o link público do cliente. */

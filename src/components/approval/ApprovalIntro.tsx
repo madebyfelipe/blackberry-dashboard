@@ -196,11 +196,12 @@ function MainCard({ piece }: { piece: Piece }) {
       <CardHead size="lg" />
       <PieceThumb
         size={piece.size}
-        media={piece.media}
+        media={piece.media?.[0]}
+        count={piece.media?.length}
         showBadge={false}
         className="flex-1 rounded-panel"
       >
-        {!piece.media && (
+        {!piece.media?.length && (
           <span className="absolute bottom-3 text-[12px] text-dim">
             {piece.size.replace(" x ", " × ")}
           </span>
@@ -233,7 +234,8 @@ function PeekCard({ piece, className }: { piece: Piece; className?: string }) {
       <CardHead size="sm" />
       <PieceThumb
         size={piece.size}
-        media={piece.media}
+        media={piece.media?.[0]}
+        count={piece.media?.length}
         showBadge={false}
         className="flex-1 rounded-panel"
       />

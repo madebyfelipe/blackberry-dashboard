@@ -192,7 +192,7 @@ describe("lotes: A não lê nem altera o que é de B", () => {
     );
     assert.equal(await lotes.addPiece(AGENCIA_A, "lote-b"), undefined);
     assert.equal(
-      await lotes.setPieceMedia(AGENCIA_A, "lote-b", "pb1", null),
+      await lotes.removePieceMedia(AGENCIA_A, "lote-b", "pb1", "qualquer-media-id"),
       undefined,
     );
     assert.equal(
