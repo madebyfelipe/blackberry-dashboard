@@ -108,6 +108,8 @@ export function BatchEditor({
   const [uploading, setUploading] = useState(0);
   const [, setTick] = useState(0);
   const timers = useRef(new Map<string, ReturnType<typeof setTimeout>>());
+  /** Gravações em voo por peça — enquanto houver uma, a tela é a fonte da verdade. */
+  const inflight = useRef(new Map<string, number>());
 
   /*
    * O link do lote vive no editor desde que a tela de Lote passou a mostrar
@@ -137,6 +139,7 @@ export function BatchEditor({
   const persist = useCallback(
     async (pieceId: string, patch: Record<string, unknown>) => {
       setSaving(true);
+      inflight.current.set(pieceId, (inflight.current.get(pieceId) ?? 0) + 1);
       try {
         const res = await fetch(`/api/batches/${batch.id}/pieces/${pieceId}`, {
           method: "PATCH",
@@ -146,15 +149,27 @@ export function BatchEditor({
         if (!res.ok) throw new Error((await res.json()).error ?? "Falha ao salvar.");
         const data = (await res.json()) as { batch: Batch; piece: Piece };
         setSavedAt(data.batch.draftSavedAt);
+        /*
+         * Se o usuário continuou digitando enquanto esta gravação voltava, a
+         * peça devolvida pelo servidor é mais velha que a tela: trocá-la
+         * apagaria o que foi digitado depois (e pularia o cursor).
+         */
+        const stale =
+          timers.current.has(pieceId) || (inflight.current.get(pieceId) ?? 0) > 1;
         setBatch((b) => ({
           ...b,
           draftSavedAt: data.batch.draftSavedAt,
-          pieces: b.pieces.map((p) => (p.id === data.piece.id ? data.piece : p)),
+          pieces: stale
+            ? b.pieces
+            : b.pieces.map((p) => (p.id === data.piece.id ? data.piece : p)),
         }));
       } catch (e) {
         toast(e instanceof Error ? e.message : "Falha ao salvar.", "error");
       } finally {
-        setSaving(false);
+        const left = (inflight.current.get(pieceId) ?? 1) - 1;
+        if (left > 0) inflight.current.set(pieceId, left);
+        else inflight.current.delete(pieceId);
+        if (inflight.current.size === 0) setSaving(false);
       }
     },
     [batch.id, toast],
