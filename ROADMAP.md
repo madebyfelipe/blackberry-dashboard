@@ -1,6 +1,6 @@
 # Roadmap — black berry
 
-Documento vivo. Marca o que já existe, o que falta **desenhar** (você) e o que falta **construir** (Claude), até o fim do projeto. Última atualização: **21 set 2026** (backend Postgres + Vercel Blob por trás do `store.ts`, issue #11).
+Documento vivo. Marca o que já existe, o que falta **desenhar** (você) e o que falta **construir** (Claude), até o fim do projeto. Última atualização: **21 set 2026** (tela Calendário editorial, issue #2).
 
 Legenda: ✅ pronto · 🟡 parcial/placeholder · ⬜ não começado · 🎨 precisa de tela sua antes de eu construir
 
@@ -48,11 +48,11 @@ Legenda: ✅ pronto · 🟡 parcial/placeholder · ⬜ não começado · 🎨 pr
 - ✅ **Filtros de Prioridade, Etiquetas e Criador filtram de verdade**; o menu de Datas ganhou a seção de prazo (atrasadas, vencem hoje, próximos 7 dias, sem prazo)
 - 🟡 Filtros que dependem de recursos inexistentes (Agente, Sessão do agente, Relações…) seguem no desenho, avisando em vez de filtrar
 - ⬜ Campos da peça que faltam: tipo, objetivo, pilar, resp. arte/texto, data de publicação, arquivo, versão
-- ⬜ **Calendário editorial** (lê `publishDate` do mesmo `repository`)
+- ✅ **Calendário editorial** (issue #2, export "Clínica Aurora - Montagem de lote Criativos"): `/calendario`, nova entrada na sidebar — composer de um criativo por vez (nome, formato, arquivo, legenda) com a lista "Criativos do lote" ao lado. O export não é uma visão de mês/semana (as decisões da issue sobre isso seguem em aberto) nem traz seletor de cliente/lote — a tela abre no lote em rascunho da agência. Cada criativo é uma peça do lote como outra qualquer, pelos mesmos endpoints do Editor de lote; o carrossel de várias artes do desenho aguarda o modelo de dado da issue #8
 - ⬜ **Carga do time**
 - ⬜ Briefings por tipo de peça (chegam preenchidos ao designer)
 - ⬜ Biblioteca de marca · Banco de ideias · Pauta recorrente a partir do contrato
-- 🎨 Telas de Calendário, Carga do time, Briefing — falta desenho
+- 🎨 Telas de Carga do time e Briefing — falta desenho
 
 ## Fase 3 — Retenção / CRM
 - ⬜ Ficha do cliente (contatos, acessos, drive, identidade, contrato, valor, vencimento, renovação)
