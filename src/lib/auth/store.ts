@@ -1,11 +1,11 @@
-import { createJsonStore } from "@/lib/store/json-file";
+import { createStore } from "@/lib/store";
 import { agencyIdFromName, LEGACY_AGENCY_NAME } from "@/lib/agency/id";
 import type { User } from "./types";
 import { seedUsers } from "./seed";
 
 /*
- * Contas. Mesma mecânica dos outros stores (`lib/store/json-file.ts`) — e o
- * primeiro candidato a virar tabela quando entrar o multi-tenant.
+ * Contas. Mesma mecânica dos outros stores — backend por `DATABASE_URL` em
+ * `lib/store/index.ts`.
  */
 
 /**
@@ -28,7 +28,7 @@ function normalize(raw: User): User {
   };
 }
 
-const store = createJsonStore<User[]>({
+const store = createStore<User[]>({
   file: "users.json",
   seed: seedUsers,
   revive: (raw) => (raw as User[]).map(normalize),

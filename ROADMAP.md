@@ -1,6 +1,6 @@
 # Roadmap — black berry
 
-Documento vivo. Marca o que já existe, o que falta **desenhar** (você) e o que falta **construir** (Claude), até o fim do projeto. Última atualização: **20 set 2026** (fluxo cliente › lote › peças, criar lote e Lote minimalista — issues #26, #27 e #25).
+Documento vivo. Marca o que já existe, o que falta **desenhar** (você) e o que falta **construir** (Claude), até o fim do projeto. Última atualização: **21 set 2026** (backend Postgres + Vercel Blob por trás do `store.ts`, issue #11).
 
 Legenda: ✅ pronto · 🟡 parcial/placeholder · ⬜ não começado · 🎨 precisa de tela sua antes de eu construir
 
@@ -68,7 +68,8 @@ Legenda: ✅ pronto · 🟡 parcial/placeholder · ⬜ não começado · 🎨 pr
 - ✅ **Trocar a senha derruba as sessões dos outros aparelhos** (versão da senha dentro do token, sem precisar de lista de sessões)
 - ✅ **Multi-tenant**: agência virou entidade com id (`lib/agency`), tarefa e lote carregam `agencyId`, e todo `repository` exige o escopo da sessão como primeiro argumento — não dá para listar nem alterar sem dizer de qual agência, e dado de outra agência responde 404. Link público do cliente segue sem sessão, restrito ao lote do token. Falta o reforço no banco (**RLS**), que entra junto com o Postgres
 - 🟡 Cliente ainda é texto livre na tarefa e no lote. O fluxo de aprovação já o trata como coisa (`lib/approval/clients.ts` agrupa os lotes por slug do nome e é o que alimenta `/social`), mas id de verdade, segmento e contrato só chegam com a ficha do cliente (#3, 🎨) — até lá, renomear o cliente num lote o separa dos outros
-- ⬜ Trocar `store.ts` por banco (Neon Postgres via `vercel:marketplace`) antes de produção
+- ✅ **Persistência em banco** (issue #11): `src/lib/store/index.ts` escolhe Postgres (Neon, `vercel:marketplace`) quando `DATABASE_URL` existe, arquivo JSON senão — os quatro stores (tarefas, lotes, contas, mídia) e o `transaction` (agora com `SELECT ... FOR UPDATE`, sem depender de mtime) ganharam o backend sem mexer em `repository.ts`, view ou rota. Artes: Vercel Blob com `BLOB_READ_WRITE_TOKEN`, disco/memória sem. Falta Felipe criar o banco e o Blob store na Vercel e definir as duas variáveis — sem elas a instância de produção segue em modo memória (dado some no próximo boot, mesmo risco de antes)
+- 🟡 Filtro por agência ainda é feito em JS sobre o blob inteiro (`repository.ts`), não `WHERE agency_id`; **RLS de verdade só entra com tabela por área**, que é um passo à parte (schema relacional, não o `jsonb` de transição de agora)
 - ⬜ Papéis/permissões (Coordenação, Social media, Designer, Cliente) — o papel é gravado, mas ainda não muda o que a pessoa pode fazer
 - ✅ **Configurações**: perfil, troca de senha e sessão
 - ⬜ Inbox, Equipe (hoje placeholders)
@@ -92,14 +93,15 @@ Quem decide o quê e como o trabalho passa entre Felipe e Claude está em `FLUXO
 7. **Fechar o loop.** Atualizar este roadmap; relatar o que foi feito, o que ficou pendente e o que precisa de decisão/desenho.
 
 ### Próximos passos sugeridos (ordem)
-1. **Banco no lugar do JSON** (Neon Postgres) + bucket para as artes — o `json-file.ts` foi feito para sair inteiro; o filtro por agência, que hoje vive no `repository`, vira `WHERE agency_id` e ganha **RLS** por cima.
-2. **Calendário editorial** lendo a data de publicação que o editor já grava, e a carga do time a partir do responsável.
-3. **Envio automático do link** (WhatsApp/e-mail pelo servidor) + lembretes.
-4. Começar CRM/Health Score (Fase 3).
+1. **Felipe cria o Neon Postgres e o Vercel Blob store** (Vercel → Storage) e define `DATABASE_URL`/`BLOB_READ_WRITE_TOKEN` — o código dos dois já está pronto (issue #11); sem as variáveis a produção continua em modo memória.
+2. **Schema relacional + RLS**: hoje cada área é um `jsonb` inteiro por linha (drop-in seguro, zero mudança de view/rota); virar tabela de verdade por área (`WHERE agency_id`, política de RLS) é o passo que fecha a dívida de multi-tenant no banco.
+3. **Calendário editorial** lendo a data de publicação que o editor já grava, e a carga do time a partir do responsável.
+4. **Envio automático do link** (WhatsApp/e-mail pelo servidor) + lembretes — depende da decisão de provedor (issue #13) e da ficha do cliente (#3, 🎨) para ter contato de verdade.
+5. Começar CRM/Health Score (Fase 3).
 
 ### Dívidas conhecidas
 - `AUTH_SECRET` não está definido na Vercel. O código já não aceita mais rodar assim: em produção sem o segredo o servidor recusa subir (`src/instrumentation.ts`) e assinar/conferir cookie lança (`src/lib/auth/token.ts`) — não existe mais o silêncio de cair no segredo de desenvolvimento. Falta o Felipe definir a variável no painel (`openssl rand -base64 32` → Settings → Environment Variables); até lá, a instância em produção não sobe.
 - As telas de lote e editor ainda não foram adaptadas ao celular (o shell já foi).
-- O `json-file.ts` relê pelo mtime, mas dois processos ainda podem se sobrepor num leitura-altera-grava simultâneo: é o preço de arquivo como banco, e some com o Postgres.
+- O `json-file.ts` relê pelo mtime, mas dois processos ainda podem se sobrepor num leitura-altera-grava simultâneo: é o preço de arquivo como banco. **Some com o Postgres** (`postgres.ts`, lock de linha) assim que `DATABASE_URL` estiver definida — até lá, produção sem a variável segue no arquivo/memória de sempre.
 - As artes são servidas como foram enviadas, sem derivadas leves.
 - Não existe **convite de equipe**: cada cadastro abre uma agência nova, então duas pessoas da mesma agência ainda não compartilham o mesmo tenant.

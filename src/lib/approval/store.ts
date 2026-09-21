@@ -1,9 +1,9 @@
-import { createJsonStore } from "@/lib/store/json-file";
+import { createStore } from "@/lib/store";
 import { agencyIdOrLegacy } from "@/lib/agency/id";
 import type { Batch } from "./types";
 import { seedBatches } from "./seed";
 
-/* Mesma mecânica dos outros stores — ver `lib/store/json-file.ts`. */
+/* Mesma mecânica dos outros stores — backend por `DATABASE_URL` em `lib/store/index.ts`. */
 
 /**
  * Migração de leitura: lote gravado antes do multi-tenant não tem agência, e a
@@ -18,7 +18,7 @@ function normalize(raw: Partial<Batch> & { id: string }): Batch {
   };
 }
 
-const store = createJsonStore<Batch[]>({
+const store = createStore<Batch[]>({
   file: "batches.json",
   seed: seedBatches,
   revive: (raw) => (raw as (Partial<Batch> & { id: string })[]).map(normalize),
