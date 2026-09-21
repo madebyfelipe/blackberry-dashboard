@@ -57,7 +57,7 @@ Dá para criar outra conta em `/criar-conta` — o cadastro já entra logado.
 | `AUTH_SECRET` | Chave que assina o cookie de sessão. **Obrigatória em produção** (mín. 16 caracteres): sem ela o servidor recusa subir e qualquer assinatura/conferência de cookie lança. Gere com `openssl rand -base64 32` e defina em Vercel → Settings → Environment Variables. Fora de produção o app cai num segredo de desenvolvimento, que não protege nada e invalida as sessões a cada deploy. |
 | `DEMO_PASSWORD` | Senha da conta semeada, para instalações compartilhadas. |
 | `DATABASE_URL` | String de conexão do Postgres (Neon, criado pelo marketplace da Vercel — Storage → Marketplace Database Providers → Neon). Presente, os quatro stores (tarefas, lotes, contas, índice de mídia) passam a gravar lá. Ausente, o app usa arquivo JSON local (dev) — nunca em produção sem disco gravável. |
-| `BLOB_READ_WRITE_TOKEN` | Token do Vercel Blob (Storage → Create Database → Blob), injetado automaticamente ao conectar o projeto. Presente, os bytes das artes vão para lá e sobrevivem a redeploy. Ausente, seguem em `data/uploads/` com fallback em memória em disco somente-leitura. |
+| `BLOB_READ_WRITE_TOKEN` | Token do Vercel Blob (Storage → Create Database → Blob), injetado automaticamente ao conectar o projeto. Presente, a arte vai do navegador **direto** para o Blob (sem passar pela função, ver "O teto de 4,5 MB") e sobrevive a redeploy. Ausente, o editor volta ao upload multipart e os bytes ficam em `data/uploads/`, com fallback em memória em disco somente-leitura. |
 
 ## Rotas principais
 
@@ -105,10 +105,47 @@ O app só conversa com `repository.ts`, que só conversa com `store.ts`. Trocar 
 - Tarefas: `src/lib/tasks/{types,constants,priority,seed,store,repository}.ts` — o pipeline de status vive **só** em `constants.ts`; a régua de prioridade, **só** em `priority.ts`.
 - Aprovação: `src/lib/approval/{types,constants,seed,store,repository}.ts`.
 - Contas: `src/lib/auth/{types,password,token,session,seed,store,repository}.ts`. `token.ts` não importa nada do Node nem do Next — é o único pedaço compartilhado com o `proxy.ts`.
-- Mídia: `src/lib/media/*` — metadados pelo store comum; bytes em `data/uploads/` (ou fallback em memória) sem `BLOB_READ_WRITE_TOKEN`, no Vercel Blob com ela.
+- Mídia: `src/lib/media/*` — metadados pelo store comum; bytes em `data/uploads/` (ou fallback em memória) sem `BLOB_READ_WRITE_TOKEN`, no Vercel Blob com ela. Como os bytes entram e saem está em "O teto de 4,5 MB" abaixo — leia antes de mexer em upload de arte.
 - Base comum: `src/lib/store/index.ts` decide entre os dois backends por `DATABASE_URL`, com a mesma interface (`read`/`transaction`) para quem consome:
   - `json-file.ts` — arquivo JSON + memória, revalida pelo **mtime** a cada leitura, porque `next start` roda vários workers: sem isso, quem grava e quem renderiza a tela veem estados diferentes.
   - `postgres.ts` — cada área é uma linha `jsonb` em `kv_store` (mesmo formato que ia para o arquivo); `transaction` tranca a linha (`SELECT ... FOR UPDATE`) para ler e gravar na mesma conexão, o equivalente ao problema do mtime resolvido por lock de banco em vez de detecção depois do fato.
+
+### O teto de 4,5 MB, e por que a arte não passa pela função
+
+Na Vercel, **o corpo de uma requisição e o de uma resposta são cortados em
+4,5 MB** — em qualquer plano, e *antes* de a função rodar. O upload multipart
+de sempre (`POST .../media` com o arquivo dentro) morria com `413` em produção
+para qualquer arte acima disso, com `source: "static"` no log, o que é o jeito
+da plataforma dizer que a função nem foi chamada. Passava batido em dev porque
+`next dev` não tem esse teto. A dropzone promete 50 MB.
+
+Então, com Blob configurado, os bytes não passam pela função **em nenhuma das
+duas direções**:
+
+- **Subida** — o navegador manda o arquivo direto para o Blob. A função só
+  emite a permissão (`POST .../media/token`, `handleUpload` do
+  `@vercel/blob/client`) e depois registra o que chegou (`POST .../media` com
+  `{ pathname }`). Quem valida sessão, dono do lote, tipo e tamanho é a rota do
+  token — o Blob passa a impor `allowedContentTypes` e `maximumSizeInBytes` por
+  conta própria, então o token não serve para gravar outra coisa.
+- **Descida** — `GET /api/media/<id>` responde **307** para a URL do Blob em
+  vez de devolver os bytes. Devolver uma arte de 9 MB pelo corpo da resposta
+  bateria no mesmo teto: a imagem subiria e não apareceria. De quebra, o
+  navegador pega os bytes do CDN, não da função.
+
+Duas regras ao mexer nisso:
+
+1. **Nada que o navegador manda entra no registro.** Do cliente vem só o
+   `pathname` (validado por `isMediaBlobPathname`) e o nome do arquivo; tamanho,
+   tipo e URL vêm do `head()` do Blob. Aceitar URL do cliente seria um SSRF,
+   porque `readMedia` faz `fetch` na `blobUrl`.
+2. **Sem `onUploadCompleted`.** A Vercel não consegue chamar de volta um
+   `localhost`, então registrar a arte por ali faria o dev local se comportar
+   diferente da produção — exatamente a diferença que escondeu o `413`. Quem
+   registra é o navegador, depois que o upload termina.
+
+Sem `BLOB_READ_WRITE_TOKEN` nada disso liga: o editor volta ao multipart e os
+bytes vão para o disco, como sempre foi em dev.
 
 ## Multi-tenant: isolamento por agência
 

@@ -9,6 +9,11 @@ import { Breadcrumb } from "@/components/ui/Breadcrumb";
 import { useToast } from "@/components/ui/Toast";
 import { Spinner } from "@/components/ui/Spinner";
 import { ActionMenu } from "@/components/tasks/ActionMenu";
+import {
+  BLOB_MULTIPART_THRESHOLD,
+  MAX_UPLOAD_BYTES,
+  blobPathnameFor,
+} from "@/lib/media/constants";
 import { MediaDropzone } from "./MediaDropzone";
 import { PieceThumb } from "./PieceThumb";
 import { RoundIconButton } from "./RoundIconButton";
@@ -74,10 +79,13 @@ export function CreativeComposer({
   batch: initialBatch,
   clientSlug,
   initialPieceId,
+  blobUploads = false,
 }: {
   batch: Batch;
   clientSlug: string;
   initialPieceId?: string;
+  /** Há Blob configurado: a arte vai do navegador direto para lá. */
+  blobUploads?: boolean;
 }) {
   const { toast } = useToast();
   const router = useRouter();
@@ -192,14 +200,41 @@ export function CreativeComposer({
     setCaption(p.caption ?? "");
   }
 
-  /** Sobe um arquivo e acrescenta ao carrossel do criativo aberto. */
+  /**
+   * Sobe um arquivo e acrescenta ao carrossel do criativo aberto.
+   *
+   * Com Blob configurado (produção), o arquivo vai do navegador direto para o
+   * store e a rota recebe só o `pathname` para registrar — é o que tira o
+   * upload de baixo do limite de 4,5 MB que a Vercel impõe ao corpo de uma
+   * requisição. Sem Blob (dev local), vai por multipart como sempre foi.
+   */
   async function addSlide(pieceId: string, file: File) {
-    const form = new FormData();
-    form.append("file", file);
-    const res = await fetch(`/api/batches/${batch.id}/pieces/${pieceId}/media`, {
-      method: "POST",
-      body: form,
-    });
+    if (file.size > MAX_UPLOAD_BYTES) {
+      throw new Error(`"${file.name}" passa de 50 MB.`);
+    }
+
+    const endpoint = `/api/batches/${batch.id}/pieces/${pieceId}/media`;
+    let res: Response;
+
+    if (blobUploads) {
+      const { upload } = await import("@vercel/blob/client");
+      const blob = await upload(blobPathnameFor(file.name, file.type), file, {
+        access: "public",
+        contentType: file.type,
+        handleUploadUrl: `${endpoint}/token`,
+        multipart: file.size > BLOB_MULTIPART_THRESHOLD,
+      });
+      res = await fetch(endpoint, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ pathname: blob.pathname, name: file.name }),
+      });
+    } else {
+      const form = new FormData();
+      form.append("file", file);
+      res = await fetch(endpoint, { method: "POST", body: form });
+    }
+
     const data = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(data?.error ?? "Falha ao subir a arte.");
     applyResult(data as { batch: Batch; piece: Piece });

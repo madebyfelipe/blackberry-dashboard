@@ -23,5 +23,12 @@ export default async function CreativeComposerPage({
   if (slug !== cliente) {
     redirect(`/social/${slug}/${batch.id}/editor${peca ? `?peca=${peca}` : ""}`);
   }
-  return <CreativeComposer batch={batch} clientSlug={slug} initialPieceId={peca} />;
+  return (
+    <CreativeComposer
+      batch={batch}
+      clientSlug={slug}
+      initialPieceId={peca}
+      blobUploads={Boolean(process.env.BLOB_READ_WRITE_TOKEN)}
+    />
+  );
 }
