@@ -15,4 +15,6 @@ export type MediaAsset = {
   width?: number;
   height?: number;
   createdAt: string;
+  /** URL pública no Vercel Blob, quando `BLOB_READ_WRITE_TOKEN` está configurado. */
+  blobUrl?: string;
 };

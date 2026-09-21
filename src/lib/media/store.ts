@@ -1,7 +1,7 @@
 import { promises as fs } from "node:fs";
 import { randomBytes } from "node:crypto";
 import path from "node:path";
-import { createJsonStore } from "@/lib/store/json-file";
+import { createStore } from "@/lib/store";
 import { readDimensions } from "./dimensions";
 import { ACCEPTED_MIME, MAX_UPLOAD_BYTES } from "./constants";
 import type { MediaAsset } from "./types";
@@ -9,21 +9,18 @@ import type { MediaAsset } from "./types";
 /*
  * Armazenamento das artes.
  *
- * Os bytes vão para `data/uploads/<id>.<ext>` e os metadados para
- * `data/media.json` pelo store compartilhado (`lib/store/json-file`), que
- * revalida pelo mtime — sem isso, o worker que serve `/api/media/<id>` não
- * enxergaria o que outro worker acabou de gravar.
- *
- * Disco somente-leitura (serverless): os bytes ficam na memória do processo,
- * o que só sustenta a sessão atual. Trocar por um bucket (S3/Blob) mexe nas
- * três funções de byte daqui — ver ROADMAP.
+ * Os metadados vão para `media.json` (ou a linha "media" do Postgres, ver
+ * `lib/store/index.ts`) e os bytes para o Vercel Blob quando existe
+ * `BLOB_READ_WRITE_TOKEN` (issue #11) — sem a variável, continuam em
+ * `data/uploads/<id>.<ext>`, com fallback em memória para disco
+ * somente-leitura (serverless sem Blob configurado).
  */
 
 const UPLOAD_DIR = path.join(process.cwd(), "data", "uploads");
 
 export class MediaError extends Error {}
 
-const index = createJsonStore<Record<string, MediaAsset>>({
+const index = createStore<Record<string, MediaAsset>>({
   file: "media.json",
   seed: () => ({}),
 });
@@ -34,6 +31,32 @@ const memoryBytes = new Map<string, Uint8Array>();
 function fileFor(asset: MediaAsset): string {
   const { ext } = ACCEPTED_MIME[asset.mime] ?? { ext: "bin" };
   return path.join(UPLOAD_DIR, `${asset.id}.${ext}`);
+}
+
+function blobPathFor(asset: Pick<MediaAsset, "id" | "mime">): string {
+  const { ext } = ACCEPTED_MIME[asset.mime] ?? { ext: "bin" };
+  return `media/${asset.id}.${ext}`;
+}
+
+/** Grava no Vercel Blob e devolve a URL pública, ou `undefined` sem o token. */
+async function putBlob(
+  asset: Pick<MediaAsset, "id" | "mime">,
+  bytes: Uint8Array,
+): Promise<string | undefined> {
+  if (!process.env.BLOB_READ_WRITE_TOKEN) return undefined;
+  const { put } = await import("@vercel/blob");
+  const blob = await put(blobPathFor(asset), Buffer.from(bytes), {
+    access: "public",
+    contentType: asset.mime,
+    addRandomSuffix: false,
+  });
+  return blob.url;
+}
+
+async function deleteBlob(url: string): Promise<void> {
+  if (!process.env.BLOB_READ_WRITE_TOKEN) return;
+  const { del } = await import("@vercel/blob");
+  await del(url);
 }
 
 /**
@@ -72,11 +95,16 @@ export async function saveMedia(
   };
 
   // Bytes primeiro: um registro sem arquivo daria uma arte quebrada na tela.
-  try {
-    await fs.mkdir(UPLOAD_DIR, { recursive: true });
-    await fs.writeFile(fileFor(asset), bytes);
-  } catch {
-    memoryBytes.set(id, bytes);
+  const blobUrl = await putBlob(asset, bytes);
+  if (blobUrl) {
+    asset.blobUrl = blobUrl;
+  } else {
+    try {
+      await fs.mkdir(UPLOAD_DIR, { recursive: true });
+      await fs.writeFile(fileFor(asset), bytes);
+    } catch {
+      memoryBytes.set(id, bytes);
+    }
   }
   await index.transaction((map) => {
     map[id] = asset;
@@ -89,12 +117,17 @@ export async function getMedia(id: string): Promise<MediaAsset | undefined> {
   return (await index.read())[id];
 }
 
-/** Bytes da arte, do disco ou da memória. */
+/** Bytes da arte, do Blob, do disco ou da memória. */
 export async function readMedia(
   id: string,
 ): Promise<{ asset: MediaAsset; bytes: Uint8Array } | undefined> {
   const asset = await getMedia(id);
   if (!asset) return undefined;
+  if (asset.blobUrl) {
+    const res = await fetch(asset.blobUrl);
+    if (!res.ok) return undefined;
+    return { asset, bytes: new Uint8Array(await res.arrayBuffer()) };
+  }
   const cached = memoryBytes.get(id);
   if (cached) return { asset, bytes: cached };
   try {
@@ -112,6 +145,10 @@ export async function deleteMedia(id: string): Promise<void> {
   await index.transaction((map) => {
     delete map[id];
   });
+  if (asset.blobUrl) {
+    await deleteBlob(asset.blobUrl);
+    return;
+  }
   memoryBytes.delete(id);
   try {
     await fs.unlink(fileFor(asset));

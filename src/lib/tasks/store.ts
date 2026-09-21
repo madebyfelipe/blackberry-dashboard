@@ -1,4 +1,4 @@
-import { createJsonStore } from "@/lib/store/json-file";
+import { createStore } from "@/lib/store";
 import { agencyIdOrLegacy } from "@/lib/agency/id";
 import type { Task } from "./types";
 import { isTaskPriority } from "./priority";
@@ -6,9 +6,8 @@ import { seedTasks } from "./seed";
 
 /*
  * Armazenamento das tarefas. O app só conversa com `repository.ts`, que só
- * conversa com este arquivo — trocar o armazenamento (Postgres na Vercel) é um
- * drop-in aqui. A mecânica de arquivo + memória vive em `lib/store/json-file`.
- * Ver memória: ragick-persistence-deploy.
+ * conversa com este arquivo — o backend (arquivo local ou Postgres) é decidido
+ * em `lib/store/index.ts`, por `DATABASE_URL`. Ver memória: ragick-persistence-deploy.
  */
 
 /**
@@ -37,7 +36,7 @@ function normalize(raw: Partial<Task> & { id: string }): Task {
   };
 }
 
-const store = createJsonStore<Task[]>({
+const store = createStore<Task[]>({
   file: "tasks.json",
   seed: seedTasks,
   revive: (raw) => (raw as (Partial<Task> & { id: string })[]).map(normalize),

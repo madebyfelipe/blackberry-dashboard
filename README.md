@@ -8,7 +8,7 @@ Três áreas: **aprovação de conteúdo** (diferencial), **gestão operacional 
 
 - **Next.js 16** (App Router) · **React 19** · **TypeScript**
 - **Tailwind CSS v4** (tokens do design em `src/app/globals.css` via `@theme`)
-- Persistência atual: **arquivo JSON** com fallback em memória (`src/lib/store/json-file.ts`) — troque por um banco antes de escalar na Vercel (ver `ROADMAP.md` e a memória `ragick-persistence-deploy`).
+- Persistência: **Postgres** (Neon, via marketplace da Vercel) quando `DATABASE_URL` está definida; sem a variável — dev local e todo teste — cai no **arquivo JSON** com fallback em memória (`src/lib/store/{index,json-file,postgres}.ts`). Artes seguem a mesma lógica com `BLOB_READ_WRITE_TOKEN` (Vercel Blob) — ver "Arquitetura de dados".
 - Auth própria: senha com **scrypt** (`node:crypto`) e sessão em cookie httpOnly assinada com **HMAC-SHA256** (Web Crypto). Sem dependência externa.
 - Ícones: lucide, reproduzidos como stroke/`currentColor` em `src/components/icons.tsx`.
 
@@ -56,6 +56,8 @@ Dá para criar outra conta em `/criar-conta` — o cadastro já entra logado.
 | --- | --- |
 | `AUTH_SECRET` | Chave que assina o cookie de sessão. **Obrigatória em produção** (mín. 16 caracteres): sem ela o servidor recusa subir e qualquer assinatura/conferência de cookie lança. Gere com `openssl rand -base64 32` e defina em Vercel → Settings → Environment Variables. Fora de produção o app cai num segredo de desenvolvimento, que não protege nada e invalida as sessões a cada deploy. |
 | `DEMO_PASSWORD` | Senha da conta semeada, para instalações compartilhadas. |
+| `DATABASE_URL` | String de conexão do Postgres (Neon, criado pelo marketplace da Vercel — Storage → Marketplace Database Providers → Neon). Presente, os quatro stores (tarefas, lotes, contas, índice de mídia) passam a gravar lá. Ausente, o app usa arquivo JSON local (dev) — nunca em produção sem disco gravável. |
+| `BLOB_READ_WRITE_TOKEN` | Token do Vercel Blob (Storage → Create Database → Blob), injetado automaticamente ao conectar o projeto. Presente, os bytes das artes vão para lá e sobrevivem a redeploy. Ausente, seguem em `data/uploads/` com fallback em memória em disco somente-leitura. |
 
 ## Rotas principais
 
@@ -103,8 +105,10 @@ O app só conversa com `repository.ts`, que só conversa com `store.ts`. Trocar 
 - Tarefas: `src/lib/tasks/{types,constants,priority,seed,store,repository}.ts` — o pipeline de status vive **só** em `constants.ts`; a régua de prioridade, **só** em `priority.ts`.
 - Aprovação: `src/lib/approval/{types,constants,seed,store,repository}.ts`.
 - Contas: `src/lib/auth/{types,password,token,session,seed,store,repository}.ts`. `token.ts` não importa nada do Node nem do Next — é o único pedaço compartilhado com o `proxy.ts`.
-- Mídia: `src/lib/media/*` — bytes em `data/uploads/`, metadados em `data/media.json`.
-- Base comum: `src/lib/store/json-file.ts` (arquivo JSON + memória). Ele revalida pelo **mtime** a cada leitura, porque `next start` roda vários workers: sem isso, quem grava e quem renderiza a tela veem estados diferentes.
+- Mídia: `src/lib/media/*` — metadados pelo store comum; bytes em `data/uploads/` (ou fallback em memória) sem `BLOB_READ_WRITE_TOKEN`, no Vercel Blob com ela.
+- Base comum: `src/lib/store/index.ts` decide entre os dois backends por `DATABASE_URL`, com a mesma interface (`read`/`transaction`) para quem consome:
+  - `json-file.ts` — arquivo JSON + memória, revalida pelo **mtime** a cada leitura, porque `next start` roda vários workers: sem isso, quem grava e quem renderiza a tela veem estados diferentes.
+  - `postgres.ts` — cada área é uma linha `jsonb` em `kv_store` (mesmo formato que ia para o arquivo); `transaction` tranca a linha (`SELECT ... FOR UPDATE`) para ler e gravar na mesma conexão, o equivalente ao problema do mtime resolvido por lock de banco em vez de detecção depois do fato.
 
 ## Multi-tenant: isolamento por agência
 
