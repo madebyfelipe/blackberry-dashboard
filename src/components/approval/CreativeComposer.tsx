@@ -146,8 +146,10 @@ export function CreativeComposer({ batch: initialBatch }: { batch: Batch }) {
     if (!name.trim() && !caption.trim() && !composerId) return;
     setSaving(true);
     try {
+      const defaultName = composerPiece
+        ? composerPiece.name
+        : `Criativo ${String(batch.pieces.length + 1).padStart(2, "0")}`;
       const id = await ensurePieceId();
-      const defaultName = `Criativo ${String(batch.pieces.length).padStart(2, "0")}`;
       const res = await fetch(`/api/batches/${batch.id}/pieces/${id}`, {
         method: "PATCH",
         headers: { "content-type": "application/json" },
