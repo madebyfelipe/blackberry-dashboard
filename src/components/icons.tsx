@@ -659,3 +659,55 @@ export function MenuIcon(p: IconProps) {
     </Svg>
   );
 }
+
+/* ---- Linha editorial (export "Clínica Aurora - Montagem de lote Criativos") ---- */
+
+export function SmileIcon(p: IconProps) {
+  return (
+    <Svg {...p}>
+      <circle cx="12" cy="12" r="10" />
+      <path d="M8 14s1.5 2 4 2 4-2 4-2" />
+      <line x1="9" x2="9.01" y1="9" y2="9" />
+      <line x1="15" x2="15.01" y1="9" y2="9" />
+    </Svg>
+  );
+}
+
+export function AtSignIcon(p: IconProps) {
+  return (
+    <Svg {...p}>
+      <circle cx="12" cy="12" r="4" />
+      <path d="M16 12v1.5a2.5 2.5 0 0 0 5 0V12a9 9 0 1 0-5.5 8.28" />
+    </Svg>
+  );
+}
+
+export function SaveIcon(p: IconProps) {
+  return (
+    <Svg {...p}>
+      <path d="M15.2 3a2 2 0 0 1 1.4.6l3.8 3.8a2 2 0 0 1 .6 1.4V19a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z" />
+      <path d="M17 21v-7H7v7" />
+      <path d="M7 3v4h8" />
+    </Svg>
+  );
+}
+
+export function ClapperboardIcon(p: IconProps) {
+  return (
+    <Svg {...p}>
+      <path d="M20.2 6 3 11l-.9-2.4c-.3-1.1.3-2.2 1.3-2.5l13.5-4c1.1-.3 2.2.3 2.5 1.3Z" />
+      <path d="m6.2 5.3 3.1 3.9" />
+      <path d="m12.4 3.4 3.1 4" />
+      <path d="M3 11h18v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z" />
+    </Svg>
+  );
+}
+
+export function CirclePlayIcon(p: IconProps) {
+  return (
+    <Svg {...p}>
+      <circle cx="12" cy="12" r="10" />
+      <polygon points="10 8 16 12 10 16 10 8" />
+    </Svg>
+  );
+}

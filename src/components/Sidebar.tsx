@@ -8,6 +8,7 @@ import { cn } from "@/lib/cn";
 import { useToast } from "@/components/ui/Toast";
 import {
   BellIcon,
+  CalendarIcon,
   InboxIcon,
   LogOutIcon,
   MenuIcon,
@@ -45,6 +46,7 @@ const NAV: NavItem[] = [
   { href: "/inbox", label: "Inbox", Icon: InboxIcon },
   { href: "/tarefas", label: "Tarefas", Icon: SquareCheckIcon },
   { href: "/social", label: "Social media", Icon: PlayIcon },
+  { href: "/calendario", label: "Calendário", Icon: CalendarIcon },
   { href: "/clientes", label: "Clientes", Icon: PanelsIcon },
   { href: "/equipe", label: "Equipe", Icon: UsersIcon },
   { href: "/configuracoes", label: "Configurações", Icon: SettingsIcon },

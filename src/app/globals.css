@@ -67,6 +67,14 @@
   --color-status-paused: #5a5a5a;
   --color-status-canceled: #404040;
 
+  /*
+   * Pílula "Rascunho" das linhas de criativo (export "Clínica Aurora -
+   * Montagem de lote Criativos") — distinto dos tokens de `PieceStatus`
+   * acima, que só existem depois que o lote é enviado ao cliente.
+   */
+  --color-draft-badge: #20202a;
+  --color-draft-dot: #9a9aa8;
+
   /* Radii */
   --radius-field: 24px;
   --radius-pill: 999px;

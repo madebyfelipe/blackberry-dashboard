@@ -29,6 +29,7 @@ export function RoundIconButton({
   active,
   badge,
   expanded,
+  disabled,
   tone = "surface",
   className,
 }: {
@@ -40,13 +41,15 @@ export function RoundIconButton({
   badge?: number;
   /** Informa que o botão abre um menu e se ele está aberto. */
   expanded?: boolean;
+  /** Só vale para o botão (sem `href`) — o link não trava. */
+  disabled?: boolean;
   /** `primary` é o botão claro dos exports novos. */
   tone?: "surface" | "primary";
   className?: string;
 }) {
   const classes = cn(
     // shrink-0: sem isso o flex achata o botão e ele deixa de ser redondo.
-    "tap relative z-10 flex h-control w-control shrink-0 items-center justify-center rounded-full transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-border-strong",
+    "tap relative z-10 flex h-control w-control shrink-0 items-center justify-center rounded-full transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-border-strong disabled:cursor-wait disabled:opacity-60",
     tone === "primary"
       ? "bg-primary text-on-primary hover:bg-white"
       : active
@@ -74,6 +77,7 @@ export function RoundIconButton({
       aria-label={label}
       title={label}
       aria-expanded={expanded}
+      disabled={disabled}
       onClick={onClick}
       className={classes}
     >
