@@ -32,8 +32,9 @@ código-fonte; `tests/helpers/ts-resolve.mjs` cuida disso, então os testes
 importam os módulos exatamente como o app os importa.
 
 Cobrem as funções puras que sustentam o produto: sessão e senha, filtros e
-ordenações das tarefas, normalização no repositório, leitura de dimensões de
-imagem, régua de formatos das peças e a revalidação do store de arquivo. O que
+ordenações das tarefas e dos clientes, normalização e validação nos
+repositórios (incluindo a conversa da tarefa), leitura de dimensões de imagem,
+régua de formatos das peças e a revalidação do store de arquivo. O que
 depende de requisição (route handlers, `next/headers`) fica de fora — esse
 caminho é conferido subindo o app.
 
@@ -64,18 +65,45 @@ Dá para criar outra conta em `/criar-conta` — o cadastro já entra logado.
 | Rota | O que é |
 | --- | --- |
 | `/login` · `/criar-conta` · `/recuperar-senha` | Entrada (black berry) — login e cadastro reais; a recuperação registra o pedido, o disparo de e-mail ainda não existe |
-| `/tarefas` | Tarefas — Lista + Quadro (Kanban), CRUD, drag-and-drop, busca, menu de filtros (`F`) e menu de visualização |
-| `/social` | **Clientes** — passo 1 do fluxo: de quem são os lotes (lotes, peças e pendentes de cada um) |
+| `/tarefas` | Tarefas — Lista + Quadro (Kanban), CRUD, seleção em massa, drag-and-drop, busca, menu de filtros (`F`) e menu "Personalizar" |
+| `/tarefas/[id]` | **Descrição da tarefa** — visualizador e editor na mesma tela: título, descrição, propriedades (coluna fixa à direita) e a conversa da tarefa |
+| `/clientes` | **Clientes** — a carteira da agência: Lista + Grade, abas por saúde do cliente, filtros, busca, seleção em massa e criação/edição pelo modal |
+| `/social` | **Social media › clientes** — passo 1 do fluxo de aprovação: de quem são os lotes (lotes, peças e pendentes de cada um). Lê o nome do cliente gravado no lote, não a ficha de `/clientes` — ver "Cliente ainda é texto livre" no roadmap |
 | `/social/[cliente]` | **Lotes do cliente** — passo 2: progresso de cada lote e o modal "Novo lote" |
 | `/social/[cliente]/[lote]` | Detalhe do lote — grade de peças + painel de decisão + link público |
 | `/social/[cliente]/[lote]/editor` | **Editor de lote** — peças, detalhes da peça (data, formato, canal, legenda, hashtags), preview do post e as ações do link (enviar, gerar, desativar) |
 | `/a/[token]` | **Aprovação pública** (cliente, sem login): tela de início + swipe para aprovar/pedir ajuste |
 | `/configuracoes` | Conta: perfil, troca de senha e sessão |
-| `/inbox`, `/clientes`, `/equipe` | Placeholders prontos para desenhar |
+| `/inbox`, `/notificacoes`, `/conversas`, `/relatorios`, `/equipe` | Placeholders prontos para desenhar |
 
 ## Design
 
-Tudo segue os exports do pen.dev na raiz do repo (`*-export.html`) — a fonte de verdade do visual **black berry** (monocromático). Ao divergir do design, confirmar antes. Tokens e componentes-base ficam em `src/components/ui`.
+Tudo segue os exports do pen.dev na raiz do repo (`*-export.html`) — a fonte de
+verdade do visual **black berry**. Ao divergir do design, confirmar antes.
+Tokens e componentes-base ficam em `src/components/ui`.
+
+### Duas camadas de design system
+
+O vocabulário está empilhado, e **a camada de cima manda** onde as duas
+discordarem:
+
+| Camada | Exports | Onde está aplicada |
+| --- | --- | --- |
+| **v3** (atual) | `Tarefas · Painel (Lista)`, `Tarefas · Painel (Quadro)`, `Tarefas · Descrição da tarefa`, `Clientes · Painel (Lista)`, `Clientes · Painel (Grade)` | Shell (lateral), Tarefas, Descrição da tarefa, Clientes |
+| **v2** (gradiente) | `2. Gradiente`, `Clínica Aurora - *`, `Lotes de Aprovação*`, `Filtros · Menu` | Aprovação de conteúdo (Social media, Lote, Editor de lote, link público) |
+
+Os exports `List View` e `2. Board · Kanban` são a versão v2 das Tarefas, hoje
+substituída pelos dois `Tarefas · Painel (…)`; ficam no repo como histórico.
+O redesenho das telas de aprovação ainda não chegou — elas seguem em v2 de
+propósito, não por esquecimento.
+
+**O que o v3 traz.** Painel de conteúdo de 28px de raio sobre o fundo preto
+(`ui/Screen`), abas em pílula (`ui/Tabs`), barra de ferramentas com
+Filtros/busca/Personalizar (`ui/Toolbar`), lista de 44px por linha com caixa de
+seleção e barra flutuante de ações (`ui/DataTable`, `ui/SelectionBar`), card de
+14px comum ao Quadro e à Grade (`ui/EntityCard`), selo de status (`ui/Badge`) e
+as duas marcas redondas (`ui/Mark`). Tela nova se monta com esses componentes —
+não se cria um segundo conjunto ao lado.
 
 O vocabulário inteiro — cor, raio e o alvo de toque dos botões redondos — mora
 no `@theme` de `src/app/globals.css`, e o Tailwind v4 o transforma em classe
@@ -87,22 +115,28 @@ regras que valem a pena saber de cor:
 - **`faint` é decorativo** (marcadores, divisórias, pontos). Em texto que a
   pessoa lê ele dá ~2,5:1 — use `muted`, que passa dos 4,5:1 em qualquer uma das
   superfícies do produto.
-- **`--color-danger` é o único matiz** do sistema (a ação destrutiva do menu).
-  Se ele fica ou vira cinza + peso é decisão de design, e por isso está num
-  token só, comentado em `globals.css`.
+- **Cor com significado existe em dois lugares, e só neles.**
+  `--color-danger` (a ação destrutiva do menu) e a escala de saúde do cliente
+  (`--color-client-*`: Ativo verde, Renovação âmbar, Em risco vermelho,
+  Pausado cinza, Novo azul, VIP roxo), que veio com os exports de Clientes. O
+  resto do produto continua monocromático — o status da tarefa, por exemplo,
+  é fundo neutro com o texto num degrau de cinza. Matiz novo só entra com
+  desenho.
 
 A única exceção é `AuroraBackdrop`: o espectro do fundo do login é arte, não cor
 de interface, e está marcado assim no arquivo.
 
 Os testes de `tests/design-tokens.test.ts` seguram a ponta: as cores das réguas
-de status têm de ser `var(--token)` de um token que exista no `@theme`.
+de status — tarefa (ponto e selo), peça e **cliente** (fundo e texto do selo) —
+têm de ser `var(--token)` de um token que exista no `@theme`.
 
 ## Arquitetura de dados
 
 O app só conversa com `repository.ts`, que só conversa com `store.ts`. Trocar o armazenamento é um drop-in em `store.ts` sem tocar no resto.
 
 - Agência (tenant): `src/lib/agency/{types,id}.ts` — ver "Multi-tenant" abaixo.
-- Tarefas: `src/lib/tasks/{types,constants,priority,seed,store,repository}.ts` — o pipeline de status vive **só** em `constants.ts`; a régua de prioridade, **só** em `priority.ts`.
+- Tarefas: `src/lib/tasks/{types,constants,priority,seed,store,repository}.ts` — o pipeline de status vive **só** em `constants.ts`; a régua de prioridade, **só** em `priority.ts`. A conversa da tarefa (`Task.comments`) entra por `POST /api/tasks/<id>/comments`, com o autor vindo da sessão — nunca do corpo.
+- Clientes: `src/lib/clients/{types,constants,seed,store,repository,view}.ts` — mesma forma das tarefas; a régua de saúde do cliente (e os pares fundo/texto do selo) vive **só** em `constants.ts`, e o que a tela filtra/ordena, **só** em `view.ts`.
 - Aprovação: `src/lib/approval/{types,constants,seed,store,repository}.ts`.
 - Contas: `src/lib/auth/{types,password,token,session,seed,store,repository}.ts`. `token.ts` não importa nada do Node nem do Next — é o único pedaço compartilhado com o `proxy.ts`.
 - Mídia: `src/lib/media/*` — metadados pelo store comum; bytes em `data/uploads/` (ou fallback em memória) sem `BLOB_READ_WRITE_TOKEN`, no Vercel Blob com ela. Como os bytes entram e saem está em "O teto de 4,5 MB" abaixo — leia antes de mexer em upload de arte.

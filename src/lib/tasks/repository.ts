@@ -2,7 +2,7 @@ import { read, transaction } from "./store";
 import { isTaskStatus } from "./constants";
 import { isTaskPriority } from "./priority";
 import type { AgencyScope } from "@/lib/agency/types";
-import type { NewTask, Task, TaskPatch } from "./types";
+import type { NewTask, Task, TaskComment, TaskPatch } from "./types";
 
 /*
  * Everything in the app reads/writes tasks through this module.
@@ -93,6 +93,7 @@ export async function createTask(
     labels: cleanLabels(input.labels),
     creator: (input.creator ?? "").trim() || "—",
     dueDate: cleanDueDate(input.dueDate),
+    comments: [],
   };
   return transaction((tasks) => {
     tasks.unshift(task);
@@ -132,7 +133,39 @@ export async function updateTask(
     if (patch.labels !== undefined) t.labels = cleanLabels(patch.labels);
     if (patch.creator !== undefined) t.creator = patch.creator.trim() || "—";
     if (dueDate !== undefined) t.dueDate = dueDate;
-    return { ...t, labels: [...t.labels] };
+    return { ...t, labels: [...t.labels], comments: [...t.comments] };
+  });
+}
+
+/** Limite do que cabe num comentário da tela de descrição. */
+const COMMENT_MAX = 2000;
+
+/**
+ * Acrescenta um comentário à tarefa. O autor vem de quem chama (a sessão do
+ * servidor), nunca do corpo da requisição — mesma regra do `creator`.
+ */
+export async function addTaskComment(
+  scope: AgencyScope,
+  id: string,
+  input: { author: string; text: string },
+): Promise<Task | undefined> {
+  const text = (input.text ?? "").trim();
+  if (!text) throw new ValidationError("Comentário vazio.");
+  if (text.length > COMMENT_MAX) {
+    throw new ValidationError("Comentário longo demais.");
+  }
+  const comment: TaskComment = {
+    id: "c" + Math.random().toString(36).slice(2, 9),
+    author: (input.author ?? "").trim() || "—",
+    text,
+    createdAt: new Date().toISOString(),
+  };
+
+  return transaction((tasks) => {
+    const t = tasks.find((x) => x.id === id && x.agencyId === scope.agencyId);
+    if (!t) return undefined;
+    t.comments.push(comment);
+    return { ...t, labels: [...t.labels], comments: [...t.comments] };
   });
 }
 

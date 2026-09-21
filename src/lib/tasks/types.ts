@@ -11,6 +11,19 @@ export type TaskPriority = "sem" | "baixa" | "media" | "alta" | "urgente";
 
 import type { AgencyId } from "@/lib/agency/types";
 
+/**
+ * Um comentário da aba ATIVIDADE da tela de descrição da tarefa. O autor vem
+ * da sessão do servidor — nunca do corpo da requisição —, como o `creator`.
+ */
+export type TaskComment = {
+  id: string;
+  /** Nome de quem escreveu, como estava na sessão no momento do envio. */
+  author: string;
+  text: string;
+  /** ISO date */
+  createdAt: string;
+};
+
 export type Task = {
   id: string;
   /**
@@ -22,7 +35,11 @@ export type Task = {
   /** Cliente / contexto (linha secundária) */
   client: string;
   status: TaskStatus;
-  /** Iniciais ou nome curto do responsável */
+  /**
+   * Nome curto de quem toca a tarefa ("Felipe", "Marina"). A lista e o card
+   * mostram avatar + nome, como o export desenha — a inicial do avatar sai
+   * daqui, então gravar só a inicial deixaria a coluna repetindo "F F".
+   */
   assignee: string;
   /** ISO date */
   createdAt: string;
@@ -35,6 +52,8 @@ export type Task = {
   creator: string;
   /** Prazo interno, ISO. `null` = sem prazo. */
   dueDate: string | null;
+  /** Conversa da tarefa, do mais antigo para o mais novo. */
+  comments: TaskComment[];
 };
 
 export type NewTask = {
@@ -49,5 +68,11 @@ export type NewTask = {
   dueDate?: string | null;
 };
 
-/** A agência fica de fora: tarefa não muda de dono por um PATCH. */
-export type TaskPatch = Partial<Omit<Task, "id" | "createdAt" | "agencyId">>;
+/**
+ * A agência fica de fora: tarefa não muda de dono por um PATCH. Os
+ * comentários também — eles entram por `POST .../comments`, com o autor vindo
+ * da sessão, e um PATCH que pudesse reescrever a conversa seria outra coisa.
+ */
+export type TaskPatch = Partial<
+  Omit<Task, "id" | "createdAt" | "agencyId" | "comments">
+>;

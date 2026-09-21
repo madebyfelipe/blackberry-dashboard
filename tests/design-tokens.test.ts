@@ -5,6 +5,7 @@ import test, { describe } from "node:test";
 
 import { PIECE_STATUS } from "../src/lib/approval/constants";
 import { STATUSES } from "../src/lib/tasks/constants";
+import { CLIENT_STATUSES } from "../src/lib/clients/constants";
 
 /*
  * As cores que as réguas de status carregam vão direto para `style` das pílulas
@@ -23,7 +24,14 @@ function tokensOf(value: string): string[] {
 }
 
 const cores: [string, string][] = [
-  ...STATUSES.map((s): [string, string] => [`status ${s.id}`, s.dot]),
+  ...STATUSES.flatMap((s): [string, string][] => [
+    [`status ${s.id} · ponto`, s.dot],
+    [`status ${s.id} · selo`, s.badgeFg],
+  ]),
+  ...CLIENT_STATUSES.flatMap((s): [string, string][] => [
+    [`cliente ${s.id} · fundo`, s.badgeBg],
+    [`cliente ${s.id} · texto`, s.badgeFg],
+  ]),
   ...Object.values(PIECE_STATUS).flatMap((p): [string, string][] => [
     [`peça ${p.id} · fundo`, p.badgeBg],
     [`peça ${p.id} · texto`, p.badgeFg],

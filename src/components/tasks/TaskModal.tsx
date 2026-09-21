@@ -20,6 +20,7 @@ import {
   UserCircleIcon,
   XIcon,
 } from "@/components/icons";
+import { PriorityBars } from "./PriorityBars";
 import { cn } from "@/lib/cn";
 
 export type TaskModalValues = {
@@ -172,7 +173,6 @@ export function TaskModal({
             icon={<UserCircleIcon size={14} />}
             placeholder="Responsável"
             value={assignee}
-            maxLength={2}
             onChange={setAssignee}
           />
 
@@ -316,24 +316,6 @@ function PriorityChip({
         </div>
       )}
     </div>
-  );
-}
-
-/** Três barrinhas — as acesas indicam a urgência. */
-export function PriorityBars({ bars }: { bars: number }) {
-  return (
-    <span className="flex items-end gap-[2px]" aria-hidden="true">
-      {[3, 6, 9].map((h, i) => (
-        <span
-          key={h}
-          style={{ height: h }}
-          className={cn(
-            "w-[2.5px] rounded-pill transition-colors",
-            i < bars ? "bg-fg-soft" : "bg-border-strong",
-          )}
-        />
-      ))}
-    </span>
   );
 }
 

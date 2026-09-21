@@ -62,6 +62,24 @@ export function formatPostDate(iso: string): string {
   return `${d.getDate()} DE ${full[d.getMonth()].toUpperCase()}`;
 }
 
+/**
+ * "agora", "5h atrás", "2d atrás" — carimbo do registro de atividade e dos
+ * comentários na tela de descrição da tarefa. É a forma que o export usa,
+ * distinta do "há 2 min" da pílula de rascunho do editor de lote logo abaixo.
+ */
+export function formatRelative(iso: string): string {
+  const ms = Date.now() - new Date(iso).getTime();
+  if (Number.isNaN(ms)) return "";
+  const min = Math.floor(ms / 60000);
+  if (min < 1) return "agora";
+  if (min < 60) return `${min}min atrás`;
+  const h = Math.floor(min / 60);
+  if (h < 24) return `${h}h atrás`;
+  const d = Math.floor(h / 24);
+  if (d < 30) return `${d}d atrás`;
+  return formatShortDate(iso);
+}
+
 /** "agora", "há 2 min", "há 3 h", "há 4 d" — pílula de rascunho do editor. */
 export function formatAgo(iso?: string): string {
   if (!iso) return "não salvo";

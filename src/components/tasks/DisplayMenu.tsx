@@ -23,7 +23,7 @@ import { cn } from "@/lib/cn";
 
 /*
  * Menu de visualização — fiel ao export "Menu de Filtros" (painel de 300px:
- * seletor Lista/Grade, agrupamento, ordenação, opções da lista e chips de
+ * seletor Lista/Quadro, agrupamento, ordenação, opções da lista e chips de
  * propriedades visíveis).
  */
 
@@ -39,7 +39,7 @@ export function DisplayMenu({
 
   return (
     <div className="w-[300px] animate-pop-in overflow-hidden rounded-panel border border-border bg-surface pb-3 pt-2.5 shadow-[0_12px_32px_rgba(0,0,0,0.6)]">
-      {/* Seletor Lista/Grade */}
+      {/* Seletor Lista/Quadro */}
       <div className="px-3 pb-2.5 pt-0.5">
         <div className="flex gap-1 rounded-pill bg-surface-2 p-1">
           <SegButton
@@ -52,7 +52,9 @@ export function DisplayMenu({
             active={display.view === "grade"}
             onClick={() => set("view", "grade")}
             icon={<LayoutGridIcon size={14} />}
-            label="Grade"
+            // O export v3 chama esta visão de "Quadro" — o id interno segue
+            // "grade" (é o que `lib/tasks/view.ts` grava), só o rótulo muda.
+            label="Quadro"
           />
         </div>
       </div>
