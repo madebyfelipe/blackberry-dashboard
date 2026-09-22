@@ -6,6 +6,7 @@ import { usePathname, useRouter } from "next/navigation";
 import type { PublicUser } from "@/lib/auth/types";
 import { cn } from "@/lib/cn";
 import { useToast } from "@/components/ui/Toast";
+import { Logo } from "@/components/brand/Logo";
 import { apiSetPresence } from "@/components/inbox/api";
 import { PresenceDot } from "@/components/inbox/PresenceDot";
 import { useRealtime } from "@/components/realtime/RealtimeProvider";
@@ -114,13 +115,8 @@ export function Sidebar({ user }: { user: PublicUser }) {
           >
             <MenuIcon size={20} />
           </button>
-          <Link href="/tarefas" className="flex items-center gap-2.5">
-            <span className="flex h-7 w-7 items-center justify-center rounded-mark bg-dim text-[15px] font-bold text-fg">
-              b
-            </span>
-            <span className="text-[15px] font-semibold text-fg-soft">
-              black berry
-            </span>
+          <Link href="/tarefas" className="flex items-center">
+            <Logo className="h-7" />
           </Link>
         </div>
         <Link
@@ -253,13 +249,8 @@ function SidebarPanel({
     <aside className="flex h-full w-full flex-col rounded-card bg-bg">
       {/* Header — marca + troca de workspace */}
       <div className="flex items-center justify-between p-6">
-        <Link href="/tarefas" className="group flex items-center gap-2.5">
-          <span className="flex h-7 w-7 items-center justify-center rounded-mark bg-dim text-[15px] font-bold text-fg transition-transform duration-200 group-hover:scale-110">
-            b
-          </span>
-          <span className="text-[15px] font-semibold text-fg-soft">
-            black berry
-          </span>
+        <Link href="/tarefas" className="group flex items-center">
+          <Logo className="h-7 origin-left transition-transform duration-200 group-hover:scale-105" />
         </Link>
         {onClose ? (
           <button

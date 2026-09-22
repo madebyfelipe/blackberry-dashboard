@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { AuroraBackdrop } from "./AuroraBackdrop";
+import { Logo } from "@/components/brand/Logo";
 
 /*
  * Moldura das telas de entrada (login, criar conta, recuperar senha): fundo
@@ -30,10 +31,9 @@ export function AuthShell({
         <Link
           href="/login"
           style={{ ["--d" as string]: 0 }}
-          className="stagger-item flex h-11 w-11 items-center justify-center rounded-mark bg-primary transition-transform duration-200 hover:scale-105"
-          aria-label="black berry"
+          className="stagger-item flex w-fit origin-left transition-transform duration-200 hover:scale-105"
         >
-          <span className="text-[20px] font-bold text-on-primary">B</span>
+          <Logo className="h-9" />
         </Link>
 
         <header

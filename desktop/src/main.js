@@ -37,7 +37,6 @@ const {
   resolveAppOrigin,
 } = require("./policy");
 const { escolherFonte } = require("./screen-picker");
-const { circlePng } = require("./tray-icon");
 const pkg = require("../package.json");
 
 /** `--url=` na linha de comando (o `npm run dev`) ou `BLACKBERRY_URL`. */
@@ -279,7 +278,8 @@ function criarJanela() {
 
 function criarBandeja() {
   if (!FICA_NA_BANDEJA) return;
-  const icone = nativeImage.createFromBuffer(circlePng(32), { scaleFactor: 2 });
+  // O símbolo do logo oficial; o `tray@2x.png` ao lado entra sozinho em tela HiDPI.
+  const icone = nativeImage.createFromPath(path.join(__dirname, "tray.png"));
   if (process.platform === "darwin") icone.setTemplateImage(true);
   bandeja = new Tray(icone);
   bandeja.setToolTip("black berry");

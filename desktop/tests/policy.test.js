@@ -8,7 +8,8 @@ const {
   isAppUrl,
   resolveAppOrigin,
 } = require("../src/policy");
-const { circlePng } = require("../src/tray-icon");
+const fs = require("node:fs");
+const path = require("node:path");
 
 const APP = "https://app.exemplo.com.br";
 
@@ -52,10 +53,17 @@ test("permissões: só as que o black berry usa, só para a origem dele", () => 
   assert.equal(allowsPermission("media", "https://golpe.com/", APP), false);
 });
 
-test("ícone provisório da bandeja é um PNG válido do tamanho pedido", () => {
-  const png = circlePng(32);
-  assert.deepEqual([...png.subarray(0, 8)], [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
-  assert.equal(png.subarray(12, 16).toString("ascii"), "IHDR");
-  assert.equal(png.readUInt32BE(16), 32);
-  assert.equal(png.readUInt32BE(20), 32);
+test("ícones do logo são PNGs quadrados do tamanho certo", () => {
+  // Bandeja em 16px (e 32px em HiDPI); o do app ≥ 256px, senão o electron-builder recusa.
+  for (const [arquivo, lado] of [
+    ["src/tray.png", 16],
+    ["src/tray@2x.png", 32],
+    ["build/icon.png", 1024],
+  ]) {
+    const png = fs.readFileSync(path.join(__dirname, "..", arquivo));
+    assert.deepEqual([...png.subarray(0, 8)], [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a], arquivo);
+    assert.equal(png.subarray(12, 16).toString("ascii"), "IHDR", arquivo);
+    assert.equal(png.readUInt32BE(16), lado, arquivo);
+    assert.equal(png.readUInt32BE(20), lado, arquivo);
+  }
 });

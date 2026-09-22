@@ -63,10 +63,9 @@ global. No navegador comum a ponte não existe e a página segue igual.
 - `src/screen-picker.js` e `src/picker/` — o seletor de tela compartilhada.
 - `src/policy.js` — as regras (qual endereço é do app, o que abre fora, quais permissões) — testadas em `tests/`.
 - `src/preload.js` — a ponte com a página.
-- `src/tray-icon.js` — ícone **provisório** da bandeja (um círculo gerado em código). O ícone de verdade é 🎨.
+- `src/tray.png` / `tray@2x.png` e `build/icon.png` — o símbolo do logo oficial (`public/brand/`), na bandeja e no ícone do app. Gerados do `src/app/icon.svg` da raiz; se o logo mudar, gere de novo.
 
 ## O que ainda falta
 
-- 🎨 **Ícone do app e da bandeja.** Hoje o app usa o ícone padrão do Electron e a bandeja um círculo branco.
 - ⬜ **Atualização automática do instalador** (electron-updater) — só faz falta quando esta pasta mudar, já que as telas vêm do site.
 - ⬜ **Aviso de chamada recebida com o app escondido** — depende da notificação de chamada do app web (ROADMAP); o desktop já mantém a página viva na bandeja para ela funcionar.

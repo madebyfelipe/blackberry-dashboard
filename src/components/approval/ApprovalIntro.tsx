@@ -6,6 +6,7 @@ import { batchProgress } from "@/lib/approval/constants";
 import { formatPieceDate } from "@/lib/format";
 import { cn } from "@/lib/cn";
 import { PieceThumb } from "./PieceThumb";
+import { Logo } from "@/components/brand/Logo";
 import {
   ArrowRightIcon,
   ChevronLeftIcon,
@@ -74,12 +75,7 @@ export function ApprovalIntro({
     <main className="flex min-h-screen flex-col bg-bg">
       {/* Top bar */}
       <header className="flex flex-wrap items-center justify-between gap-3 px-5 py-5 sm:px-8">
-        <div className="flex items-center gap-2.5">
-          <span className="flex h-7 w-7 items-center justify-center rounded-mark bg-dim text-[15px] font-bold text-fg">
-            b
-          </span>
-          <span className="text-[16px] font-semibold text-fg-soft">black berry</span>
-        </div>
+        <Logo className="h-7" />
         <span className="flex items-center gap-2 rounded-pill border border-border bg-surface-2 px-4 py-2 text-[13px] text-fg-2">
           <LockIcon size={14} className="text-fg-3" />
           Link privado · {batch.client}

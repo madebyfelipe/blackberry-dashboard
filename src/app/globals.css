@@ -17,6 +17,10 @@
  * Escuro nos dois casos. Matiz novo só entra com desenho do Felipe.
  */
 @theme {
+  /* Marca — o logo oficial (public/brand/blackberry-logo.svg). Só o logo usa. */
+  --color-brand: #7939e4; /* o símbolo */
+  --color-brand-ink: #f5f5f5; /* o nome "Black Berry" */
+
   /* Surfaces */
   --color-bg: #000000; /* bb-bg */
   --color-surface: #141414; /* bb-surface */
