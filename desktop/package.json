@@ -1,0 +1,53 @@
+{
+  "name": "blackberry-desktop",
+  "productName": "black berry",
+  "version": "0.1.0",
+  "private": true,
+  "description": "App de desktop do black berry — uma janela Electron que abre o black berry publicado.",
+  "main": "src/main.js",
+  "scripts": {
+    "start": "electron .",
+    "dev": "electron . --url=http://localhost:3000",
+    "check": "node --check src/main.js && node --check src/preload.js && node --check src/tray-icon.js && node --check src/policy.js && node --test \"tests/**/*.test.js\"",
+    "dist": "electron-builder",
+    "dist:mac": "electron-builder --mac",
+    "dist:win": "electron-builder --win",
+    "dist:linux": "electron-builder --linux"
+  },
+  "blackberry": {
+    "url": ""
+  },
+  "devDependencies": {
+    "electron": "^44.4.4",
+    "electron-builder": "^26.15.3"
+  },
+  "build": {
+    "appId": "app.blackberry.desktop",
+    "productName": "black berry",
+    "artifactName": "blackberry-${version}-${os}-${arch}.${ext}",
+    "publish": null,
+    "files": [
+      "src/**/*",
+      "package.json"
+    ],
+    "mac": {
+      "category": "public.app-category.productivity",
+      "target": "dmg",
+      "extendInfo": {
+        "NSMicrophoneUsageDescription": "O black berry usa o microfone nas chamadas do Inbox.",
+        "NSCameraUsageDescription": "O black berry usa a câmera nas chamadas do Inbox."
+      }
+    },
+    "win": {
+      "target": "nsis"
+    },
+    "nsis": {
+      "oneClick": true,
+      "perMachine": false
+    },
+    "linux": {
+      "target": "AppImage",
+      "category": "Office"
+    }
+  }
+}

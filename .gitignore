@@ -1,5 +1,9 @@
 # dependencies
 /node_modules
+/desktop/node_modules
+
+# instaladores gerados pelo electron-builder
+/desktop/dist
 /.pnp
 .pnp.*
 

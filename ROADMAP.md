@@ -1,6 +1,6 @@
 # Roadmap — black berry
 
-Documento vivo. Marca o que já existe, o que falta **desenhar** (você) e o que falta **construir** (Claude), até o fim do projeto. Última atualização: **22 set 2026** (Inbox, issue #30, + a camada de tempo real da issue #43 — Ably e LiveKit).
+Documento vivo. Marca o que já existe, o que falta **desenhar** (você) e o que falta **construir** (Claude), até o fim do projeto. Última atualização: **22 set 2026** (Inbox, issue #30, a camada de tempo real da issue #43 — Ably e LiveKit — e o app de desktop em Electron).
 
 Legenda: ✅ pronto · 🟡 parcial/placeholder · ⬜ não começado · 🎨 precisa de tela sua antes de eu construir
 
@@ -94,6 +94,10 @@ Legenda: ✅ pronto · 🟡 parcial/placeholder · ⬜ não começado · 🎨 pr
 - 🎨 **Chamada com câmera**: a câmera acesa entra no círculo do avatar, maior (96px) — é o arranjo provisório que não mexe no resto do popup. Falta o desenho de onde a câmera (e a tela compartilhada) mora quando está ligada
 - 🟡 **Falta provar a transmissão numa rede que deixe**: a sessão em que isso foi construído tem política de saída que bloqueia `rest.ably.io` e o host do LiveKit (e não passa WebSocket), então áudio e tela foram validados até onde dava — crachá correto, sala certa, entrar/sair, registro no histórico e a degradação sem provedor. O teste de ponta a ponta (duas máquinas, redes diferentes) é o que falta, e ele roda no `next dev` do Felipe ou num preview da Vercel com as quatro variáveis definidas
 - ⬜ Notificação de chamada recebida fora do app (o Felipe providencia)
+- ✅ **App de desktop (Electron)** — pasta `desktop/`: janela que abre o black berry publicado (deploy novo chega sem reinstalar), fica na bandeja ao fechar (Windows/macOS) para o Inbox e a chamada seguirem vivos, atalho global de mudo Ctrl/Cmd+Shift+M só durante a chamada, microfone/câmera/tela liberados só para a origem do app e link externo saindo para o navegador. A página fala com ele por `window.blackberryDesktop` (`src/lib/desktop.ts`). Ver `desktop/README.md`
+- 🎨 **Desktop: ícone do app e da bandeja** — hoje ícone padrão do Electron e um círculo branco provisório na bandeja
+- 🎨 **Desktop: escolher o que compartilhar** — macOS usa o seletor do sistema; Windows/Linux compartilham a tela principal inteira até existir o desenho do seletor
+- ⬜ **Desktop: endereço de produção + assinatura** — Felipe preenche `blackberry.url` em `desktop/package.json` e decide se compra os certificados (Apple Developer, assinatura de código Windows); sem eles o instalador abre com aviso de segurança
 - ⬜ Notificações, Conversas, Relatórios, Membros (hoje placeholders — todos aparecem na lateral do v3)
 - ✅ **Testes automatizados** (`tests/`, runner do próprio Node, 361 casos das funções puras, incluindo o isolamento entre agências e a régua de clientes) **+ CI** (`.github/workflows/ci.yml`: tipos, testes e build a cada push e pull request)
 - ✅ **`npm run lint` volta a funcionar**: o Next 16 removeu o `next lint`; entrou ESLint direto (`eslint.config.mjs`, flat config) com `eslint-config-next/core-web-vitals` + `/typescript`. Duas regras novas do plugin de React Compiler (`react-hooks/set-state-in-effect`, `react-hooks/refs`) ficaram desligadas — pegam padrões usados de propósito em várias telas (sincronizar estado com uma prop que muda, ler `ref.current` para medir menu/toolbar); satisfazê-las seria reescrever esses componentes, não corrigir lint. Ainda fora do CI, que continua só com tipos/testes/build.
