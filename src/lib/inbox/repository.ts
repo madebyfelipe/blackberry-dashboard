@@ -10,6 +10,13 @@ import type {
   Message,
   Presence,
 } from "./types";
+import {
+  CALL_MAX_SECONDS,
+  joinedCall,
+  leftCall,
+  settleCall,
+  type Settled,
+} from "./call";
 import { callSummary, memberName, summarize } from "./view";
 
 /*
@@ -140,11 +147,69 @@ export async function setPresence(
 
 /* ------------------------------------------------------------- conversas */
 
+/**
+ * Aplica o resultado da régua de `call.ts` na conversa: grava a chamada que
+ * sobrou e, se ela fechou, a linha do histórico.
+ */
+function applyCall(
+  conversation: Conversation,
+  members: InboxMember[],
+  settled: Settled,
+): void {
+  conversation.call = settled.call;
+  if (settled.ended) {
+    const { startedBy, seconds } = settled.ended;
+    const readBefore = conversation.readAt[startedBy];
+    pushMessage(
+      conversation,
+      startedBy,
+      callSummary(memberName(members, startedBy), seconds),
+      "chamada",
+    );
+    /*
+     * A linha é de sistema, e quem "assina" é quem começou a chamada — que
+     * pode nem estar olhando (a chamada fechou porque todo mundo sumiu).
+     * Ela não pode marcar como lido o que essa pessoa ainda não leu.
+     */
+    if (readBefore) conversation.readAt[startedBy] = readBefore;
+    else delete conversation.readAt[startedBy];
+  }
+}
+
+/**
+ * Fecha as chamadas de quem sumiu sem se despedir, nas conversas desta
+ * pessoa. Leitura comum não grava nada: só entra em transação quando há
+ * chamada com alguém calado há tempo demais.
+ */
+async function settleStaleCalls(
+  scope: AgencyScope,
+  viewerId: string,
+): Promise<InboxData> {
+  const data = await read();
+  const now = Date.now();
+  const mine = (c: Conversation) =>
+    c.agencyId === scope.agencyId && c.memberIds.includes(viewerId);
+  const stale = data.conversations.some(
+    (c) => mine(c) && settleCall(c.call, now).changed,
+  );
+  if (!stale) return data;
+  return transaction((fresh) => {
+    const members = membersOf(fresh, scope);
+    const at = Date.now();
+    for (const c of fresh.conversations) {
+      if (!mine(c)) continue;
+      const settled = settleCall(c.call, at);
+      if (settled.changed) applyCall(c, members, settled);
+    }
+    return fresh;
+  });
+}
+
 export async function listConversations(
   scope: AgencyScope,
   viewerId: string,
 ): Promise<ConversationSummary[]> {
-  const data = await read();
+  const data = await settleStaleCalls(scope, viewerId);
   const members = membersOf(data, scope);
   return data.conversations
     .filter(
@@ -158,7 +223,7 @@ export async function getConversation(
   viewerId: string,
   id: string,
 ): Promise<ConversationDetail | undefined> {
-  const data = await read();
+  const data = await settleStaleCalls(scope, viewerId);
   const conversation = find(data, scope, viewerId, id);
   return conversation && detail(conversation, membersOf(data, scope), viewerId);
 }
@@ -250,9 +315,6 @@ export async function sendMessage(
   });
 }
 
-/** Teto do que uma chamada registra — 8h é jornada, não conversa. */
-const CALL_MAX_SECONDS = 8 * 60 * 60;
-
 /**
  * Registra no histórico a chamada que acabou de acontecer — a linha de
  * sistema do export ("Marina iniciou uma chamada que durou 12 minutos").
@@ -292,7 +354,9 @@ export async function registerCall(
  * Quem abriu fica registrado porque é o nome que vai para o histórico
  * quando a chamada acabar ("Fulano iniciou uma chamada que durou 12
  * minutos", a linha do export). Entrar duas vezes não duplica ninguém: a
- * mesma pessoa em duas abas é uma pessoa só na sala.
+ * mesma pessoa em duas abas é uma pessoa só na chamada. Antes de entrar, a
+ * chamada abandonada (todo mundo calado) fecha com a linha dela — senão a
+ * chamada nova herdaria o horário de início da velha.
  */
 export async function joinCall(
   scope: AgencyScope,
@@ -302,13 +366,44 @@ export async function joinCall(
   return transaction((data) => {
     const conversation = find(data, scope, viewerId, id);
     if (!conversation) return undefined;
-    const now = new Date().toISOString();
-    if (!conversation.call) {
-      conversation.call = { startedBy: viewerId, startedAt: now, memberIds: [viewerId] };
-    } else if (!conversation.call.memberIds.includes(viewerId)) {
-      conversation.call.memberIds.push(viewerId);
-    }
-    return detail(conversation, membersOf(data, scope), viewerId);
+    const members = membersOf(data, scope);
+    const now = Date.now();
+    applyCall(conversation, members, settleCall(conversation.call, now));
+    conversation.call = joinedCall(conversation.call, viewerId, now);
+    return detail(conversation, members, viewerId);
+  });
+}
+
+/**
+ * O "ainda estou aqui" de quem está na chamada, a cada `CALL_HEARTBEAT_MS`.
+ *
+ * Também limpa quem sumiu. Devolve `changed` quando a lista de quem está na
+ * chamada mudou, para a rota avisar o resto da conversa. Se a chamada já
+ * acabou (a pessoa ficou tempo demais sem sinal), não reabre: `inCall` falso
+ * é a tela sabendo que ela caiu.
+ */
+export async function touchCall(
+  scope: AgencyScope,
+  viewerId: string,
+  id: string,
+): Promise<
+  { conversation: ConversationDetail; inCall: boolean; changed: boolean } | undefined
+> {
+  return transaction((data) => {
+    const conversation = find(data, scope, viewerId, id);
+    if (!conversation) return undefined;
+    const members = membersOf(data, scope);
+    const now = Date.now();
+    const settled = settleCall(conversation.call, now);
+    applyCall(conversation, members, settled);
+    const call = conversation.call;
+    const inCall = !!call && call.memberIds.includes(viewerId);
+    if (inCall) conversation.call = joinedCall(call, viewerId, now);
+    return {
+      conversation: detail(conversation, members, viewerId),
+      inCall,
+      changed: settled.changed,
+    };
   });
 }
 
@@ -327,25 +422,101 @@ export async function leaveCall(
     const conversation = find(data, scope, viewerId, id);
     if (!conversation) return undefined;
     const members = membersOf(data, scope);
-    const call = conversation.call;
-    if (!call) return detail(conversation, members, viewerId);
+    if (!conversation.call) return detail(conversation, members, viewerId);
+    const now = Date.now();
+    const left = leftCall(conversation.call, viewerId, now);
+    applyCall(conversation, members, left);
+    if (left.call) applyCall(conversation, members, settleCall(left.call, now));
+    // Quem fechou a chamada acabou de ler a linha que ele mesmo gerou.
+    if (left.ended) conversation.readAt[viewerId] = new Date(now).toISOString();
+    return detail(conversation, members, viewerId);
+  });
+}
 
-    call.memberIds = call.memberIds.filter((m) => m !== viewerId);
-    if (call.memberIds.length === 0) {
-      const seconds = Math.max(
-        0,
-        Math.round((Date.now() - new Date(call.startedAt).getTime()) / 1000),
-      );
-      conversation.call = null;
-      pushMessage(
-        conversation,
-        call.startedBy,
-        callSummary(memberName(members, call.startedBy), Math.min(seconds, CALL_MAX_SECONDS)),
-        "chamada",
-      );
-      // Quem fechou a chamada acabou de ler a linha que ele mesmo gerou.
-      conversation.readAt[viewerId] = new Date().toISOString();
+/* ----------------------------------------------------------------- grupos */
+
+/** Teto de gente num grupo — é conversa de time, não lista de transmissão. */
+export const GROUP_MAX_MEMBERS = 50;
+
+/**
+ * Cria um grupo com você e mais gente do time. É o que o "adicionar alguém"
+ * faz numa direta: a direta continua como estava (o histórico dela é de
+ * duas pessoas) e nasce um grupo com as três. Sem nome, o título é quem está
+ * nele — ver `groupFallbackTitle`.
+ */
+export async function createGroup(
+  scope: AgencyScope,
+  viewerId: string,
+  memberIds: string[],
+  name = "",
+): Promise<ConversationDetail | undefined> {
+  const others = [...new Set(memberIds.map(String))].filter((id) => id !== viewerId);
+  if (others.length < 2) {
+    throw new ValidationError("Um grupo precisa de pelo menos mais duas pessoas.");
+  }
+  if (others.length + 1 > GROUP_MAX_MEMBERS) {
+    throw new ValidationError(`Um grupo vai até ${GROUP_MAX_MEMBERS} pessoas.`);
+  }
+  const clean = String(name ?? "").trim().slice(0, 80);
+  return transaction((data) => {
+    const members = membersOf(data, scope);
+    // Alguém que não é da agência some junto com o grupo inteiro: mesma
+    // resposta de "não existe", nunca um grupo criado pela metade.
+    if (![viewerId, ...others].every((id) => members.some((m) => m.id === id))) {
+      return undefined;
     }
+    const now = new Date().toISOString();
+    const created: Conversation = {
+      id: makeId("g"),
+      agencyId: scope.agencyId,
+      kind: "grupo",
+      name: clean,
+      memberIds: [viewerId, ...others],
+      messages: [],
+      mutedBy: [],
+      readAt: { [viewerId]: now },
+      call: null,
+      createdAt: now,
+    };
+    pushMessage(created, viewerId, `${memberName(members, viewerId)} criou o grupo.`, "aviso");
+    data.conversations.push(created);
+    return detail(created, members, viewerId);
+  });
+}
+
+/**
+ * Adiciona alguém do time a um grupo de que você participa. O histórico
+ * inteiro passa a valer para quem entrou — é o que o time espera de um
+ * grupo, e o aviso na conversa deixa claro quem trouxe quem.
+ */
+export async function addGroupMember(
+  scope: AgencyScope,
+  viewerId: string,
+  id: string,
+  memberId: string,
+): Promise<ConversationDetail | undefined> {
+  return transaction((data) => {
+    const conversation = find(data, scope, viewerId, id);
+    if (!conversation) return undefined;
+    if (conversation.kind !== "grupo") {
+      throw new ValidationError("Numa direta, adicionar alguém cria um grupo novo.");
+    }
+    const members = membersOf(data, scope);
+    const added = members.find((m) => m.id === memberId);
+    if (!added) return undefined;
+    if (conversation.memberIds.includes(memberId)) {
+      throw new ValidationError(`${added.name} já está no grupo.`);
+    }
+    if (conversation.memberIds.length >= GROUP_MAX_MEMBERS) {
+      throw new ValidationError(`Um grupo vai até ${GROUP_MAX_MEMBERS} pessoas.`);
+    }
+    conversation.memberIds.push(memberId);
+    pushMessage(
+      conversation,
+      viewerId,
+      `${memberName(members, viewerId)} adicionou ${added.name}.`,
+      "aviso",
+    );
     return detail(conversation, members, viewerId);
   });
 }

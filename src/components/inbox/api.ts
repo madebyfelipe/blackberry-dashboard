@@ -70,6 +70,17 @@ export async function apiJoinCall(
 }
 
 /**
+ * O "ainda estou aqui" da chamada. `inCall` falso quer dizer que o servidor
+ * já te deu como fora (ficou tempo demais sem sinal).
+ */
+export async function apiTouchCall(id: string): Promise<{ inCall: boolean }> {
+  const data = await parse(
+    await fetch(`/api/inbox/conversations/${id}/call`, { method: "PATCH" }),
+  );
+  return data as { inCall: boolean };
+}
+
+/**
  * Sai da chamada sem esperar resposta — para quando a página está indo
  * embora (aba fechando, troca de tela). `keepalive` faz o navegador terminar
  * de mandar o pedido mesmo depois de a página morrer.
@@ -111,6 +122,31 @@ export async function apiOpenDirect(
 ): Promise<ConversationDetail> {
   const data = await parse(
     await fetch("/api/inbox/conversations", {
+      method: "POST",
+      ...json({ memberId }),
+    }),
+  );
+  return data.conversation as ConversationDetail;
+}
+
+/** Um grupo com você e essas pessoas (o "adicionar alguém" de uma direta). */
+export async function apiCreateGroup(memberIds: string[]): Promise<ConversationDetail> {
+  const data = await parse(
+    await fetch("/api/inbox/conversations", {
+      method: "POST",
+      ...json({ memberIds }),
+    }),
+  );
+  return data.conversation as ConversationDetail;
+}
+
+/** Traz alguém do time para um grupo de que você participa. */
+export async function apiAddMember(
+  id: string,
+  memberId: string,
+): Promise<ConversationDetail> {
+  const data = await parse(
+    await fetch(`/api/inbox/conversations/${id}/members`, {
       method: "POST",
       ...json({ memberId }),
     }),

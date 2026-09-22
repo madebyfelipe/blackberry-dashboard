@@ -1,3 +1,4 @@
+import { activeCallMembers } from "./call";
 import { isOnline } from "./constants";
 import type {
   Conversation,
@@ -161,13 +162,30 @@ export function otherMembers(
     .filter((m): m is InboxMember => !!m);
 }
 
+/**
+ * O nome de um grupo que ainda não ganhou nome (o que nasce do "adicionar
+ * alguém" numa direta): quem está nele, sem você — "Marina e Ana",
+ * "Marina, Ana e Pedro", "Marina, Ana e mais 3".
+ */
+export function groupFallbackTitle(others: InboxMember[]): string {
+  const names = others.map((m) => m.name);
+  if (names.length === 0) return "Grupo";
+  if (names.length === 1) return names[0];
+  if (names.length <= 3) {
+    return `${names.slice(0, -1).join(", ")} e ${names[names.length - 1]}`;
+  }
+  return `${names.slice(0, 2).join(", ")} e mais ${names.length - 2}`;
+}
+
 /** Grupo mostra o nome dele; direta mostra quem está do outro lado. */
 export function conversationTitle(
   conversation: Conversation,
   members: InboxMember[],
   viewerId: string,
 ): string {
-  if (conversation.kind === "grupo") return conversation.name;
+  if (conversation.kind === "grupo") {
+    return conversation.name.trim() || groupFallbackTitle(otherMembers(conversation, members, viewerId));
+  }
   const other = otherMembers(conversation, members, viewerId)[0];
   return other?.name ?? conversation.name ?? "Conversa";
 }
@@ -226,6 +244,7 @@ export function summarize(
   conversation: Conversation,
   members: InboxMember[],
   viewerId: string,
+  now = Date.now(),
 ): ConversationSummary {
   const others = otherMembers(conversation, members, viewerId);
   const title = conversationTitle(conversation, members, viewerId);
@@ -244,7 +263,18 @@ export function summarize(
      */
     initials:
       conversation.kind === "grupo"
-        ? [initialsOf(title), initialsOf(others[0]?.name ?? "")]
+        ? [
+            // Grupo sem nome se chama "Marina e Ana": a marca é a inicial de
+            // cada uma (MA), não a das duas primeiras palavras (ME).
+            conversation.name.trim()
+              ? initialsOf(title)
+              : others
+                  .slice(0, 2)
+                  .map((m) => m.name.charAt(0))
+                  .join("")
+                  .toUpperCase() || "—",
+            initialsOf(others[0]?.name ?? ""),
+          ]
         : [initialsOf(title)],
     preview: previewOf(conversation, members, viewerId),
     lastAt: last?.createdAt ?? null,
@@ -254,7 +284,8 @@ export function summarize(
     memberIds: participants.map((m) => m.id),
     memberCount: participants.length,
     onlineCount: participants.filter((m) => isOnline(m.presence)).length,
-    callMemberIds: conversation.call?.memberIds ?? [],
+    // Só quem deu sinal de vida: quem sumiu não aparece "na chamada".
+    callMemberIds: activeCallMembers(conversation.call, now),
   };
 }
 
@@ -306,9 +337,17 @@ export function callSummary(author: string, seconds: number): string {
     }.`;
   }
   const minutes = Math.round(total / 60);
-  return `${author} iniciou uma chamada que durou ${minutes} ${
-    minutes === 1 ? "minuto" : "minutos"
-  }.`;
+  const plural = (n: number, um: string, varios: string) => `${n} ${n === 1 ? um : varios}`;
+  if (minutes < 60) {
+    return `${author} iniciou uma chamada que durou ${plural(minutes, "minuto", "minutos")}.`;
+  }
+  // Chamada longa agora fica registrada inteira: "300 minutos" ninguém lê.
+  const hours = Math.floor(minutes / 60);
+  const rest = minutes % 60;
+  const duration = rest
+    ? `${plural(hours, "hora", "horas")} e ${plural(rest, "minuto", "minutos")}`
+    : plural(hours, "hora", "horas");
+  return `${author} iniciou uma chamada que durou ${duration}.`;
 }
 
 /** Cronômetro da chamada em curso: "00:42", "12:03", "1:02:15". */

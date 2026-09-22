@@ -42,6 +42,12 @@ type RealtimeCtx = {
   chamada: boolean;
   /** A conexão está de pé agora? */
   conectado: boolean;
+  /**
+   * A lista de quem está online é de agora? Falso enquanto o canal de
+   * presença (re)sincroniza — e aí a tela usa o status gravado, porque uma
+   * lista pela metade pintaria de offline quem está aqui.
+   */
+  presencaPronta: boolean;
   /** Você, como membro da equipe. `undefined` até a primeira resposta. */
   me?: InboxMember;
   /** Quem está com o app aberto agora, e como: id do membro → status. */
@@ -52,15 +58,18 @@ type RealtimeCtx = {
   assinar: (canal: string, ao: (evento: RealtimeEvent) => void) => () => void;
   /**
    * Renova o crachá — a permissão lista as conversas de quando foi emitida.
+   * Com `canais`, só renova se algum deles estiver fora da permissão atual:
+   * renovar à toa faz o Ably reconectar canais, e a presença pisca no meio.
    * Resolve quando o crachá novo já vale (ou quando falhou: quem espera segue).
    */
-  renovar: () => Promise<void>;
+  renovar: (canais?: string[]) => Promise<void>;
 };
 
 const Ctx = createContext<RealtimeCtx>({
   eventos: false,
   chamada: false,
   conectado: false,
+  presencaPronta: false,
   online: {},
   anunciar: () => {},
   assinar: () => () => {},
@@ -73,6 +82,7 @@ export function useRealtime(): RealtimeCtx {
 
 /** O mínimo do cliente do Ably que este provedor usa. */
 type AblyChannel = {
+  on: (estado: string[], handler: () => void) => void;
   subscribe: (handler: (msg: { data: unknown }) => void) => void;
   unsubscribe: (handler: (msg: { data: unknown }) => void) => void;
   presence: {
@@ -85,7 +95,10 @@ type AblyChannel = {
 type AblyClient = {
   channels: { get: (name: string) => AblyChannel };
   connection: { on: (event: string, handler: () => void) => void };
-  auth: { authorize: () => Promise<unknown> };
+  auth: {
+    authorize: () => Promise<unknown>;
+    tokenDetails?: { capability?: string };
+  };
   close: () => void;
 };
 
@@ -93,6 +106,9 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
   const [me, setMe] = useState<InboxMember>();
   const [flags, setFlags] = useState({ eventos: false, chamada: false });
   const [conectado, setConectado] = useState(false);
+  const [presencaPronta, setPresencaPronta] = useState(false);
+  /** Leituras de presença em voo: só a mais nova pode escrever na tela. */
+  const leituraRef = useRef(0);
   const [online, setOnline] = useState<Record<string, Presence>>({});
   const clientRef = useRef<AblyClient | null>(null);
   const presenceRef = useRef<AblyChannel | null>(null);
@@ -146,10 +162,17 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
       const canal = client.channels.get(presenceChannel(info.me.agencyId));
       presenceRef.current = canal;
 
+      /*
+       * Cada evento de presença dispara uma leitura, e elas podem voltar fora
+       * de ordem: a de antes de alguém entrar chegando depois da de depois.
+       * Sem este número, a leitura velha apagaria quem acabou de chegar.
+       */
       async function ler() {
+        const minha = ++leituraRef.current;
         try {
           const presentes = await canal.presence.get();
-          if (!vivo) return;
+          if (!vivo || minha !== leituraRef.current) return;
+          setPresencaPronta(true);
           setOnline(
             Object.fromEntries(
               presentes
@@ -166,6 +189,13 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
           // tela, só deixa a bolinha desatualizada até o próximo evento.
         }
       }
+
+      // Canal reconectando (queda, crachá novo): até sincronizar de novo, a
+      // lista que temos não é de agora.
+      canal.on(["attaching", "detached", "suspended", "failed"], () => {
+        if (vivo) setPresencaPronta(false);
+      });
+      canal.on(["attached"], () => void ler());
 
       try {
         await canal.presence.subscribe(ler);
@@ -205,13 +235,23 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
     [],
   );
 
-  const renovar = useCallback(async () => {
-    await clientRef.current?.auth.authorize().catch(() => undefined);
+  const renovar = useCallback(async (canais?: string[]) => {
+    const client = clientRef.current;
+    if (!client) return;
+    if (canais) {
+      try {
+        const permitidos = JSON.parse(client.auth.tokenDetails?.capability ?? "{}");
+        if (canais.every((c) => c in permitidos)) return;
+      } catch {
+        // Permissão ilegível: renovar é o caminho seguro.
+      }
+    }
+    await client.auth.authorize().catch(() => undefined);
   }, []);
 
   const value = useMemo<RealtimeCtx>(
-    () => ({ ...flags, conectado, me, online, anunciar, assinar, renovar }),
-    [flags, conectado, me, online, anunciar, assinar, renovar],
+    () => ({ ...flags, conectado, presencaPronta, me, online, anunciar, assinar, renovar }),
+    [flags, conectado, presencaPronta, me, online, anunciar, assinar, renovar],
   );
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;

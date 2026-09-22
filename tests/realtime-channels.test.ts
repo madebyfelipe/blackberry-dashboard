@@ -5,6 +5,7 @@ import { AGENCIA_A, AGENCIA_B } from "./helpers/agency";
 import {
   callRoom,
   capabilityFor,
+  memberChannel,
   conversationChannel,
   presenceChannel,
 } from "../src/lib/realtime/channels";
@@ -85,5 +86,16 @@ describe("permissão do token", () => {
     assert.deepEqual(Object.keys(capabilityFor(AGENCIA_A.agencyId, [])), [
       presenceChannel(AGENCIA_A.agencyId),
     ]);
+  });
+
+  test("o canal pessoal entra só o seu, e só de leitura", () => {
+    const comigo = capabilityFor(AGENCIA_A.agencyId, ["c1"], "felipe");
+    assert.deepEqual(comigo[memberChannel(AGENCIA_A.agencyId, "felipe")], ["subscribe"]);
+    assert.equal(comigo[memberChannel(AGENCIA_A.agencyId, "marina")], undefined);
+    assert.equal(
+      Object.keys(comigo).filter((c) => c.includes(":membro:")).length,
+      1,
+      "ninguém ouve o canal pessoal de outra pessoa",
+    );
   });
 });

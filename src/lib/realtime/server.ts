@@ -1,6 +1,12 @@
 import "server-only";
 import type { AgencyScope } from "@/lib/agency/types";
-import { callRoom, capabilityFor, conversationChannel, type RealtimeEvent } from "./channels";
+import {
+  callRoom,
+  capabilityFor,
+  conversationChannel,
+  memberChannel,
+  type RealtimeEvent,
+} from "./channels";
 
 /*
  * O lado servidor do tempo real. Dois serviços, dois trabalhos diferentes:
@@ -50,7 +56,7 @@ export async function ablyTokenRequest(
   const rest = new Rest({ key });
   return rest.auth.createTokenRequest({
     clientId: memberId,
-    capability: capabilityFor(scope.agencyId, conversationIds),
+    capability: capabilityFor(scope.agencyId, conversationIds, memberId),
     // Curto de propósito: a permissão envelhece junto com a lista de
     // conversas, e o cliente renova sozinho pelo authUrl.
     ttl: 60 * 60 * 1000,
@@ -70,14 +76,35 @@ export async function publishToConversation(
   conversationId: string,
   event: RealtimeEvent,
 ): Promise<void> {
+  await publish([conversationChannel(scope.agencyId, conversationId)], event);
+}
+
+/**
+ * Avisa cada pessoa, no canal dela, que a lista de conversas dela mudou (um
+ * grupo novo, ou ela entrou num). Mesmas regras do aviso da conversa: depois
+ * de gravar, com teto de tempo, e falhar aqui não desfaz nada.
+ */
+export async function notifyMembers(
+  scope: AgencyScope,
+  memberIds: string[],
+  conversationId: string,
+): Promise<void> {
+  if (memberIds.length === 0) return;
+  await publish(
+    memberIds.map((id) => memberChannel(scope.agencyId, id)),
+    { tipo: "conversas", conversationId },
+  );
+}
+
+async function publish(channels: string[], event: RealtimeEvent): Promise<void> {
   const key = env("ABLY_API_KEY");
   if (!key) return;
   try {
     const { Rest } = await import("ably");
     const rest = new Rest({ key });
-    const enviar = rest.channels
-      .get(conversationChannel(scope.agencyId, conversationId))
-      .publish(event.tipo, event);
+    const enviar = Promise.all(
+      channels.map((c) => rest.channels.get(c).publish(event.tipo, event)),
+    );
     /*
      * Com teto de tempo. A mensagem já está gravada quando chegamos aqui: um
      * provedor lento não pode segurar a resposta de quem apertou enviar —

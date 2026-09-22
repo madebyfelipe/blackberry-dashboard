@@ -14,12 +14,16 @@ export function Popover({
   trigger,
   children,
   align = "right",
+  side = "bottom",
 }: {
   open: boolean;
   onClose: () => void;
   trigger: React.ReactNode;
   children: React.ReactNode;
-  align?: "left" | "right";
+  /** `center` é para gatilho no meio da tela (os controles da chamada). */
+  align?: "left" | "right" | "center";
+  /** `top` quando o gatilho mora no pé de um painel e não há chão embaixo. */
+  side?: "top" | "bottom";
 }) {
   return (
     <div className="relative">
@@ -29,8 +33,13 @@ export function Popover({
           <div className="fixed inset-0 z-40" onClick={onClose} />
           <div
             className={cn(
-              "absolute top-[calc(100%+8px)] z-50",
-              align === "right" ? "right-0" : "left-0",
+              "absolute z-50",
+              side === "top" ? "bottom-[calc(100%+8px)]" : "top-[calc(100%+8px)]",
+              align === "right"
+                ? "right-0"
+                : align === "left"
+                  ? "left-0"
+                  : "left-1/2 -translate-x-1/2",
             )}
           >
             {children}

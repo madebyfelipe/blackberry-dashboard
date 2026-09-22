@@ -34,6 +34,16 @@ export function conversationChannel(
   return `bb:${agencyId}:conversa:${conversationId}`;
 }
 
+/**
+ * Canal de uma pessoa: "suas conversas mudaram" — um grupo novo com você, ou
+ * você adicionado a um grupo. Sem ele a pessoa só descobriria a conversa na
+ * releitura seguinte, porque ainda não ouve o canal de uma conversa que não
+ * sabia que existia.
+ */
+export function memberChannel(agencyId: AgencyId, memberId: string): string {
+  return `bb:${agencyId}:membro:${memberId}`;
+}
+
 /** Sala da chamada no LiveKit. Não é segredo — quem autoriza é o token. */
 export function callRoom(agencyId: AgencyId, conversationId: string): string {
   return `bb-${agencyId}-${conversationId}`;
@@ -55,6 +65,8 @@ export function callRoom(agencyId: AgencyId, conversationId: string): string {
 export function capabilityFor(
   agencyId: AgencyId,
   conversationIds: string[],
+  /** O seu canal pessoal — só o seu, e também só de leitura. */
+  memberId?: string,
 ): Record<string, ChannelOp[]> {
   const capability: Record<string, ChannelOp[]> = {
     // Presença é o único lugar em que o navegador escreve: ele anuncia a si
@@ -64,10 +76,13 @@ export function capabilityFor(
   for (const id of conversationIds) {
     capability[conversationChannel(agencyId, id)] = ["subscribe"];
   }
+  if (memberId) capability[memberChannel(agencyId, memberId)] = ["subscribe"];
   return capability;
 }
 
 /** Os eventos que o servidor publica no canal de uma conversa. */
 export type RealtimeEvent =
   | { tipo: "mensagem"; conversationId: string }
-  | { tipo: "chamada"; conversationId: string; memberIds: string[] };
+  | { tipo: "chamada"; conversationId: string; memberIds: string[] }
+  /** No canal pessoal: a lista de conversas desta pessoa mudou. */
+  | { tipo: "conversas"; conversationId: string };

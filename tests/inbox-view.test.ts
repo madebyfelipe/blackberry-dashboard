@@ -5,6 +5,7 @@ import { AGENCIA_A } from "./helpers/agency";
 import {
   callClock,
   callSummary,
+  groupFallbackTitle,
   conversationTitle,
   dayLabel,
   groupByDay,
@@ -316,5 +317,30 @@ describe("chamada", () => {
     assert.equal(callClock(42), "00:42");
     assert.equal(callClock(723), "12:03");
     assert.equal(callClock(3735), "1:02:15");
+  });
+});
+
+describe("chamada longa e grupo sem nome", () => {
+  test("a partir de uma hora a duração é em horas", () => {
+    assert.equal(callSummary("Ana", 60 * 60), "Ana iniciou uma chamada que durou 1 hora.");
+    assert.equal(
+      callSummary("Ana", 2 * 60 * 60 + 5 * 60),
+      "Ana iniciou uma chamada que durou 2 horas e 5 minutos.",
+    );
+    assert.equal(
+      callSummary("Ana", 60 * 60 + 60),
+      "Ana iniciou uma chamada que durou 1 hora e 1 minuto.",
+    );
+  });
+
+  test("grupo sem nome se chama por quem está nele", () => {
+    const m = (name: string) => ({ id: name, agencyId: AGENCIA_A.agencyId, name, email: "", presence: "disponivel" as const });
+    assert.equal(groupFallbackTitle([m("Marina"), m("Ana")]), "Marina e Ana");
+    assert.equal(groupFallbackTitle([m("Marina"), m("Ana"), m("Pedro")]), "Marina, Ana e Pedro");
+    assert.equal(
+      groupFallbackTitle([m("Marina"), m("Ana"), m("Pedro"), m("Camila"), m("Rodrigo")]),
+      "Marina, Ana e mais 3",
+    );
+    assert.equal(groupFallbackTitle([]), "Grupo");
   });
 });
