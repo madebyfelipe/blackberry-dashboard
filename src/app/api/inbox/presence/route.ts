@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { ValidationError, setPresence } from "@/lib/inbox/repository";
 import { currentInboxSession } from "@/lib/inbox/viewer";
+import { ablyEnabled, livekitEnabled } from "@/lib/realtime/server";
 import { unauthorized } from "@/lib/auth/session";
 import type { Presence } from "@/lib/inbox/types";
 
@@ -10,7 +11,10 @@ export const dynamic = "force-dynamic";
 export async function GET() {
   const session = await currentInboxSession();
   if (!session) return unauthorized();
-  return NextResponse.json({ me: session.me });
+  return NextResponse.json({
+    me: session.me,
+    realtime: { eventos: ablyEnabled(), chamada: livekitEnabled() },
+  });
 }
 
 /** Sua disponibilidade — só a sua: o membro alterado vem da sessão. */

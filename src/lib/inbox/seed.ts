@@ -53,9 +53,12 @@ function msg(
 }
 
 function conversation(
-  row: Omit<Conversation, "agencyId" | "createdAt"> & { createdAt?: string },
+  row: Omit<Conversation, "agencyId" | "createdAt" | "call"> & {
+    createdAt?: string;
+  },
 ): Conversation {
   return {
+    call: null,
     ...row,
     agencyId: LEGACY_AGENCY_ID,
     createdAt: row.createdAt ?? row.messages[0]?.createdAt ?? new Date().toISOString(),

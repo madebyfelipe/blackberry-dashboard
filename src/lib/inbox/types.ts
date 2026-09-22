@@ -72,6 +72,17 @@ export type Conversation = {
   mutedBy: string[];
   /** Último instante lido, por membro (ISO). É daqui que sai o não lido. */
   readAt: Record<string, string>;
+  /**
+   * A chamada em curso, se houver. É o que faz o outro lado ver "chamada em
+   * andamento" e poder entrar — sem isso, chamada seria coisa de quem já
+   * estava com a tela aberta no segundo certo.
+   *
+   * Quem entra e quem sai grava aqui; a última pessoa a sair fecha a chamada
+   * e deixa a linha no histórico, com o nome de quem começou. Um navegador
+   * que morre sem avisar deixaria participante preso, então a leitura trata
+   * chamada velha demais como encerrada (ver `store.ts`).
+   */
+  call: { startedBy: string; startedAt: string; memberIds: string[] } | null;
   /** ISO date */
   createdAt: string;
 };
@@ -102,10 +113,18 @@ export type ConversationSummary = {
   lastAt: string | null;
   unread: number;
   muted: boolean;
-  /** Presença de quem está do outro lado. `null` no grupo. */
+  /**
+   * Presença de quem está do outro lado, como está **gravada**. `null` no
+   * grupo. Com o tempo real ligado, a tela troca isso por quem está de fato
+   * com o app aberto agora (ver `components/realtime`).
+   */
   presence: Presence | null;
+  /** Quem participa — a tela precisa dos ids para ler a presença ao vivo. */
+  memberIds: string[];
   memberCount: number;
   onlineCount: number;
+  /** Quem está na chamada desta conversa agora. Vazio = não há chamada. */
+  callMemberIds: string[];
 };
 
 /** A conversa aberta: o resumo + as mensagens e quem participa. */
