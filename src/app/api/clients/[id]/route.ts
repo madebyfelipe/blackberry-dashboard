@@ -19,6 +19,9 @@ const EDITABLE = [
   "owner",
   "billingDay",
   "status",
+  "city",
+  "email",
+  "phone",
 ] as const;
 
 function pickPatch(body: unknown): ClientPatch {

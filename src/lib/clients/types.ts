@@ -33,6 +33,14 @@ export type Client = {
   segment: string;
   /** O que a agência entrega para ele ("Instagram", "Google Ads"). */
   services: string[];
+  /**
+   * Contato da ficha, o que o cartão de hover do nome mostra (export
+   * "hover clientes"): cidade, e-mail e telefone. Vazio é vazio — o cartão
+   * mostra traço, não um dado inventado.
+   */
+  city: string;
+  email: string;
+  phone: string;
   /** Quem cuida da conta dentro da agência — nome curto, como o responsável da tarefa. */
   owner: string;
   /** Dia do mês do faturamento (1–31). `null` = ainda não definido. */
@@ -46,6 +54,9 @@ export type NewClient = {
   name: string;
   segment?: string;
   services?: string[];
+  city?: string;
+  email?: string;
+  phone?: string;
   owner?: string;
   billingDay?: number | null;
   status?: ClientStatus;

@@ -26,8 +26,8 @@ export async function POST(req: Request) {
   } catch {
     return NextResponse.json({ error: "JSON inválido." }, { status: 400 });
   }
-  const { name, segment, services, owner, billingDay, status } = (body ??
-    {}) as Record<string, unknown>;
+  const { name, segment, services, owner, billingDay, status, city, email, phone } =
+    (body ?? {}) as Record<string, unknown>;
 
   try {
     const client = await createClient(session.scope, {
@@ -37,6 +37,9 @@ export async function POST(req: Request) {
       owner: owner === undefined ? undefined : String(owner),
       billingDay: billingDay as never,
       status: status as never,
+      city: city === undefined ? undefined : String(city),
+      email: email === undefined ? undefined : String(email),
+      phone: phone === undefined ? undefined : String(phone),
     });
     return NextResponse.json({ client }, { status: 201 });
   } catch (err) {

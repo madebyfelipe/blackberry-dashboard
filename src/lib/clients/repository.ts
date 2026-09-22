@@ -50,6 +50,27 @@ function cleanServices(input: unknown): string[] {
   return out;
 }
 
+/** Contato: texto curto e limpo. Campo vazio continua vazio. */
+function cleanContact(value: unknown, max = 80): string {
+  return value === undefined || value === null
+    ? ""
+    : String(value).trim().slice(0, max);
+}
+
+/**
+ * E-mail: vazio passa (a ficha não exige contato), preenchido tem de parecer
+ * e-mail. Sem regex de RFC — só o suficiente para pegar o erro de digitação
+ * antes de ele virar um contato que ninguém alcança.
+ */
+function cleanEmail(value: unknown): string {
+  const email = cleanContact(value, 160);
+  if (!email) return "";
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    throw new ValidationError("E-mail inválido.");
+  }
+  return email;
+}
+
 /** Dia do faturamento: 1–31 ou `null`. Fora da faixa é erro, não silêncio. */
 function cleanBillingDay(value: unknown): number | null {
   if (value === null || value === undefined || value === "") return null;
@@ -67,6 +88,7 @@ export async function createClient(
   const name = input.name?.trim();
   if (!name) throw new ValidationError("Nome é obrigatório.");
   const billingDay = cleanBillingDay(input.billingDay);
+  const email = cleanEmail(input.email);
 
   const client: Client = {
     id: makeId(),
@@ -75,6 +97,9 @@ export async function createClient(
     name,
     segment: (input.segment ?? "").trim(),
     services: cleanServices(input.services),
+    city: cleanContact(input.city),
+    email,
+    phone: cleanContact(input.phone, 40),
     owner: (input.owner ?? "").trim() || "—",
     billingDay,
     status: isClientStatus(input.status) ? input.status : "novo",
@@ -101,6 +126,7 @@ export async function updateClient(
   // Valida antes de abrir a transação.
   const billingDay =
     patch.billingDay === undefined ? undefined : cleanBillingDay(patch.billingDay);
+  const email = patch.email === undefined ? undefined : cleanEmail(patch.email);
 
   return transaction((clients) => {
     const c = clients.find(
@@ -110,6 +136,9 @@ export async function updateClient(
     if (patch.name !== undefined) c.name = patch.name.trim();
     if (patch.segment !== undefined) c.segment = patch.segment.trim();
     if (patch.services !== undefined) c.services = cleanServices(patch.services);
+    if (patch.city !== undefined) c.city = cleanContact(patch.city);
+    if (email !== undefined) c.email = email;
+    if (patch.phone !== undefined) c.phone = cleanContact(patch.phone, 40);
     if (patch.owner !== undefined) c.owner = patch.owner.trim() || "—";
     if (patch.status !== undefined) c.status = patch.status;
     if (billingDay !== undefined) c.billingDay = billingDay;

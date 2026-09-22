@@ -67,7 +67,7 @@ Dá para criar outra conta em `/criar-conta` — o cadastro já entra logado.
 | `/login` · `/criar-conta` · `/recuperar-senha` | Entrada (black berry) — login e cadastro reais; a recuperação registra o pedido, o disparo de e-mail ainda não existe |
 | `/tarefas` | Tarefas — Lista + Quadro (Kanban), CRUD, seleção em massa, drag-and-drop, busca, menu de filtros (`F`) e menu "Personalizar" |
 | `/tarefas/[id]` | **Descrição da tarefa** — visualizador e editor na mesma tela: título, descrição, propriedades (coluna fixa à direita) e a conversa da tarefa |
-| `/clientes` | **Clientes** — a carteira da agência: Lista + Grade, abas por saúde do cliente, filtros, busca, seleção em massa e criação/edição pelo modal |
+| `/clientes` | **Clientes** — a carteira da agência: Lista + Grade, abas por saúde do cliente, filtros, busca, seleção em massa, criação/edição pelo modal, menu de visualização (agrupamento, ordenação, colunas) e o cartão de hover do nome |
 | `/social` | **Social media › clientes** — passo 1 do fluxo de aprovação: de quem são os lotes (lotes, peças e pendentes de cada um). Lê o nome do cliente gravado no lote, não a ficha de `/clientes` — ver "Cliente ainda é texto livre" no roadmap |
 | `/social/[cliente]` | **Lotes do cliente** — passo 2: progresso de cada lote e o modal "Novo lote" |
 | `/social/[cliente]/[lote]` | Detalhe do lote — grade de peças + painel de decisão + link público |
@@ -122,6 +122,46 @@ regras que valem a pena saber de cor:
   resto do produto continua monocromático — o status da tarefa, por exemplo,
   é fundo neutro com o texto num degrau de cinza. Matiz novo só entra com
   desenho.
+
+### Listas: a largura da coluna é da pessoa
+
+Toda lista do produto (Tarefas e Clientes hoje; qualquer outra que nasça de
+`ui/DataTable`) **redimensiona coluna**: a divisória do cabeçalho arrasta, o
+duplo clique devolve a medida do export e as setas ← → fazem o mesmo pelo
+teclado (a divisória recebe foco). A largura fica guardada no `localStorage`
+de quem está olhando (`bb.colunas.<lista>`), não no servidor: é preferência de
+quem usa a tela, não dado da agência.
+
+A régua mora em `src/lib/ui/columns.ts` (pura, testada em
+`tests/ui-columns.test.ts`) — mínimo de 72px por coluna, máximo de 560px,
+valor guardado sempre validado na leitura. Quem monta uma lista declara um
+`ColumnSpec` por coluna, abre um `ColumnsProvider` com o `useColumnWidths` e
+usa `HeadCell`/`Cell`: cabeçalho e linha leem a mesma largura, sem prop
+viajando célula a célula. A coluna que cresce (CLIENTE, TAREFA) continua
+crescendo até alguém arrastá-la.
+
+### O texto do briefing é markdown
+
+A descrição da tarefa tem os três menus dos exports (`menu_comando_tarefas`,
+`menu_formatacao`, `formatacao_hover`), em `src/components/editor`:
+
+- linha vazia mostra o hint **"/ para formatação"**;
+- **`/`** abre os comandos (títulos, anexos, bloco de código, listas) e **`@`**,
+  as pessoas que já aparecem na tarefa — o cursor não sai do texto: o que se
+  digita depois do gatilho filtra o menu;
+- **texto selecionado** abre o menu de formatação, e o controle de título abre
+  a lista de níveis no hover;
+- atalhos: `Ctrl Alt 1/2/3` (títulos), `Ctrl ⇧ 8/9` (listas), `Ctrl ⇧ C`
+  (bloco de código), `Ctrl B/I/U`.
+
+**O dado continua sendo uma `string`.** As marcas são markdown
+(`**negrito**`, `## Título`, `- item`, `> citação`, `` `código` ``, e `__` para
+sublinhado, que o markdown não tem) — decisão técnica registrada em
+`src/lib/editor/markdown.ts`: um editor de HTML mudaria o formato do campo que
+a busca varre e a lista mostra, pediria sanitização e migração, e entregaria a
+mesma coisa. Fora da edição o campo **mostra o markdown formatado**
+(`MarkdownText`); clicar volta ao texto cru. As duas pontas — escrever e ler —
+são funções puras, testadas em `tests/editor-markdown.test.ts`.
 
 A única exceção é `AuroraBackdrop`: o espectro do fundo do login é arte, não cor
 de interface, e está marcado assim no arquivo.

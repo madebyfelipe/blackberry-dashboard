@@ -1,15 +1,37 @@
 "use client";
 
-import type { Client } from "@/lib/clients/types";
+import type { Client, ClientStatus } from "@/lib/clients/types";
 import { CLIENT_STATUSES } from "@/lib/clients/constants";
 import {
+  CLIENT_COLUMN_OPTIONS,
+  CLIENT_GROUP_OPTIONS,
   CLIENT_SORT_OPTIONS,
   distinctServices,
   distinctValues,
+  toggleClientColumn,
   type ClientDisplay,
   type ClientFilters,
+  type ClientGroupKey,
+  type ClientSortKey,
 } from "@/lib/clients/view";
-import { CheckIcon, LayoutGridIcon, ListIcon } from "@/components/icons";
+import {
+  ArrowDownWideNarrowIcon,
+  ArrowUpDownIcon,
+  CheckIcon,
+  LayoutGridIcon,
+  ListIcon,
+} from "@/components/icons";
+import {
+  MenuChip,
+  MenuDivider,
+  MenuDropdown,
+  MenuPanel,
+  MenuRow,
+  MenuSegButton,
+  MenuSegmented,
+  MenuTitle,
+  MenuToggle,
+} from "@/components/ui/MenuPanel";
 import { cn } from "@/lib/cn";
 
 /*
@@ -126,46 +148,136 @@ export function ClientFilterMenu({
   );
 }
 
+/*
+ * Menu de visualização de Clientes — fiel ao export "Menu de Visualização"
+ * (painel de 300px: Filtros, seletor Lista/Grade, Organização, Opções da lista
+ * e os chips de colunas).
+ *
+ * A seção "Filtros" do desenho é um atalho de status: o menu de Filtros da
+ * barra continua sendo o lugar de cruzar dimensões (segmento, responsável,
+ * serviço), e aqui se escolhe um degrau da régua de saúde de uma vez. Com mais
+ * de um status marcado lá, a pílula mostra a contagem em vez de fingir que só
+ * há um.
+ */
 export function ClientDisplayMenu({
   display,
   onChange,
+  filters,
+  onFiltersChange,
 }: {
   display: ClientDisplay;
   onChange: (next: ClientDisplay) => void;
+  filters: ClientFilters;
+  onFiltersChange: (next: ClientFilters) => void;
 }) {
+  const set = <K extends keyof ClientDisplay>(key: K, value: ClientDisplay[K]) =>
+    onChange({ ...display, [key]: value });
+
+  const statusValue = filters.status.length === 1 ? filters.status[0] : "todos";
+  const statusOptions = [
+    {
+      id: "todos",
+      label:
+        filters.status.length > 1 ? `${filters.status.length} status` : "Todos",
+    },
+    ...CLIENT_STATUSES.map((s) => ({ id: s.id, label: s.label })),
+  ];
+
   return (
-    <div className={panel}>
-      <p className="px-2.5 pb-1 pt-1.5 text-[11px] font-semibold uppercase tracking-[0.6px] text-label">
-        Visualização
-      </p>
-      <div className="flex gap-1.5 p-1">
-        <ViewButton
-          icon={<ListIcon size={15} />}
-          label="Lista"
+    <MenuPanel>
+      <MenuTitle first>Filtros</MenuTitle>
+
+      <MenuRow label="Status">
+        <ArrowUpDownIcon size={14} className="text-muted" />
+        <MenuDropdown
+          label="Filtrar por status"
+          value={statusValue}
+          options={statusOptions}
+          onSelect={(v) =>
+            onFiltersChange({
+              ...filters,
+              status: v === "todos" ? [] : [v as ClientStatus],
+            })
+          }
+        />
+      </MenuRow>
+
+      <MenuSegmented>
+        <MenuSegButton
           active={display.view === "lista"}
-          onClick={() => onChange({ ...display, view: "lista" })}
+          onClick={() => set("view", "lista")}
+          icon={<ListIcon size={14} />}
+          label="Lista"
         />
-        <ViewButton
-          icon={<LayoutGridIcon size={15} />}
-          label="Grade"
+        <MenuSegButton
           active={display.view === "grade"}
-          onClick={() => onChange({ ...display, view: "grade" })}
+          onClick={() => set("view", "grade")}
+          icon={<LayoutGridIcon size={14} />}
+          label="Grade"
         />
-      </div>
+      </MenuSegmented>
 
-      <div className="my-1 h-px bg-border" />
+      <MenuDivider />
 
-      <Group title="Ordenar por">
-        {CLIENT_SORT_OPTIONS.map((o) => (
-          <Option
-            key={o.id}
-            label={o.label}
-            checked={display.sort === o.id}
-            onClick={() => onChange({ ...display, sort: o.id })}
+      <MenuTitle>Organização</MenuTitle>
+
+      <MenuRow label="Agrupamento">
+        <ArrowUpDownIcon size={14} className="text-muted" />
+        <MenuDropdown
+          label="Agrupamento"
+          value={display.group}
+          options={CLIENT_GROUP_OPTIONS}
+          onSelect={(v) => set("group", v as ClientGroupKey)}
+        />
+      </MenuRow>
+
+      <MenuRow label="Ordenação">
+        <ArrowDownWideNarrowIcon size={14} className="text-muted" />
+        <MenuDropdown
+          label="Ordenação"
+          value={display.sort}
+          options={CLIENT_SORT_OPTIONS}
+          onSelect={(v) => set("sort", v as ClientSortKey)}
+        />
+      </MenuRow>
+
+      <MenuDivider />
+
+      <MenuTitle>Opções da lista</MenuTitle>
+
+      <MenuRow label="Mostrar arquivados">
+        <MenuToggle
+          on={display.showArchived}
+          onClick={() => set("showArchived", !display.showArchived)}
+          label="Mostrar arquivados"
+        />
+      </MenuRow>
+
+      <MenuRow label="Mostrar grupos vazios">
+        <MenuToggle
+          on={display.showEmptyGroups}
+          onClick={() => set("showEmptyGroups", !display.showEmptyGroups)}
+          label="Mostrar grupos vazios"
+        />
+      </MenuRow>
+
+      <MenuDivider />
+
+      <MenuTitle>Colunas</MenuTitle>
+
+      <div className="flex flex-wrap gap-2 px-3 pb-0.5 pt-1.5">
+        {CLIENT_COLUMN_OPTIONS.map((c) => (
+          <MenuChip
+            key={c.id}
+            label={c.label}
+            on={display.columns.includes(c.id)}
+            onClick={() =>
+              set("columns", toggleClientColumn(display.columns, c.id))
+            }
           />
         ))}
-      </Group>
-    </div>
+      </div>
+    </MenuPanel>
   );
 }
 
@@ -219,35 +331,6 @@ function Option({
         size={14}
         className={cn("text-muted", checked ? "opacity-100" : "opacity-0")}
       />
-    </button>
-  );
-}
-
-function ViewButton({
-  icon,
-  label,
-  active,
-  onClick,
-}: {
-  icon: React.ReactNode;
-  label: string;
-  active: boolean;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      aria-pressed={active}
-      onClick={onClick}
-      className={cn(
-        "tap flex flex-1 items-center justify-center gap-2 rounded-mark px-3 py-2 text-[13px] transition-colors",
-        active
-          ? "bg-border-strong text-fg"
-          : "bg-surface text-fg-3 hover:bg-border",
-      )}
-    >
-      {icon}
-      {label}
     </button>
   );
 }

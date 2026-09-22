@@ -808,3 +808,109 @@ export function ArrowUpIcon(p: IconProps) {
     </Svg>
   );
 }
+
+/* -------------------------------------------------- contato da ficha */
+
+export function MapPinIcon(p: IconProps) {
+  return (
+    <Svg {...p}>
+      <path d="M20 10c0 4.993-5.539 10.193-7.399 11.799a1 1 0 0 1-1.202 0C9.539 20.193 4 14.993 4 10a8 8 0 0 1 16 0" />
+      <circle cx="12" cy="10" r="3" />
+    </Svg>
+  );
+}
+
+export function MailIcon(p: IconProps) {
+  return (
+    <Svg {...p}>
+      <rect width="20" height="16" x="2" y="4" rx="2" />
+      <path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7" />
+    </Svg>
+  );
+}
+
+export function PhoneIcon(p: IconProps) {
+  return (
+    <Svg {...p}>
+      <path d="M13.832 16.568a1 1 0 0 0 1.213-.303l.355-.465A2 2 0 0 1 17 15h3a2 2 0 0 1 2 2v3a2 2 0 0 1-2 2A18 18 0 0 1 2 4a2 2 0 0 1 2-2h3a2 2 0 0 1 2 2v3a2 2 0 0 1-.8 1.6l-.468.351a1 1 0 0 0-.292 1.233 14 14 0 0 0 6.392 6.384" />
+    </Svg>
+  );
+}
+
+/* ------------------------------------------- menu de formatação do texto */
+
+export function BoldIcon(p: IconProps) {
+  return (
+    <Svg {...p}>
+      <path d="M6 12h9a4 4 0 0 1 0 8H7a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1h7a4 4 0 0 1 0 8" />
+    </Svg>
+  );
+}
+
+export function ItalicIcon(p: IconProps) {
+  return (
+    <Svg {...p}>
+      <path d="M19 4h-9M14 20H5M15 4 9 20" />
+    </Svg>
+  );
+}
+
+export function StrikethroughIcon(p: IconProps) {
+  return (
+    <Svg {...p}>
+      <path d="M16 4H9a3 3 0 0 0-2.83 4" />
+      <path d="M14 12a4 4 0 0 1 0 8H6" />
+      <path d="M4 12h16" />
+    </Svg>
+  );
+}
+
+export function UnderlineIcon(p: IconProps) {
+  return (
+    <Svg {...p}>
+      <path d="M6 4v6a6 6 0 0 0 12 0V4" />
+      <path d="M4 20h16" />
+    </Svg>
+  );
+}
+
+export function QuoteIcon(p: IconProps) {
+  return (
+    <Svg {...p}>
+      <path d="M16 3a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2 1 1 0 0 1 1 1v1a2 2 0 0 1-2 2 1 1 0 0 0-1 1v2a1 1 0 0 0 1 1 6 6 0 0 0 6-6V5a2 2 0 0 0-2-2z" />
+      <path d="M5 3a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2 1 1 0 0 1 1 1v1a2 2 0 0 1-2 2 1 1 0 0 0-1 1v2a1 1 0 0 0 1 1 6 6 0 0 0 6-6V5a2 2 0 0 0-2-2z" />
+    </Svg>
+  );
+}
+
+export function RemoveFormattingIcon(p: IconProps) {
+  return (
+    <Svg {...p}>
+      <path d="M4 7V4h16v3" />
+      <path d="M5 20h6" />
+      <path d="M13 4 8 20" />
+      <path d="m15 15 5 5" />
+      <path d="m20 15-5 5" />
+    </Svg>
+  );
+}
+
+export function CodeIcon(p: IconProps) {
+  return (
+    <Svg {...p}>
+      <path d="m16 18 6-6-6-6" />
+      <path d="m8 6-6 6 6 6" />
+    </Svg>
+  );
+}
+
+export function ListOrderedIcon(p: IconProps) {
+  return (
+    <Svg {...p}>
+      <path d="M11 5h10M11 12h10M11 19h10" />
+      <path d="M4 4h1v5" />
+      <path d="M4 9h2" />
+      <path d="M6 15H4a1 1 0 0 0-1 1v1a1 1 0 0 0 1 1h1a1 1 0 0 1 1 1v1a1 1 0 0 1-1 1H3" />
+    </Svg>
+  );
+}

@@ -13,6 +13,7 @@ import { CLIENT_STATUSES } from "@/lib/clients/constants";
 import {
   applyClientFilters,
   countActiveClientFilters,
+  groupClients,
   sortClients,
   DEFAULT_CLIENT_DISPLAY,
   EMPTY_CLIENT_FILTERS,
@@ -115,10 +116,19 @@ export function ClientsView({ initialClients }: { initialClients: Client[] }) {
   }, []);
 
   const visible = useMemo(() => {
-    const base = applyClientFilters(clients, filters, deferredSearch);
+    const base = applyClientFilters(clients, filters, deferredSearch, display);
     const byTab = tab === "todos" ? base : base.filter((c) => c.status === tab);
     return sortClients(byTab, display);
   }, [clients, filters, deferredSearch, tab, display]);
+
+  // O agrupamento é o último passo: ele reparte o que já está filtrado e em ordem.
+  const groups = useMemo(
+    () =>
+      groupClients(visible, display.group, {
+        showEmpty: display.showEmptyGroups,
+      }),
+    [visible, display.group, display.showEmptyGroups],
+  );
 
   const counts = useMemo(() => {
     const m = new Map<StatusTab, number>();
@@ -284,7 +294,12 @@ export function ClientsView({ initialClients }: { initialClients: Client[] }) {
                 />
               }
             >
-              <ClientDisplayMenu display={display} onChange={setDisplay} />
+              <ClientDisplayMenu
+                display={display}
+                onChange={setDisplay}
+                filters={filters}
+                onFiltersChange={setFilters}
+              />
             </Popover>
           }
         >
@@ -334,7 +349,8 @@ export function ClientsView({ initialClients }: { initialClients: Client[] }) {
             />
           ) : isLista ? (
             <ClientTable
-              clients={visible}
+              groups={groups}
+              columns={display.columns}
               selected={selected}
               onToggle={toggleOne}
               onToggleAll={toggleAll}
