@@ -15,6 +15,12 @@ export type MediaAsset = {
   width?: number;
   height?: number;
   createdAt: string;
-  /** URL pública no Vercel Blob, quando `BLOB_READ_WRITE_TOKEN` está configurado. */
+  /** URL do objeto no Vercel Blob, quando `BLOB_READ_WRITE_TOKEN` está configurado. */
   blobUrl?: string;
+  /**
+   * Pathname do objeto dentro do store (`media/<algo>.<ext>`). O store é
+   * privado (issue #39): é a partir daqui que se assina a URL de download de
+   * curta duração — a `blobUrl` sozinha não abre mais o arquivo.
+   */
+  blobPathname?: string;
 };
