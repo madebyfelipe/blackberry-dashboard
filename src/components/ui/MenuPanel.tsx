@@ -84,10 +84,11 @@ export function MenuDropdown({
         aria-haspopup="menu"
         aria-expanded={open}
         onClick={() => setOpen((o) => !o)}
-        className="flex items-center gap-1.5 rounded-mark bg-border px-2.5 py-[5px] text-[13px] text-fg-soft transition-colors hover:bg-border-strong"
+        className="flex max-w-[170px] items-center gap-1.5 rounded-mark bg-border px-2.5 py-[5px] text-[13px] text-fg-soft transition-colors hover:bg-border-strong"
       >
-        {current?.label ?? value}
-        <ChevronDownIcon size={12} className="text-muted" />
+        {/* Nome de aparelho vem longo ("Microfone (Realtek High Definition…)"). */}
+        <span className="truncate">{current?.label ?? value}</span>
+        <ChevronDownIcon size={12} className="shrink-0 text-muted" />
       </button>
       {open && (
         <>
@@ -95,7 +96,7 @@ export function MenuDropdown({
           <div
             role="menu"
             aria-label={label}
-            className="absolute right-0 z-50 mt-1 w-[180px] animate-pop-in overflow-hidden rounded-menu border border-border bg-surface p-1 shadow-[0_8px_24px_rgba(0,0,0,0.5)]"
+            className="absolute right-0 z-50 mt-1 w-[180px] max-h-[240px] animate-pop-in overflow-y-auto rounded-menu border border-border bg-surface p-1 shadow-[0_8px_24px_rgba(0,0,0,0.5)]"
           >
             {options.map((o) => (
               <button
@@ -107,8 +108,9 @@ export function MenuDropdown({
                   onSelect(String(o.id));
                   setOpen(false);
                 }}
+                title={o.label}
                 className={cn(
-                  "block w-full rounded-mark px-2.5 py-1.5 text-left text-[13px] transition-colors hover:bg-surface-2",
+                  "block w-full truncate rounded-mark px-2.5 py-1.5 text-left text-[13px] transition-colors hover:bg-surface-2",
                   String(o.id) === value ? "text-fg-soft" : "text-fg-3",
                 )}
               >

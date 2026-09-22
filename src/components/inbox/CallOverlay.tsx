@@ -2,10 +2,24 @@
 
 import { useEffect, useRef, useState } from "react";
 import { cn } from "@/lib/cn";
-import { MicIcon, MicOffIcon, PhoneOffIcon, ScreenShareIcon } from "@/components/icons";
+import {
+  MicIcon,
+  MicOffIcon,
+  PhoneOffIcon,
+  ScreenShareIcon,
+  Settings2Icon,
+} from "@/components/icons";
+import { Popover } from "@/components/ui/Popover";
 import type { ConversationDetail, InboxMember } from "@/lib/inbox/types";
 import { callClock, initialsOf } from "@/lib/inbox/view";
 import { apiJoinCall, apiLeaveCall, leaveCallOnExit } from "./api";
+import { CallSettingsMenu } from "./CallSettingsMenu";
+import {
+  toDeviceOptions,
+  type ActiveDevices,
+  type CallDevices,
+  type DeviceKind,
+} from "@/lib/inbox/devices";
 
 /*
  * A chamada, no popup que o Felipe pediu: os dois avatares frente a frente, o
@@ -32,17 +46,51 @@ type Faixa = {
   attach: (el?: HTMLMediaElement) => HTMLMediaElement;
   detach: () => HTMLMediaElement[];
 };
+type Publicacao = {
+  isMuted: boolean;
+  track?: Faixa & { restartTrack?: (opcoes: unknown) => Promise<void> };
+};
+type Captura = {
+  deviceId?: string;
+  noiseSuppression?: boolean;
+  echoCancellation?: boolean;
+  autoGainControl?: boolean;
+};
 type Sala = {
   connect: (url: string, token: string) => Promise<void>;
   disconnect: () => Promise<void>;
   startAudio: () => Promise<void>;
+  switchActiveDevice: (kind: DeviceKind, deviceId: string) => Promise<boolean>;
+  getActiveDevice: (kind: DeviceKind) => string | undefined;
   localParticipant: {
-    setMicrophoneEnabled: (on: boolean) => Promise<unknown>;
+    setMicrophoneEnabled: (on: boolean, opcoes?: Captura) => Promise<unknown>;
+    setCameraEnabled: (
+      on: boolean,
+      opcoes?: { deviceId?: string },
+    ) => Promise<Publicacao | undefined>;
     setScreenShareEnabled: (on: boolean) => Promise<unknown>;
+    getTrackPublication: (source: string) => Publicacao | undefined;
   };
-  remoteParticipants: Map<string, { identity: string; name?: string }>;
+  remoteParticipants: Map<
+    string,
+    {
+      identity: string;
+      name?: string;
+      getTrackPublication: (source: string) => Publicacao | undefined;
+    }
+  >;
   on: (evento: string, handler: (...args: never[]) => void) => Sala;
 };
+
+const SEM_APARELHOS: CallDevices = { audioinput: [], audiooutput: [], videoinput: [] };
+
+/** O Chrome e o Edge deixam a página escolher o alto-falante; o Safari não. */
+function escolheSaida(): boolean {
+  return (
+    typeof HTMLMediaElement !== "undefined" &&
+    "setSinkId" in HTMLMediaElement.prototype
+  );
+}
 
 export function CallOverlay({
   detail,
@@ -72,6 +120,28 @@ export function CallOverlay({
   const [temTela, setTemTela] = useState(false);
   /** O navegador recusou o microfone: a chamada segue, ouvindo e mostrando tela. */
   const [semMicrofone, setSemMicrofone] = useState(false);
+
+  /*
+   * O menu de ajustes: aparelhos do computador, qual está em uso, câmera e
+   * redução de ruído. Tudo isso só existe com a sala conectada.
+   */
+  const [menuAberto, setMenuAberto] = useState(false);
+  const menuAbertoRef = useRef(menuAberto);
+  menuAbertoRef.current = menuAberto;
+  const [aparelhos, setAparelhos] = useState<CallDevices>(SEM_APARELHOS);
+  const [ativos, setAtivos] = useState<ActiveDevices>({});
+  const ativosRef = useRef(ativos);
+  ativosRef.current = ativos;
+  const [saidaSuportada, setSaidaSuportada] = useState(false);
+  const [camera, setCamera] = useState(false);
+  const [cameraRemota, setCameraRemota] = useState(false);
+  const [semCamera, setSemCamera] = useState(false);
+  const [reduzirRuido, setReduzirRuido] = useState(true);
+  /** A sua câmera (espelhada, como um espelho) e a do outro lado. */
+  const cameraLocalRef = useRef<HTMLVideoElement>(null);
+  const cameraRemotaRef = useRef<HTMLVideoElement>(null);
+  /** Relê a lista de aparelhos — preenchida quando a sala conecta. */
+  const lerAparelhosRef = useRef<() => Promise<void>>(async () => {});
   /** Celular não compartilha tela pelo navegador — o botão não promete. */
   const [podeTela, setPodeTela] = useState(true);
   useEffect(() => {
@@ -145,25 +215,87 @@ export function CallOverlay({
           setNaSala([...sala.remoteParticipants.values()].map((p) => p.identity));
         };
 
+        /*
+         * A câmera do outro lado. Desligar a câmera no LiveKit silencia a
+         * faixa em vez de tirá-la da sala, então a pergunta é sempre "alguém
+         * tem câmera acesa agora?", refeita a cada evento que pode mudar isso.
+         */
+        const conferirCameraRemota = () => {
+          if (!vivo || !sala) return;
+          for (const p of sala.remoteParticipants.values()) {
+            const pub = p.getTrackPublication(Track.Source.Camera);
+            if (pub?.track && !pub.isMuted && cameraRemotaRef.current) {
+              pub.track.attach(cameraRemotaRef.current);
+              setCameraRemota(true);
+              return;
+            }
+          }
+          setCameraRemota(false);
+        };
+
+        const lerAparelhos = async () => {
+          const kinds: DeviceKind[] = ["audioinput", "audiooutput", "videoinput"];
+          try {
+            const listas = await Promise.all(
+              kinds.map((k) => Room.getLocalDevices(k, false)),
+            );
+            if (!vivo || !sala) return;
+            const atual = sala;
+            setAparelhos({
+              audioinput: toDeviceOptions(listas[0], "audioinput"),
+              audiooutput: toDeviceOptions(listas[1], "audiooutput"),
+              videoinput: toDeviceOptions(listas[2], "videoinput"),
+            });
+            setAtivos((a) => ({
+              audioinput: atual.getActiveDevice("audioinput") ?? a.audioinput,
+              audiooutput: atual.getActiveDevice("audiooutput") ?? a.audiooutput,
+              videoinput: atual.getActiveDevice("videoinput") ?? a.videoinput,
+            }));
+          } catch {
+            // Sem lista, o menu mostra "Nenhum encontrado" — a chamada segue.
+          }
+        };
+        lerAparelhosRef.current = lerAparelhos;
+
         sala
           .on(RoomEvent.ParticipantConnected, anotarQuemEsta)
-          .on(RoomEvent.ParticipantDisconnected, anotarQuemEsta)
+          .on(RoomEvent.ParticipantDisconnected, (() => {
+            anotarQuemEsta();
+            conferirCameraRemota();
+          }) as never)
           .on(RoomEvent.TrackSubscribed, ((faixa: Faixa) => {
             if (!vivo) return;
             if (faixa.kind === Track.Kind.Audio) {
               // A voz das outras pessoas: elemento fora da tela, só para tocar.
-              audioRef.current?.appendChild(faixa.attach());
+              const el = faixa.attach();
+              audioRef.current?.appendChild(el);
+              // A saída escolhida no menu vale também para quem entra depois.
+              const saida = ativosRef.current.audiooutput;
+              if (saida) void sala?.switchActiveDevice("audiooutput", saida);
               return;
             }
             if (faixa.source === Track.Source.ScreenShare && videoRef.current) {
               faixa.attach(videoRef.current);
               setTemTela(true);
+              return;
             }
+            if (faixa.source === Track.Source.Camera) conferirCameraRemota();
           }) as never)
           .on(RoomEvent.TrackUnsubscribed, ((faixa: Faixa) => {
-            faixa.detach().forEach((el) => el.remove());
+            const els = faixa.detach();
+            if (faixa.kind === Track.Kind.Audio) {
+              // Só os <audio> fomos nós que criamos. Os <video> da tela e da
+              // câmera são da página: tirá-los do DOM faria o próximo
+              // compartilhamento não ter onde aparecer.
+              els.forEach((el) => el.remove());
+              return;
+            }
             if (faixa.source === Track.Source.ScreenShare) setTemTela(false);
+            if (faixa.source === Track.Source.Camera) conferirCameraRemota();
           }) as never)
+          .on(RoomEvent.TrackMuted, conferirCameraRemota)
+          .on(RoomEvent.TrackUnmuted, conferirCameraRemota)
+          .on(RoomEvent.MediaDevicesChanged, (() => void lerAparelhos()) as never)
           // Só é interrupção se não fomos nós que desligamos.
           .on(RoomEvent.Disconnected, (() => {
             if (vivo && salaRef.current === sala) setEstado("erro");
@@ -172,7 +304,11 @@ export function CallOverlay({
         await sala.connect(media.url, media.token);
         if (!vivo) return;
         try {
-          await sala.localParticipant.setMicrophoneEnabled(true);
+          await sala.localParticipant.setMicrophoneEnabled(true, {
+            noiseSuppression: true,
+            echoCancellation: true,
+            autoGainControl: true,
+          });
         } catch {
           /*
            * Microfone recusado (ou nenhum no computador). Isso não é queda:
@@ -186,6 +322,10 @@ export function CallOverlay({
         // A chamada nasce de um clique, então o navegador deixa o áudio tocar.
         await sala.startAudio().catch(() => undefined);
         anotarQuemEsta();
+        setSaidaSuportada(escolheSaida());
+        // Depois do microfone: antes da permissão o navegador esconde os nomes.
+        await lerAparelhos();
+        if (!vivo) return;
         setEstado("na-chamada");
 
         if (withScreen) {
@@ -250,7 +390,10 @@ export function CallOverlay({
   // Esc encerra, como fecha qualquer sobreposição do produto.
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
-      if (e.key === "Escape") void encerrar();
+      if (e.key !== "Escape") return;
+      // Com o menu aberto, o Esc fecha o menu — não derruba a chamada.
+      if (menuAbertoRef.current) return setMenuAberto(false);
+      void encerrar();
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
@@ -268,6 +411,61 @@ export function CallOverlay({
     } catch {
       setMudo(!proximo);
       setSemMicrofone(true);
+    }
+  }
+
+  async function trocarAparelho(kind: DeviceKind, id: string) {
+    const sala = salaRef.current;
+    if (!sala) return;
+    const antes = ativos[kind];
+    setAtivos((a) => ({ ...a, [kind]: id }));
+    try {
+      const ok = await sala.switchActiveDevice(kind, id);
+      if (!ok) throw new Error("troca recusada");
+    } catch {
+      // Aparelho desconectado no meio do caminho: volta a marcar o anterior.
+      setAtivos((a) => ({ ...a, [kind]: antes }));
+    }
+  }
+
+  async function alternarCamera() {
+    const sala = salaRef.current;
+    if (!sala) return;
+    const proximo = !camera;
+    try {
+      const pub = await sala.localParticipant.setCameraEnabled(proximo, {
+        deviceId: ativos.videoinput,
+      });
+      setCamera(proximo);
+      setSemCamera(false);
+      if (proximo && pub?.track && cameraLocalRef.current) {
+        pub.track.attach(cameraLocalRef.current);
+      }
+      // A primeira permissão de câmera é o que libera o nome delas na lista.
+      if (proximo) void lerAparelhosRef.current();
+    } catch {
+      setCamera(false);
+      setSemCamera(true);
+    }
+  }
+
+  async function alternarReduzirRuido() {
+    const sala = salaRef.current;
+    if (!sala) return;
+    const proximo = !reduzirRuido;
+    setReduzirRuido(proximo);
+    // O filtro é do navegador: mudar exige reabrir o microfone com a regra nova.
+    const { Track } = await import("livekit-client");
+    const faixa = sala.localParticipant.getTrackPublication(Track.Source.Microphone)?.track;
+    try {
+      await faixa?.restartTrack?.({
+        deviceId: ativos.audioinput,
+        noiseSuppression: proximo,
+        echoCancellation: true,
+        autoGainControl: true,
+      });
+    } catch {
+      setReduzirRuido(!proximo);
     }
   }
 
@@ -335,12 +533,21 @@ export function CallOverlay({
         />
 
         <div className="flex items-center gap-3">
-          <CallAvatar name={me.name} label="Você" falando={ativo && !mudo} />
+          <CallAvatar
+            name={me.name}
+            label="Você"
+            falando={ativo && !mudo}
+            videoRef={cameraLocalRef}
+            comVideo={ativo && camera}
+            espelhado
+          />
           <span className="h-px w-6 bg-border" aria-hidden="true" />
           <CallAvatar
             name={doOutroLado ?? detail.title}
             label={doOutroLado ?? detail.title}
             falando={ativo && naSala.length > 0}
+            videoRef={cameraRemotaRef}
+            comVideo={ativo && cameraRemota}
           />
           {extras > 0 && (
             <span className="flex h-[52px] w-[52px] items-center justify-center rounded-pill border border-dashed border-border text-[12px] font-medium text-muted">
@@ -366,6 +573,12 @@ export function CallOverlay({
         {estado === "entrando" && (
           <p className="text-[11px] text-muted">Pedindo o microfone…</p>
         )}
+        {ativo && semCamera && (
+          <p className="max-w-[280px] text-center text-[11px] leading-[16px] text-muted">
+            A câmera não abriu — o navegador não liberou, ou outro programa
+            está usando. Libere no cadeado da barra de endereço e tente de novo.
+          </p>
+        )}
         {ativo && semMicrofone && (
           <p className="max-w-[280px] text-center text-[11px] leading-[16px] text-muted">
             O navegador não liberou o microfone. Você ouve a chamada e pode
@@ -374,40 +587,68 @@ export function CallOverlay({
           </p>
         )}
 
-        <div className="flex items-center gap-3">
-          <CallButton
-            label={mudo ? "Tirar do mudo" : "Ficar no mudo"}
-            onClick={alternarMudo}
-            disabled={!ativo}
-            active={mudo}
-          >
-            {mudo ? <MicOffIcon size={18} /> : <MicIcon size={18} />}
-          </CallButton>
-          <CallButton
-            label={
-              !podeTela
-                ? "Este navegador não compartilha tela"
-                : compartilhando
-                  ? "Parar de compartilhar"
-                  : "Compartilhar tela"
-            }
-            onClick={alternarTela}
-            disabled={!ativo || !podeTela}
-            active={compartilhando}
-          >
-            <ScreenShareIcon size={18} />
-          </CallButton>
-          <button
-            type="button"
-            onClick={encerrar}
-            aria-label="Encerrar chamada"
-            title="Encerrar chamada"
-            autoFocus
-            className="tap flex h-control w-control items-center justify-center rounded-pill bg-primary text-on-primary transition-colors hover:bg-white focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-fg-3"
-          >
-            <PhoneOffIcon size={18} />
-          </button>
-        </div>
+        <Popover
+          open={menuAberto && ativo}
+          onClose={() => setMenuAberto(false)}
+          side="top"
+          align="center"
+          trigger={
+            <div className="flex items-center gap-3">
+              <CallButton
+                label="Ajustes de áudio e vídeo"
+                onClick={() => setMenuAberto((m) => !m)}
+                disabled={!ativo}
+                active={menuAberto}
+                menu
+              >
+                <Settings2Icon size={18} />
+              </CallButton>
+              <CallButton
+                label={mudo ? "Tirar do mudo" : "Ficar no mudo"}
+                onClick={alternarMudo}
+                disabled={!ativo}
+                active={mudo}
+              >
+                {mudo ? <MicOffIcon size={18} /> : <MicIcon size={18} />}
+              </CallButton>
+              <CallButton
+                label={
+                  !podeTela
+                    ? "Este navegador não compartilha tela"
+                    : compartilhando
+                      ? "Parar de compartilhar"
+                      : "Compartilhar tela"
+                }
+                onClick={alternarTela}
+                disabled={!ativo || !podeTela}
+                active={compartilhando}
+              >
+                <ScreenShareIcon size={18} />
+              </CallButton>
+              <button
+                type="button"
+                onClick={encerrar}
+                aria-label="Encerrar chamada"
+                title="Encerrar chamada"
+                autoFocus
+                className="tap flex h-control w-control items-center justify-center rounded-pill bg-primary text-on-primary transition-colors hover:bg-white focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-fg-3"
+              >
+                <PhoneOffIcon size={18} />
+              </button>
+            </div>
+          }
+        >
+          <CallSettingsMenu
+            devices={aparelhos}
+            active={ativos}
+            onSelect={trocarAparelho}
+            camera={camera}
+            onToggleCamera={alternarCamera}
+            noiseSuppression={reduzirRuido}
+            onToggleNoiseSuppression={alternarReduzirRuido}
+            outputSupported={saidaSuportada}
+          />
+        </Popover>
       </div>
 
       {/* A voz das outras pessoas mora aqui — som, sem nada para ver. */}
@@ -420,21 +661,47 @@ function CallAvatar({
   name,
   label,
   falando,
+  videoRef,
+  comVideo,
+  espelhado,
 }: {
   name: string;
   label: string;
   falando?: boolean;
+  /** Onde a câmera desta pessoa é pendurada. Fica montado sempre. */
+  videoRef: React.RefObject<HTMLVideoElement | null>;
+  /** A câmera está acesa: o vídeo toma o lugar das iniciais. */
+  comVideo?: boolean;
+  /** A sua própria imagem vem espelhada, como em qualquer espelho. */
+  espelhado?: boolean;
 }) {
   return (
     <div className="flex flex-col items-center gap-2">
+      {/*
+       * Câmera no lugar do avatar, no mesmo círculo, só maior. O export não
+       * desenha a chamada com câmera — este é o arranjo que não mexe em mais
+       * nada do popup até o desenho chegar.
+       */}
       <span
         className={cn(
-          "flex h-[52px] w-[52px] items-center justify-center rounded-pill bg-border-strong text-[16px] font-semibold text-fg transition-shadow",
+          "relative flex items-center justify-center overflow-hidden rounded-pill bg-border-strong text-[16px] font-semibold text-fg transition-all",
+          comVideo ? "h-[96px] w-[96px]" : "h-[52px] w-[52px]",
           falando && "inset-ring-2 inset-ring-fg-3",
         )}
         aria-hidden="true"
       >
-        {initialsOf(name)}
+        <video
+          ref={videoRef}
+          autoPlay
+          playsInline
+          muted
+          className={cn(
+            "absolute inset-0 h-full w-full object-cover",
+            espelhado && "-scale-x-100",
+            !comVideo && "hidden",
+          )}
+        />
+        {!comVideo && initialsOf(name)}
       </span>
       <span className="max-w-[96px] truncate text-[11px] text-fg-3">{label}</span>
     </div>
@@ -445,12 +712,15 @@ function CallButton({
   label,
   disabled,
   active,
+  menu,
   onClick,
   children,
 }: {
   label: string;
   disabled?: boolean;
   active?: boolean;
+  /** Abre um menu: anuncia isso em vez de "apertado/solto". */
+  menu?: boolean;
   onClick?: () => void;
   children: React.ReactNode;
 }) {
@@ -458,7 +728,9 @@ function CallButton({
     <button
       type="button"
       aria-label={label}
-      aria-pressed={active}
+      aria-pressed={menu ? undefined : active}
+      aria-haspopup={menu ? "menu" : undefined}
+      aria-expanded={menu ? active : undefined}
       title={label}
       disabled={disabled}
       onClick={onClick}
