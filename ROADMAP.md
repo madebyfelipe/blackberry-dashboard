@@ -1,6 +1,6 @@
 # Roadmap — black berry
 
-Documento vivo. Marca o que já existe, o que falta **desenhar** (você) e o que falta **construir** (Claude), até o fim do projeto. Última atualização: **21 set 2026** (design system v3 nas telas redesenhadas + tela de Clientes + descrição da tarefa).
+Documento vivo. Marca o que já existe, o que falta **desenhar** (você) e o que falta **construir** (Claude), até o fim do projeto. Última atualização: **22 set 2026** (`npm run lint` de volta; duas dívidas desatualizadas removidas — o lote já cabe no celular e a lista de Tarefas não mostra mais prévia de descrição).
 
 Legenda: ✅ pronto · 🟡 parcial/placeholder · ⬜ não começado · 🎨 precisa de tela sua antes de eu construir
 
@@ -85,6 +85,7 @@ Legenda: ✅ pronto · 🟡 parcial/placeholder · ⬜ não começado · 🎨 pr
 - ✅ **Configurações**: perfil, troca de senha e sessão
 - ⬜ Inbox, Notificações, Conversas, Relatórios, Membros (hoje placeholders — todos aparecem na lateral do v3)
 - ✅ **Testes automatizados** (`tests/`, runner do próprio Node, 217 casos das funções puras, incluindo o isolamento entre agências e a régua de clientes) **+ CI** (`.github/workflows/ci.yml`: tipos, testes e build a cada push e pull request)
+- ✅ **`npm run lint` volta a funcionar**: o Next 16 removeu o `next lint`; entrou ESLint direto (`eslint.config.mjs`, flat config) com `eslint-config-next/core-web-vitals` + `/typescript`. Duas regras novas do plugin de React Compiler (`react-hooks/set-state-in-effect`, `react-hooks/refs`) ficaram desligadas — pegam padrões usados de propósito em várias telas (sincronizar estado com uma prop que muda, ler `ref.current` para medir menu/toolbar); satisfazê-las seria reescrever esses componentes, não corrigir lint. Ainda fora do CI, que continua só com tipos/testes/build.
 
 ## Fora do MVP (não construir sem pedido)
 Agendamento/publicação automática · métricas de redes · financeiro · NF/boleto · timesheet · CRM de prospecção.
@@ -113,12 +114,9 @@ Quem decide o quê e como o trabalho passa entre Felipe e Claude está em `FLUXO
 
 ### Dívidas conhecidas
 - `AUTH_SECRET` não está definido na Vercel. O código já não aceita mais rodar assim: em produção sem o segredo o servidor recusa subir (`src/instrumentation.ts`) e assinar/conferir cookie lança (`src/lib/auth/token.ts`) — não existe mais o silêncio de cair no segredo de desenvolvimento. Falta o Felipe definir a variável no painel (`openssl rand -base64 32` → Settings → Environment Variables); até lá, a instância em produção não sobe.
-- A tela de lote (grade de peças + painel de detalhe) ainda não foi adaptada ao celular (o shell já foi; o editor, reconstruído na issue #2, já cabe em 390px).
 - O `json-file.ts` relê pelo mtime, mas dois processos ainda podem se sobrepor num leitura-altera-grava simultâneo: é o preço de arquivo como banco. **Some com o Postgres** (`postgres.ts`, lock de linha) assim que `DATABASE_URL` estiver definida — até lá, produção sem a variável segue no arquivo/memória de sempre.
 - As artes são servidas como foram enviadas, sem derivadas leves.
 - **As telas de aprovação seguem no design system v2.** O redesenho chegou só para Tarefas, Descrição da tarefa e Clientes; Social media, Lote, Editor de lote e o link público continuam com a linguagem antiga até virem os exports v3 delas.
 - **Contraste dos selos de status da tarefa.** O export v3 desenha "Concluído" (#565656), "Pausado" (#5a5a5a) e "Cancelado" (#404040) sobre o fundo #1f1f1f do selo — entre 1,3:1 e 1,7:1, bem abaixo dos 4,5:1. Está implementado exatamente como desenhado; se a leitura incomodar, é uma decisão de design do Felipe (clarear o texto ou escurecer o fundo), não minha.
 - **O menu de visualização de Clientes tem três leituras minhas, e o Felipe decide se ficam.** (1) A seção "Filtros" do desenho tem o rótulo "Agrupamento" com uma pílula escrita "Status", e "Agrupamento" já existe na seção Organização logo abaixo — implementei como atalho de filtro por status (rótulo "Status", pílula "Todos"), porque é a leitura que não deixa duas linhas iguais fazendo coisas diferentes. (2) "Mostrar arquivados" esconde os **pausados**: cliente não tem estado de arquivo, e Pausado é o degrau que faz esse papel — a chave nasce ligada, para a lista não começar escondendo cliente. (3) Dos chips de coluna apagados do desenho (Vencimento, Renovação, Risco, Tags, Criado em, Atualizado em) só "Criado em" existe: os outros não têm campo no modelo, e chip que não liga nada é pior que chip que não existe
-- **A prévia da descrição na lista de Tarefas mostra o markdown cru.** A tela da tarefa já mostra formatado; a célula da lista e a busca continuam vendo a string como ela é. Quando incomodar, é um `stripMarkdown` em cima de `parseMarkdown` — sem mudar dado
-- **`npm run lint` não roda**: o Next 16 tirou o `next lint` e o script de `package.json` ficou para trás (ele trata "lint" como diretório). O CI não usa o script — roda tipos, testes e build —, então ninguém tropeçou nisso ainda
 - Não existe **convite de equipe**: cada cadastro abre uma agência nova, então duas pessoas da mesma agência ainda não compartilham o mesmo tenant.
