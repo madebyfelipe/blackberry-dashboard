@@ -22,7 +22,7 @@ const {
   BrowserWindow,
   Menu,
   Tray,
-  desktopCapturer,
+  WebContentsView,
   dialog,
   globalShortcut,
   ipcMain,
@@ -36,6 +36,7 @@ const {
   isAppUrl,
   resolveAppOrigin,
 } = require("./policy");
+const { escolherFonte } = require("./screen-picker");
 const { circlePng } = require("./tray-icon");
 const pkg = require("../package.json");
 
@@ -49,8 +50,13 @@ const ATALHO_MUDO = "CommandOrControl+Shift+M";
 /** No Linux a bandeja depende do ambiente gráfico: lá, fechar é sair. */
 const FICA_NA_BANDEJA = process.platform !== "linux";
 
+/** Altura da barra de título preta, acima do site. */
+const ALTURA_BARRA = 32;
+
 /** @type {BrowserWindow | null} */
 let janela = null;
+/** A página do black berry, abaixo da barra de título. @type {Electron.WebContents | null} */
+let pagina = null;
 /** @type {Tray | null} */
 let bandeja = null;
 let saindo = false;
@@ -102,22 +108,24 @@ function protegerSessao(sessao) {
   );
 
   /*
-   * Tela compartilhada. O Electron não tem o seletor do Chrome: no macOS usa
-   * o seletor do próprio sistema (`useSystemPicker`); no Windows e no Linux,
-   * sem tela desenhada para escolher janela, compartilha a tela principal.
-   * O seletor com miniaturas é 🎨 — ver ROADMAP.
+   * Tela compartilhada. O Electron não tem o seletor do Chrome: no macOS 15+
+   * vale o do próprio sistema (`useSystemPicker`, e aí este handler nem roda);
+   * no resto abre o nosso (screen-picker.js), com janelas e telas como o do
+   * Discord. Cancelar devolve `{}`, e o getDisplayMedia da página rejeita.
    */
   sessao.setDisplayMediaRequestHandler(
     async (request, callback) => {
-      if (!isAppUrl(request.securityOrigin || request.frame?.url || "", APP_ORIGIN)) {
+      if (!janela || !isAppUrl(request.securityOrigin || request.frame?.url || "", APP_ORIGIN)) {
         return callback({});
       }
       try {
-        const [tela] = await desktopCapturer.getSources({ types: ["screen"] });
-        if (!tela) return callback({});
-        const audio =
-          request.audioRequested && process.platform === "win32" ? "loopback" : undefined;
-        callback(audio ? { video: tela, audio } : { video: tela });
+        const escolha = await escolherFonte(janela);
+        if (!escolha) return callback({});
+        callback(
+          escolha.audio && request.audioRequested
+            ? { video: escolha.source, audio: "loopback" }
+            : { video: escolha.source },
+        );
       } catch {
         callback({});
       }
@@ -158,6 +166,27 @@ function criarJanela() {
     title: "black berry",
     backgroundColor: "#000000",
     autoHideMenuBar: true,
+    /*
+     * Barra de título preta, a cor do fundo do app: a janela esconde a barra
+     * do sistema e desenha a sua (titlebar.html); os botões de janela seguem
+     * sendo os do sistema, pintados por cima.
+     */
+    titleBarStyle: "hidden",
+    ...(process.platform === "darwin"
+      ? { trafficLightPosition: { x: 12, y: 10 } }
+      : { titleBarOverlay: { color: "#000000", symbolColor: "#ffffff", height: ALTURA_BARRA } }),
+    webPreferences: {
+      contextIsolation: true,
+      sandbox: true,
+      nodeIntegration: false,
+    },
+  });
+
+  janela.webContents.on("will-navigate", (event) => event.preventDefault());
+  void janela.loadFile(path.join(__dirname, "titlebar.html"));
+
+  // O site mora numa view abaixo da barra, ocupando o resto da janela.
+  const view = new WebContentsView({
     webPreferences: {
       preload: path.join(__dirname, "preload.js"),
       contextIsolation: true,
@@ -168,10 +197,34 @@ function criarJanela() {
       spellcheck: true,
     },
   });
+  view.setBackgroundColor("#000000");
+  janela.contentView.addChildView(view);
+  const encaixar = () => {
+    if (!janela || janela.isDestroyed()) return;
+    const { width, height } = janela.getContentBounds();
+    // Em tela cheia não há barra de título.
+    const topo = janela.isFullScreen() ? 0 : ALTURA_BARRA;
+    view.setBounds({ x: 0, y: topo, width, height: Math.max(0, height - topo) });
+  };
+  encaixar();
+  janela.on("resize", encaixar);
+  janela.on("enter-full-screen", encaixar);
+  janela.on("leave-full-screen", encaixar);
+  // O teclado vai para o site, não para a barra.
+  janela.on("focus", () => pagina?.focus());
 
-  janela.once("ready-to-show", () => janela?.show());
+  /*
+   * Não dá para esperar o `ready-to-show`: coberta pela view, a barra nunca
+   * pinta e o evento não vem. A barra é um arquivo local e o fundo da janela
+   * já é preto, então mostrar assim que ela carrega não pisca nada.
+   */
+  janela.webContents.once("did-finish-load", () => janela?.show());
 
-  const wc = janela.webContents;
+  const wc = view.webContents;
+  pagina = wc;
+  // Tela cheia pedida pelo site (o vídeo da chamada) vira tela cheia da janela.
+  wc.on("enter-html-full-screen", () => janela?.setFullScreen(true));
+  wc.on("leave-html-full-screen", () => janela?.setFullScreen(false));
 
   // Link de fora da origem abre no navegador do sistema; nunca dentro do app.
   wc.setWindowOpenHandler(({ url }) => {
@@ -215,9 +268,11 @@ function criarJanela() {
   });
   janela.on("closed", () => {
     janela = null;
+    pagina = null;
+    if (!wc.isDestroyed()) wc.close();
   });
 
-  void janela.loadURL(APP_ORIGIN);
+  void wc.loadURL(APP_ORIGIN);
 }
 
 /* -------------------------------------------------------------- bandeja -- */
@@ -262,13 +317,13 @@ app.on("will-quit", () => globalShortcut.unregisterAll());
  */
 function ouvirChamada() {
   ipcMain.on("desktop:em-chamada", (event, emChamada) => {
-    if (!janela || event.sender !== janela.webContents) return;
+    if (!pagina || event.sender !== pagina) return;
     if (!isAppUrl(event.senderFrame?.url ?? "", APP_ORIGIN)) return;
 
     if (emChamada === true) {
       if (globalShortcut.isRegistered(ATALHO_MUDO)) return;
       globalShortcut.register(ATALHO_MUDO, () => {
-        janela?.webContents.send("desktop:alternar-mudo");
+        pagina?.send("desktop:alternar-mudo");
       });
     } else {
       globalShortcut.unregister(ATALHO_MUDO);

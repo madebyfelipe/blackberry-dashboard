@@ -12,6 +12,8 @@ O que o desktop acrescenta ao navegador:
 | Fechar a janela | encerra o Inbox e a chamada | fica na **bandeja** (Windows e macOS) e continua recebendo mensagem e chamada |
 | Mudo na chamada | só com a aba em foco | **Ctrl/Cmd+Shift+M** funciona com qualquer janela na frente, ligado só durante a chamada |
 | Microfone, câmera, tela | pergunta a cada site | liberados para o black berry, e **só** para ele; o resto (localização, USB…) é recusado |
+| Compartilhar tela | seletor do navegador | seletor próprio com **Janelas** e **Telas** (miniaturas) e "Compartilhar o som" no Windows; no macOS 15+ o do sistema |
+| Barra de título | a do navegador | **preta**, a cor do fundo do app |
 | Link externo (WhatsApp, e-mail) | abre outra aba | abre no navegador/app do sistema |
 | Abrir o app duas vezes | duas abas | traz a janela que já existe |
 
@@ -29,7 +31,7 @@ Para apontar para outro endereço sem mexer em nada: `npx electron . --url=https
 
 ## Gerando o instalador
 
-1. Preencha `blackberry.url` no `package.json` desta pasta com o endereço de produção (https).
+1. `blackberry.url` no `package.json` desta pasta é o endereço de produção (hoje `https://ragick-xi.vercel.app`).
 2. Em cada sistema, rode o comando dele — o instalador sai em `desktop/dist/`:
    - macOS: `npm run dist:mac` → `.dmg`
    - Windows: `npm run dist:win` → instalador `.exe`
@@ -57,6 +59,8 @@ global. No navegador comum a ponte não existe e a página segue igual.
 ## Arquivos
 
 - `src/main.js` — janela, bandeja, permissões, tela compartilhada, atalho.
+- `src/titlebar.html` — a barra de título preta (o site fica numa `WebContentsView` abaixo dela).
+- `src/screen-picker.js` e `src/picker/` — o seletor de tela compartilhada.
 - `src/policy.js` — as regras (qual endereço é do app, o que abre fora, quais permissões) — testadas em `tests/`.
 - `src/preload.js` — a ponte com a página.
 - `src/tray-icon.js` — ícone **provisório** da bandeja (um círculo gerado em código). O ícone de verdade é 🎨.
@@ -64,6 +68,5 @@ global. No navegador comum a ponte não existe e a página segue igual.
 ## O que ainda falta
 
 - 🎨 **Ícone do app e da bandeja.** Hoje o app usa o ícone padrão do Electron e a bandeja um círculo branco.
-- 🎨 **Escolher o que compartilhar.** No macOS aparece o seletor do próprio sistema; no Windows e no Linux o app compartilha a tela principal inteira, porque escolher a janela pede uma tela que ainda não foi desenhada.
 - ⬜ **Atualização automática do instalador** (electron-updater) — só faz falta quando esta pasta mudar, já que as telas vêm do site.
 - ⬜ **Aviso de chamada recebida com o app escondido** — depende da notificação de chamada do app web (ROADMAP); o desktop já mantém a página viva na bandeja para ela funcionar.

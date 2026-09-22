@@ -1,21 +1,21 @@
 {
   "name": "blackberry-desktop",
   "productName": "black berry",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "description": "App de desktop do black berry — uma janela Electron que abre o black berry publicado.",
   "main": "src/main.js",
   "scripts": {
     "start": "electron .",
     "dev": "electron . --url=http://localhost:3000",
-    "check": "node --check src/main.js && node --check src/preload.js && node --check src/tray-icon.js && node --check src/policy.js && node --test \"tests/**/*.test.js\"",
+    "check": "node --check src/main.js && node --check src/preload.js && node --check src/tray-icon.js && node --check src/policy.js && node --check src/screen-picker.js && node --check src/picker/picker.js && node --check src/picker/picker-preload.js && node --test \"tests/**/*.test.js\"",
     "dist": "electron-builder",
     "dist:mac": "electron-builder --mac",
     "dist:win": "electron-builder --win",
     "dist:linux": "electron-builder --linux"
   },
   "blackberry": {
-    "url": ""
+    "url": "https://ragick-xi.vercel.app"
   },
   "devDependencies": {
     "electron": "^44.4.4",
