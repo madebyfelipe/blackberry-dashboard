@@ -5,7 +5,7 @@ import { cn } from "@/lib/cn";
 import { MicIcon, MicOffIcon, PhoneOffIcon, ScreenShareIcon } from "@/components/icons";
 import type { ConversationDetail, InboxMember } from "@/lib/inbox/types";
 import { callClock, initialsOf } from "@/lib/inbox/view";
-import { apiJoinCall, apiLeaveCall } from "./api";
+import { apiJoinCall, apiLeaveCall, leaveCallOnExit } from "./api";
 
 /*
  * A chamada, no popup que o Felipe pediu: os dois avatares frente a frente, o
@@ -70,6 +70,21 @@ export function CallOverlay({
   /** A tela compartilhada, quando alguém está compartilhando. */
   const videoRef = useRef<HTMLVideoElement>(null);
   const [temTela, setTemTela] = useState(false);
+  /** O navegador recusou o microfone: a chamada segue, ouvindo e mostrando tela. */
+  const [semMicrofone, setSemMicrofone] = useState(false);
+  /** Celular não compartilha tela pelo navegador — o botão não promete. */
+  const [podeTela, setPodeTela] = useState(true);
+  useEffect(() => {
+    setPodeTela(typeof navigator.mediaDevices?.getDisplayMedia === "function");
+  }, []);
+  /**
+   * Já avisamos o servidor que saímos? A saída tem três portas (o botão, a
+   * aba fechando, a tela desmontando) e só a primeira que passar avisa.
+   */
+  const saiuRef = useRef(false);
+  const entrouRef = useRef(false);
+  /** Qual montagem do efeito de entrada é a atual (o modo estrito monta duas). */
+  const rodadaRef = useRef(0);
 
   // Cronômetro. Começa quando a chamada entra em tela, não no render.
   useEffect(() => {
@@ -86,6 +101,7 @@ export function CallOverlay({
   useEffect(() => {
     let vivo = true;
     let sala: Sala | null = null;
+    const rodada = ++rodadaRef.current;
 
     (async () => {
       let media;
@@ -96,7 +112,18 @@ export function CallOverlay({
         setEstado("erro");
         return;
       }
-      if (!vivo) return;
+      if (!vivo) {
+        /*
+         * A tela fechou enquanto o servidor registrava a entrada — a saída
+         * que foi antes pode ter chegado primeiro que ela. Sem esta segunda
+         * saída a pessoa ficaria "na chamada" sem estar em lugar nenhum.
+         * Só vale se nenhuma montagem mais nova assumiu a chamada (o modo
+         * estrito do React monta o efeito duas vezes no `next dev`).
+         */
+        if (rodadaRef.current === rodada) leaveCallOnExit(detail.id);
+        return;
+      }
+      entrouRef.current = true;
       if (!media) {
         setEstado("sem-midia");
         return;
@@ -137,11 +164,25 @@ export function CallOverlay({
             faixa.detach().forEach((el) => el.remove());
             if (faixa.source === Track.Source.ScreenShare) setTemTela(false);
           }) as never)
-          .on(RoomEvent.Disconnected, (() => vivo && setEstado("erro")) as never);
+          // Só é interrupção se não fomos nós que desligamos.
+          .on(RoomEvent.Disconnected, (() => {
+            if (vivo && salaRef.current === sala) setEstado("erro");
+          }) as never);
 
         await sala.connect(media.url, media.token);
         if (!vivo) return;
-        await sala.localParticipant.setMicrophoneEnabled(true);
+        try {
+          await sala.localParticipant.setMicrophoneEnabled(true);
+        } catch {
+          /*
+           * Microfone recusado (ou nenhum no computador). Isso não é queda:
+           * a pessoa ainda ouve o outro lado e pode mostrar a tela. Ela entra
+           * no mudo, e o aviso diz como destravar.
+           */
+          if (!vivo) return;
+          setSemMicrofone(true);
+          setMudo(true);
+        }
         // A chamada nasce de um clique, então o navegador deixa o áudio tocar.
         await sala.startAudio().catch(() => undefined);
         anotarQuemEsta();
@@ -166,15 +207,39 @@ export function CallOverlay({
 
     return () => {
       vivo = false;
-      void sala?.disconnect();
       salaRef.current = null;
+      void sala?.disconnect();
+      // Saiu da tela sem apertar encerrar (trocou de página no meio da
+      // chamada): o servidor precisa saber, ou a chamada fica fantasma.
+      if (entrouRef.current && !saiuRef.current) {
+        saiuRef.current = true;
+        leaveCallOnExit(detail.id);
+      }
     };
   }, [detail.id, withScreen]);
+
+  /*
+   * Aba fechando, recarregando ou o celular matando a página: nada de
+   * `await` chega a rodar aqui, então a saída vai num pedido que o navegador
+   * termina de mandar sozinho. Sem isso a pessoa ficava presa na chamada até
+   * o registro envelhecer (4h), e o "Chamada em andamento" mentia esse tempo.
+   */
+  useEffect(() => {
+    function onPageHide() {
+      if (!entrouRef.current || saiuRef.current) return;
+      saiuRef.current = true;
+      leaveCallOnExit(detail.id);
+    }
+    window.addEventListener("pagehide", onPageHide);
+    return () => window.removeEventListener("pagehide", onPageHide);
+  }, [detail.id]);
 
   async function encerrar() {
     const sala = salaRef.current;
     salaRef.current = null;
     await sala?.disconnect().catch(() => undefined);
+    if (saiuRef.current) return onClose();
+    saiuRef.current = true;
     try {
       onClose(await apiLeaveCall(detail.id));
     } catch {
@@ -199,8 +264,10 @@ export function CallOverlay({
     setMudo(proximo);
     try {
       await sala.localParticipant.setMicrophoneEnabled(!proximo);
+      if (!proximo) setSemMicrofone(false);
     } catch {
       setMudo(!proximo);
+      setSemMicrofone(true);
     }
   }
 
@@ -299,6 +366,13 @@ export function CallOverlay({
         {estado === "entrando" && (
           <p className="text-[11px] text-muted">Pedindo o microfone…</p>
         )}
+        {ativo && semMicrofone && (
+          <p className="max-w-[280px] text-center text-[11px] leading-[16px] text-muted">
+            O navegador não liberou o microfone. Você ouve a chamada e pode
+            mostrar a tela; para falar, libere o microfone no cadeado da barra
+            de endereço e tire do mudo.
+          </p>
+        )}
 
         <div className="flex items-center gap-3">
           <CallButton
@@ -310,9 +384,15 @@ export function CallOverlay({
             {mudo ? <MicOffIcon size={18} /> : <MicIcon size={18} />}
           </CallButton>
           <CallButton
-            label={compartilhando ? "Parar de compartilhar" : "Compartilhar tela"}
+            label={
+              !podeTela
+                ? "Este navegador não compartilha tela"
+                : compartilhando
+                  ? "Parar de compartilhar"
+                  : "Compartilhar tela"
+            }
             onClick={alternarTela}
-            disabled={!ativo}
+            disabled={!ativo || !podeTela}
             active={compartilhando}
           >
             <ScreenShareIcon size={18} />

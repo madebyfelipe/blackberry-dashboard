@@ -57,7 +57,7 @@ export function InboxView({
   initialConversation: ConversationDetail | null;
 }) {
   const { toast } = useToast();
-  const { eventos, conectado, online, assinar } = useRealtime();
+  const { eventos, conectado, online, assinar, renovar } = useRealtime();
   const [state, setState] = useState(snapshot);
   const [detail, setDetail] = useState<ConversationDetail | null>(
     initialConversation,
@@ -179,16 +179,31 @@ export function InboxView({
   useEffect(() => {
     if (!eventos || !conectado) return;
     const agencyId = state.me.agencyId;
-    const cancelar = idsAssinados
-      .split(",")
-      .filter(Boolean)
-      .map((id) =>
-        assinar(conversationChannel(agencyId, id), () => {
-          void refresh();
-        }),
-      );
-    return () => cancelar.forEach((parar) => parar());
-  }, [idsAssinados, eventos, conectado, assinar, state.me.agencyId, refresh]);
+    let vivo = true;
+    let cancelar: (() => void)[] = [];
+    (async () => {
+      /*
+       * Crachá novo antes de assinar. O crachá foi emitido quando o app
+       * abriu, com as conversas daquele instante: uma direta criada depois
+       * (por você ou por alguém com você) ficaria fora da permissão e o canal
+       * dela falharia calado até o crachá vencer, uma hora depois.
+       */
+      await renovar();
+      if (!vivo) return;
+      cancelar = idsAssinados
+        .split(",")
+        .filter(Boolean)
+        .map((id) =>
+          assinar(conversationChannel(agencyId, id), () => {
+            void refresh();
+          }),
+        );
+    })();
+    return () => {
+      vivo = false;
+      cancelar.forEach((parar) => parar());
+    };
+  }, [idsAssinados, eventos, conectado, assinar, renovar, state.me.agencyId, refresh]);
 
   /*
    * No desktop a conversa mais recente já vem aberta (é o que o desenho

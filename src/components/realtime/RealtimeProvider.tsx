@@ -50,8 +50,11 @@ type RealtimeCtx = {
   anunciar: (status: Presence) => void;
   /** Ouve o canal de uma conversa. Devolve a função de parar de ouvir. */
   assinar: (canal: string, ao: (evento: RealtimeEvent) => void) => () => void;
-  /** Renova o crachá — a permissão lista as conversas de quando foi emitida. */
-  renovar: () => void;
+  /**
+   * Renova o crachá — a permissão lista as conversas de quando foi emitida.
+   * Resolve quando o crachá novo já vale (ou quando falhou: quem espera segue).
+   */
+  renovar: () => Promise<void>;
 };
 
 const Ctx = createContext<RealtimeCtx>({
@@ -61,7 +64,7 @@ const Ctx = createContext<RealtimeCtx>({
   online: {},
   anunciar: () => {},
   assinar: () => () => {},
-  renovar: () => {},
+  renovar: async () => {},
 });
 
 export function useRealtime(): RealtimeCtx {
@@ -202,8 +205,8 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
     [],
   );
 
-  const renovar = useCallback(() => {
-    clientRef.current?.auth.authorize().catch(() => undefined);
+  const renovar = useCallback(async () => {
+    await clientRef.current?.auth.authorize().catch(() => undefined);
   }, []);
 
   const value = useMemo<RealtimeCtx>(
