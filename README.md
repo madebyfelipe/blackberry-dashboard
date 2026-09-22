@@ -289,6 +289,14 @@ Três decisões que vale saber antes de mexer:
   tela (12s, só com a aba à vista), não por push. Quando a camada entrar, ela
   substitui essas duas coisas — o resto da tela não muda.
 
+## App de desktop
+
+A pasta `desktop/` é o black berry para Windows, macOS e Linux: uma janela
+Electron que abre o site publicado, com bandeja, atalho global de mudo na
+chamada e permissões de microfone/câmera/tela só para a origem do app. Tem
+`package.json` próprio (fora do `tsconfig`, do ESLint e do build do Next) —
+como rodar, gerar o instalador e assinar está em `desktop/README.md`.
+
 ## Multi-tenant: isolamento por agência
 
 Toda tarefa e todo lote carrega um `agencyId`, e **nenhuma leitura ou escrita

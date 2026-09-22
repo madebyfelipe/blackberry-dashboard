@@ -15,6 +15,7 @@ import { callClock, initialsOf } from "@/lib/inbox/view";
 import { apiJoinCall, apiLeaveCall, apiTouchCall, leaveCallOnExit } from "./api";
 import { CALL_HEARTBEAT_MS } from "@/lib/inbox/call";
 import { CallSettingsMenu } from "./CallSettingsMenu";
+import { desktopBridge } from "@/lib/desktop";
 import {
   toDeviceOptions,
   type ActiveDevices,
@@ -448,6 +449,24 @@ export function CallOverlay({
     return () => window.removeEventListener("keydown", onKey);
     // `encerrar` só depende de refs e do id da conversa.
   }, [detail.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  /*
+   * No app de desktop, Ctrl/Cmd+Shift+M liga e desliga o microfone mesmo com
+   * outra janela na frente. O atalho só existe enquanto a sala está
+   * conectada — fora da chamada ele fica livre para os outros programas.
+   */
+  const alternarMudoRef = useRef(alternarMudo);
+  alternarMudoRef.current = alternarMudo;
+  useEffect(() => {
+    const desktop = desktopBridge();
+    if (!desktop || estado !== "na-chamada") return;
+    desktop.setInCall(true);
+    const parar = desktop.onToggleMute(() => void alternarMudoRef.current());
+    return () => {
+      parar();
+      desktop.setInCall(false);
+    };
+  }, [estado]);
 
   async function alternarMudo() {
     const sala = salaRef.current;

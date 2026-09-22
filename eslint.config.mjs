@@ -34,6 +34,9 @@ const eslintConfig = defineConfig([
     "next-env.d.ts",
     "data/**",
     "*-export.html",
+    // App de desktop: CommonJS do Electron, com a própria checagem
+    // (`npm run check` dentro de `desktop/`).
+    "desktop/**",
   ]),
 ]);
 
