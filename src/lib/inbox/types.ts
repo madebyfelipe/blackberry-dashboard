@@ -78,11 +78,17 @@ export type Conversation = {
    * estava com a tela aberta no segundo certo.
    *
    * Quem entra e quem sai grava aqui; a última pessoa a sair fecha a chamada
-   * e deixa a linha no histórico, com o nome de quem começou. Um navegador
-   * que morre sem avisar deixaria participante preso, então a leitura trata
-   * chamada velha demais como encerrada (ver `store.ts`).
+   * e deixa a linha no histórico, com o nome de quem começou. `seenAt` é o
+   * último "ainda estou aqui" de cada um: quem para de dar sinal sai sozinho,
+   * mesmo sem ter se despedido (ver `call.ts`).
    */
-  call: { startedBy: string; startedAt: string; memberIds: string[] } | null;
+  call: {
+    startedBy: string;
+    startedAt: string;
+    memberIds: string[];
+    /** Último sinal de vida de cada participante (ISO). */
+    seenAt: Record<string, string>;
+  } | null;
   /** ISO date */
   createdAt: string;
 };

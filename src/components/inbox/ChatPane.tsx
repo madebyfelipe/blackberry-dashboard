@@ -27,6 +27,7 @@ import {
   searchMessages,
   startsBlock,
 } from "@/lib/inbox/view";
+import { MemberMenuPanel } from "./MemberMenu";
 import { PresenceBadge, PresenceDot } from "./PresenceDot";
 
 /*
@@ -50,6 +51,8 @@ export function ChatPane({
   onMarkUnread,
   onBack,
   onUndesigned,
+  team,
+  onAddPerson,
   className,
 }: {
   detail: ConversationDetail;
@@ -64,9 +67,14 @@ export function ChatPane({
   /** Só no celular: volta para a lista. */
   onBack: () => void;
   onUndesigned: (what: string) => void;
+  /** A equipe da agência, com a presença de agora — de onde sai o "adicionar". */
+  team: InboxMember[];
+  /** Direta: cria um grupo com quem já estava e a pessoa nova. Grupo: adiciona. */
+  onAddPerson: (memberId: string) => void;
   className?: string;
 }) {
   const [query, setQuery] = useState("");
+  const [adding, setAdding] = useState(false);
   const [searching, setSearching] = useState(false);
   const searchRef = useRef<HTMLInputElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -166,13 +174,17 @@ export function ChatPane({
           >
             <PinIcon size={15} />
           </HeaderButton>
-          <HeaderButton
-            label="Adicionar alguém"
-            className="hidden sm:flex"
-            onClick={() => onUndesigned("Adicionar alguém à conversa")}
-          >
-            <UserPlusIcon size={15} />
-          </HeaderButton>
+          <AddPerson
+            detail={detail}
+            me={me}
+            team={team}
+            open={adding}
+            onOpenChange={setAdding}
+            onSelect={(id) => {
+              setAdding(false);
+              onAddPerson(id);
+            }}
+          />
           <HeaderButton
             label="Buscar na conversa"
             pressed={searching}
@@ -182,6 +194,7 @@ export function ChatPane({
           </HeaderButton>
           <ChatMenu
             muted={detail.muted}
+            onAddPerson={() => setAdding(true)}
             onToggleMuted={onToggleMuted}
             onMarkUnread={onMarkUnread}
           />
@@ -233,7 +246,8 @@ export function ChatPane({
             onClick={() => onStartCall(false)}
             className="tap shrink-0 rounded-chip bg-primary px-3 py-1 text-[12px] font-medium text-on-primary transition-colors hover:bg-white"
           >
-            Entrar
+            {/* Você já está nela, em outra aba ou aparelho: entrar daqui a traz para cá. */}
+            {detail.callMemberIds.includes(me.id) ? "Trazer para esta aba" : "Entrar"}
           </button>
         </div>
       )}
@@ -318,12 +332,89 @@ function HeaderButton({
 }
 
 /** O "⋯" do cabeçalho: o que é de quem está olhando, e só dele. */
+/**
+ * O "adicionar alguém" do cabeçalho. Numa direta, escolher alguém cria um
+ * grupo com as três pessoas — a direta continua lá, com o histórico de duas
+ * pessoas intacto, como no Slack e no Discord. Num grupo, a pessoa entra no
+ * grupo e o aviso fica na conversa.
+ *
+ * No celular o botão some do cabeçalho (não cabe) e o mesmo painel abre pelo
+ * "Adicionar alguém" do menu "…".
+ */
+function AddPerson({
+  detail,
+  me,
+  team,
+  open,
+  onOpenChange,
+  onSelect,
+}: {
+  detail: ConversationDetail;
+  me: InboxMember;
+  team: InboxMember[];
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onSelect: (memberId: string) => void;
+}) {
+  const ref = useRef<HTMLDivElement>(null);
+  const inside = new Set(detail.members.map((m) => m.id));
+  const candidates = team.filter((m) => m.id !== me.id && !inside.has(m.id));
+  const other = detail.members.find((m) => m.id !== me.id);
+
+  useEffect(() => {
+    if (!open) return;
+    function onDown(e: MouseEvent) {
+      if (!ref.current?.contains(e.target as Node)) onOpenChange(false);
+    }
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") onOpenChange(false);
+    }
+    window.addEventListener("mousedown", onDown);
+    window.addEventListener("keydown", onKey);
+    return () => {
+      window.removeEventListener("mousedown", onDown);
+      window.removeEventListener("keydown", onKey);
+    };
+  }, [open, onOpenChange]);
+
+  return (
+    <div className="relative" ref={ref}>
+      <HeaderButton
+        label={detail.kind === "direta" ? "Criar grupo com mais alguém" : "Adicionar alguém ao grupo"}
+        className="hidden sm:flex"
+        pressed={open}
+        onClick={() => onOpenChange(!open)}
+      >
+        <UserPlusIcon size={15} />
+      </HeaderButton>
+      {open && (
+        <MemberMenuPanel
+          members={candidates}
+          heading={
+            detail.kind === "direta"
+              ? `Criar um grupo com ${other?.name ?? "esta pessoa"} e…`
+              : "Adicionar ao grupo"
+          }
+          emptyText={
+            detail.kind === "direta"
+              ? "Não há mais ninguém na agência para chamar."
+              : "Todo mundo da agência já está neste grupo."
+          }
+          onSelect={onSelect}
+        />
+      )}
+    </div>
+  );
+}
+
 function ChatMenu({
   muted,
+  onAddPerson,
   onToggleMuted,
   onMarkUnread,
 }: {
   muted: boolean;
+  onAddPerson: () => void;
   onToggleMuted: () => void;
   onMarkUnread: () => void;
 }) {
@@ -361,6 +452,16 @@ function ChatMenu({
           role="menu"
           className="absolute right-0 top-[calc(100%+6px)] z-50 w-[210px] animate-pop-in overflow-hidden rounded-menu border border-border bg-surface-2 p-1.5 shadow-[0_16px_40px_rgba(0,0,0,0.55)]"
         >
+          {/* No celular o botão do cabeçalho não cabe: o caminho é este. */}
+          <MenuItem
+            className="sm:hidden"
+            onSelect={() => {
+              setOpen(false);
+              onAddPerson();
+            }}
+          >
+            Adicionar alguém
+          </MenuItem>
           <MenuItem
             onSelect={() => {
               setOpen(false);
@@ -385,9 +486,11 @@ function ChatMenu({
 
 function MenuItem({
   onSelect,
+  className,
   children,
 }: {
   onSelect: () => void;
+  className?: string;
   children: React.ReactNode;
 }) {
   return (
@@ -395,7 +498,10 @@ function MenuItem({
       type="button"
       role="menuitem"
       onClick={onSelect}
-      className="flex w-full items-center gap-2.5 rounded-mark px-2.5 py-2 text-left text-[13px] text-fg-soft transition-colors hover:bg-border"
+      className={cn(
+        "flex w-full items-center gap-2.5 rounded-mark px-2.5 py-2 text-left text-[13px] text-fg-soft transition-colors hover:bg-border",
+        className,
+      )}
     >
       {children}
     </button>

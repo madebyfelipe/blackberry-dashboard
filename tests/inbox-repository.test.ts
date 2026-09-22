@@ -7,6 +7,8 @@ import { escreverData, usarDataDirTemporario } from "./helpers/data-dir";
 // Antes de qualquer import do store: diretório de dados só deste teste.
 usarDataDirTemporario("inbox");
 
+const HORA = 60 * 60 * 1000;
+
 const membro = (
   id: string,
   name: string,
@@ -55,6 +57,45 @@ escreverData("inbox.json", {
       createdAt: "2026-09-18T12:00:00.000Z",
     },
     {
+      // Todo mundo calou há 3h: chamada abandonada, fecha na próxima leitura.
+      id: "g-fantasma",
+      agencyId: AGENCIA_A.agencyId,
+      kind: "grupo",
+      name: "Fantasma",
+      memberIds: ["felipe", "marina"],
+      messages: [],
+      mutedBy: [],
+      readAt: {},
+      call: {
+        startedBy: "marina",
+        startedAt: new Date(Date.now() - 5 * HORA).toISOString(),
+        memberIds: ["felipe", "marina"],
+        seenAt: {
+          felipe: new Date(Date.now() - 4 * HORA).toISOString(),
+          marina: new Date(Date.now() - 3 * HORA).toISOString(),
+        },
+      },
+      createdAt: "2026-09-18T12:00:00.000Z",
+    },
+    {
+      // Começou há 5h e todo mundo segue dando sinal: é chamada, não fantasma.
+      id: "g-longa",
+      agencyId: AGENCIA_A.agencyId,
+      kind: "grupo",
+      name: "Longa",
+      memberIds: ["felipe", "marina"],
+      messages: [],
+      mutedBy: [],
+      readAt: {},
+      call: {
+        startedBy: "felipe",
+        startedAt: new Date(Date.now() - 5 * HORA).toISOString(),
+        memberIds: ["felipe", "marina"],
+        seenAt: { felipe: new Date().toISOString(), marina: new Date().toISOString() },
+      },
+      createdAt: "2026-09-18T12:00:00.000Z",
+    },
+    {
       id: "g-da-b",
       agencyId: AGENCIA_B.agencyId,
       kind: "grupo",
@@ -70,10 +111,13 @@ escreverData("inbox.json", {
 
 const {
   ValidationError,
+  addGroupMember,
+  createGroup,
   ensureMember,
   getConversation,
   joinCall,
   leaveCall,
+  touchCall,
   listConversations,
   listMembers,
   openDirect,
@@ -132,7 +176,7 @@ describe("a equipe", () => {
 describe("quem enxerga qual conversa", () => {
   test("a lista traz só as conversas em que a pessoa está", async () => {
     const minhas = await listConversations(AGENCIA_A, "felipe");
-    assert.deepEqual(minhas.map((c) => c.id), ["g-monte"]);
+    assert.deepEqual(minhas.map((c) => c.id), ["g-monte", "g-fantasma", "g-longa"]);
   });
 
   test("conversa da mesma agência sem você dentro responde como inexistente", async () => {
@@ -200,7 +244,7 @@ describe("chamada", () => {
   test("chamada de dias é cortada no teto", async () => {
     const c = await registerCall(AGENCIA_A, "felipe", "g-monte", 99 * 60 * 60);
     const ultima = c!.messages[c!.messages.length - 1];
-    assert.equal(ultima.text, "Felipe iniciou uma chamada que durou 480 minutos.");
+    assert.equal(ultima.text, "Felipe iniciou uma chamada que durou 8 horas.");
   });
 });
 
@@ -276,5 +320,101 @@ describe("chamada em andamento", () => {
   test("chamada de outra agência (ou de conversa alheia) não existe", async () => {
     assert.equal(await joinCall(AGENCIA_A, "felipe", "g-da-b"), undefined);
     assert.equal(await joinCall(AGENCIA_A, "felipe", "g-sem-felipe"), undefined);
+  });
+});
+
+describe("chamada longa e chamada abandonada", () => {
+  test("chamada de 5h com todo mundo dando sinal continua de pé", async () => {
+    const c = await getConversation(AGENCIA_A, "felipe", "g-longa");
+    assert.deepEqual(c!.callMemberIds, ["felipe", "marina"]);
+    const lista = await listConversations(AGENCIA_A, "felipe");
+    assert.deepEqual(lista.find((x) => x.id === "g-longa")!.callMemberIds, ["felipe", "marina"]);
+  });
+
+  test("chamada em que todo mundo sumiu fecha sozinha, com a duração até o último sinal", async () => {
+    const c = await getConversation(AGENCIA_A, "felipe", "g-fantasma");
+    assert.deepEqual(c!.callMemberIds, []);
+    const ultima = c!.messages[c!.messages.length - 1];
+    assert.equal(ultima.kind, "chamada");
+    // Começou há 5h, último sinal há 3h: durou 2h, não 5h.
+    assert.equal(ultima.text, "Marina iniciou uma chamada que durou 2 horas.");
+    // E fechar não duplica a linha na leitura seguinte.
+    const denovo = await getConversation(AGENCIA_A, "felipe", "g-fantasma");
+    assert.equal(denovo!.messages.length, c!.messages.length);
+  });
+
+  test("o sinal de vida mantém você na chamada; fora dela, não reabre nada", async () => {
+    await joinCall(AGENCIA_A, "felipe", "g-monte");
+    const dentro = await touchCall(AGENCIA_A, "felipe", "g-monte");
+    assert.equal(dentro!.inCall, true);
+    assert.equal(dentro!.changed, false);
+    await leaveCall(AGENCIA_A, "felipe", "g-monte");
+    const fora = await touchCall(AGENCIA_A, "felipe", "g-monte");
+    assert.equal(fora!.inCall, false);
+    assert.deepEqual(fora!.conversation.callMemberIds, []);
+  });
+
+  test("o sinal de vida de conversa alheia não existe", async () => {
+    assert.equal(await touchCall(AGENCIA_A, "felipe", "g-da-b"), undefined);
+    assert.equal(await touchCall(AGENCIA_A, "felipe", "g-sem-felipe"), undefined);
+  });
+});
+
+describe("grupos", () => {
+  test("adicionar alguém numa direta cria um grupo com as três pessoas", async () => {
+    const g = await createGroup(AGENCIA_A, "felipe", ["marina", "ana"]);
+    assert.equal(g!.kind, "grupo");
+    assert.deepEqual(g!.memberIds, ["felipe", "marina", "ana"]);
+    // Sem nome, o título é quem está nele — sem você.
+    assert.equal(g!.title, "Marina e Ana");
+    assert.equal(g!.initials[0], "MA");
+    assert.equal(g!.messages[0].kind, "aviso");
+    assert.equal(g!.messages[0].text, "Felipe criou o grupo.");
+    // E quem foi incluído vê o grupo na lista dele.
+    const daAna = await listConversations(AGENCIA_A, "ana");
+    assert.ok(daAna.some((c) => c.id === g!.id));
+  });
+
+  test("você entra sempre, e repetição não duplica ninguém", async () => {
+    const g = await createGroup(AGENCIA_A, "felipe", ["marina", "ana", "ana", "felipe"]);
+    assert.deepEqual(g!.memberIds, ["felipe", "marina", "ana"]);
+  });
+
+  test("grupo precisa de pelo menos mais duas pessoas", async () => {
+    await assert.rejects(() => createGroup(AGENCIA_A, "felipe", ["marina"]), ValidationError);
+  });
+
+  test("gente de outra agência derruba o grupo inteiro — nada é criado pela metade", async () => {
+    const antes = (await listConversations(AGENCIA_A, "felipe")).length;
+    assert.equal(await createGroup(AGENCIA_A, "felipe", ["marina", "bia"]), undefined);
+    assert.equal((await listConversations(AGENCIA_A, "felipe")).length, antes);
+  });
+
+  test("adicionar a um grupo: entra, com aviso de quem trouxe quem", async () => {
+    const c = await addGroupMember(AGENCIA_A, "felipe", "g-monte", "ana");
+    assert.deepEqual(c!.memberIds, ["felipe", "marina", "ana"]);
+    const ultima = c!.messages[c!.messages.length - 1];
+    assert.equal(ultima.kind, "aviso");
+    assert.equal(ultima.text, "Felipe adicionou Ana.");
+    // E agora a Ana lê o grupo.
+    assert.ok(await getConversation(AGENCIA_A, "ana", "g-monte"));
+  });
+
+  test("quem já está não entra de novo", async () => {
+    await assert.rejects(
+      () => addGroupMember(AGENCIA_A, "felipe", "g-monte", "marina"),
+      ValidationError,
+    );
+  });
+
+  test("numa direta, adicionar não mexe nela: é outro caminho", async () => {
+    const d = await openDirect(AGENCIA_A, "felipe", "marina");
+    await assert.rejects(() => addGroupMember(AGENCIA_A, "felipe", d!.id, "ana"), ValidationError);
+  });
+
+  test("grupo alheio, de outra agência, ou pessoa de fora: não existe", async () => {
+    assert.equal(await addGroupMember(AGENCIA_A, "felipe", "g-sem-felipe", "ana"), undefined);
+    assert.equal(await addGroupMember(AGENCIA_A, "felipe", "g-da-b", "ana"), undefined);
+    assert.equal(await addGroupMember(AGENCIA_A, "felipe", "g-longa", "bia"), undefined);
   });
 });

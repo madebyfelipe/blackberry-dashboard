@@ -1,14 +1,20 @@
 import { NextResponse } from "next/server";
-import { ValidationError, openDirect } from "@/lib/inbox/repository";
+import { ValidationError, createGroup, openDirect } from "@/lib/inbox/repository";
 import { currentInboxSession } from "@/lib/inbox/viewer";
+import { notifyMembers } from "@/lib/realtime/server";
 import { unauthorized } from "@/lib/auth/session";
 
 export const dynamic = "force-dynamic";
 
 /**
- * Abre a direta com alguém do time (o "escrever" do topo da lista). Se ela já
- * existir, volta a mesma — não se cria um segundo histórico com a mesma
- * pessoa. Grupo novo ainda não tem desenho, então esta rota só faz direta.
+ * Abre uma conversa nova.
+ *
+ * - `{ memberId }` — a direta com alguém do time (o "escrever" do topo da
+ *   lista). Se ela já existir, volta a mesma: não se cria um segundo
+ *   histórico com a mesma pessoa.
+ * - `{ memberIds, name? }` — um grupo com você e essas pessoas (o
+ *   "adicionar alguém" de uma direta). Você entra sempre, venha ou não na
+ *   lista: quem cria vem da sessão, nunca do corpo.
  */
 export async function POST(req: Request) {
   const session = await currentInboxSession();
@@ -20,9 +26,29 @@ export async function POST(req: Request) {
   } catch {
     return NextResponse.json({ error: "JSON inválido." }, { status: 400 });
   }
-  const { memberId } = (body ?? {}) as Record<string, unknown>;
+  const { memberId, memberIds, name } = (body ?? {}) as Record<string, unknown>;
 
   try {
+    if (Array.isArray(memberIds)) {
+      const group = await createGroup(
+        session.scope,
+        session.me.id,
+        memberIds.map(String),
+        typeof name === "string" ? name : "",
+      );
+      if (!group) {
+        return NextResponse.json({ error: "Pessoa não encontrada." }, { status: 404 });
+      }
+      // Quem foi incluído ainda não ouve o canal deste grupo: o aviso vai
+      // no canal pessoal de cada um.
+      await notifyMembers(
+        session.scope,
+        group.memberIds.filter((m) => m !== session.me.id),
+        group.id,
+      );
+      return NextResponse.json({ conversation: group }, { status: 201 });
+    }
+
     const conversation = await openDirect(
       session.scope,
       session.me.id,

@@ -51,16 +51,10 @@ function normalizeReadAt(raw: unknown): Record<string, string> {
 }
 
 /**
- * Uma chamada que ninguém encerrou.
- *
- * Quem sai avisa o servidor, mas navegador que fecha sozinho (queda de luz,
- * aba morta) não avisa nada — e o registro ficaria dizendo "chamada em
- * andamento" para sempre. Passado este tempo, a leitura considera encerrada:
- * é a mesma ideia do `revive` dos outros stores, corrigindo na leitura em vez
- * de depender de alguém ter feito a coisa certa na escrita.
+ * A chamada em curso, como está gravada. Quem sumiu sem se despedir não é
+ * decidido aqui, e sim em `call.ts`: lá a chamada fecha com a linha no
+ * histórico, e aqui ela só seria apagada calada.
  */
-const CALL_STALE_MS = 4 * 60 * 60 * 1000;
-
 function normalizeCall(raw: unknown): Conversation["call"] {
   if (!raw || typeof raw !== "object") return null;
   const call = raw as Partial<NonNullable<Conversation["call"]>>;
@@ -70,8 +64,13 @@ function normalizeCall(raw: unknown): Conversation["call"] {
   const startedAt = String(call.startedAt ?? "");
   const started = Date.parse(startedAt);
   if (memberIds.length === 0 || Number.isNaN(started)) return null;
-  if (Date.now() - started > CALL_STALE_MS) return null;
-  return { startedBy: String(call.startedBy ?? memberIds[0]), startedAt, memberIds };
+  // Gravação de antes do sinal de vida: sem `seenAt`, conta desde o início.
+  return {
+    startedBy: String(call.startedBy ?? memberIds[0]),
+    startedAt,
+    memberIds,
+    seenAt: normalizeReadAt(call.seenAt),
+  };
 }
 
 function normalizeConversation(

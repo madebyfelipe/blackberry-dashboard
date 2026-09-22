@@ -12,7 +12,8 @@ import {
 import { Popover } from "@/components/ui/Popover";
 import type { ConversationDetail, InboxMember } from "@/lib/inbox/types";
 import { callClock, initialsOf } from "@/lib/inbox/view";
-import { apiJoinCall, apiLeaveCall, leaveCallOnExit } from "./api";
+import { apiJoinCall, apiLeaveCall, apiTouchCall, leaveCallOnExit } from "./api";
+import { CALL_HEARTBEAT_MS } from "@/lib/inbox/call";
 import { CallSettingsMenu } from "./CallSettingsMenu";
 import {
   toDeviceOptions,
@@ -37,7 +38,12 @@ import {
  * porque uma variável de ambiente falta.
  */
 
-type Estado = "entrando" | "na-chamada" | "sem-midia" | "erro";
+/**
+ * `outra-aba`: você entrou nesta mesma chamada por outra aba ou outro
+ * aparelho, e ela passou para lá. Não é queda, e esta aba não avisa saída
+ * nenhuma, porque você continua na chamada.
+ */
+type Estado = "entrando" | "na-chamada" | "sem-midia" | "erro" | "outra-aba";
 
 /** O mínimo da `Room` do LiveKit que esta tela usa. */
 type Faixa = {
@@ -204,7 +210,7 @@ export function CallOverlay({
          * Import dinâmico: a biblioteca de mídia é pesada e só faz falta
          * quando alguém liga. Quem só troca mensagem nunca a baixa.
          */
-        const { Room, RoomEvent, Track } = await import("livekit-client");
+        const { DisconnectReason, Room, RoomEvent, Track } = await import("livekit-client");
         if (!vivo) return;
 
         sala = new Room({ adaptiveStream: true, dynacast: true }) as unknown as Sala;
@@ -297,8 +303,21 @@ export function CallOverlay({
           .on(RoomEvent.TrackUnmuted, conferirCameraRemota)
           .on(RoomEvent.MediaDevicesChanged, (() => void lerAparelhos()) as never)
           // Só é interrupção se não fomos nós que desligamos.
-          .on(RoomEvent.Disconnected, (() => {
-            if (vivo && salaRef.current === sala) setEstado("erro");
+          .on(RoomEvent.Disconnected, ((motivo?: number) => {
+            if (!vivo || salaRef.current !== sala) return;
+            if (motivo === DisconnectReason.DUPLICATE_IDENTITY) {
+              /*
+               * A mesma pessoa entrou na sala por outra aba: o LiveKit deixa
+               * uma conexão por pessoa e derruba a mais velha. Esta aba sai
+               * de cena calada — avisar a saída tiraria você da chamada em
+               * que você acabou de entrar pela outra.
+               */
+              saiuRef.current = true;
+              salaRef.current = null;
+              setEstado("outra-aba");
+              return;
+            }
+            setEstado("erro");
           }) as never);
 
         await sala.connect(media.url, media.token);
@@ -357,6 +376,36 @@ export function CallOverlay({
       }
     };
   }, [detail.id, withScreen]);
+
+  /*
+   * O "ainda estou aqui". Quem para de mandar sai da chamada sozinho (ver
+   * `lib/inbox/call.ts`), então é isto que separa uma chamada longa de uma
+   * chamada abandonada. Se o servidor já tinha te dado como fora (aba
+   * dormindo tempo demais), você volta — a sala do LiveKit nunca caiu.
+   */
+  useEffect(() => {
+    if (estado !== "na-chamada" && estado !== "sem-midia") return;
+    let vivo = true;
+    async function sinal() {
+      if (!vivo || saiuRef.current) return;
+      try {
+        const { inCall } = await apiTouchCall(detail.id);
+        if (!inCall && vivo && !saiuRef.current) await apiJoinCall(detail.id);
+      } catch {
+        // Rede instável: o próximo sinal tenta de novo, e há folga de 2 min.
+      }
+    }
+    const id = setInterval(sinal, CALL_HEARTBEAT_MS);
+    const aoVoltar = () => {
+      if (document.visibilityState === "visible") void sinal();
+    };
+    document.addEventListener("visibilitychange", aoVoltar);
+    return () => {
+      vivo = false;
+      clearInterval(id);
+      document.removeEventListener("visibilitychange", aoVoltar);
+    };
+  }, [estado, detail.id]);
 
   /*
    * Aba fechando, recarregando ou o celular matando a página: nada de
@@ -510,7 +559,9 @@ export function CallOverlay({
               ? "Entrando na chamada…"
               : estado === "erro"
                 ? "Chamada interrompida"
-                : callClock(seconds)}
+                : estado === "outra-aba"
+                  ? "Chamada em outra aba"
+                  : callClock(seconds)}
             {ativo && naSala.length > 0 && ` · ${naSala.length + 1} na chamada`}
           </p>
         </div>
@@ -573,6 +624,12 @@ export function CallOverlay({
         {estado === "entrando" && (
           <p className="text-[11px] text-muted">Pedindo o microfone…</p>
         )}
+        {estado === "outra-aba" && (
+          <p className="max-w-[280px] text-center text-[11px] leading-[16px] text-muted">
+            Você entrou nesta chamada por outra aba ou outro aparelho, e ela
+            continua por lá. Pode fechar esta janela sem sair da chamada.
+          </p>
+        )}
         {ativo && semCamera && (
           <p className="max-w-[280px] text-center text-[11px] leading-[16px] text-muted">
             A câmera não abriu — o navegador não liberou, ou outro programa
@@ -628,8 +685,9 @@ export function CallOverlay({
               <button
                 type="button"
                 onClick={encerrar}
-                aria-label="Encerrar chamada"
-                title="Encerrar chamada"
+                // Na chamada que passou para outra aba, este botão só fecha a janela.
+                aria-label={estado === "outra-aba" ? "Fechar" : "Encerrar chamada"}
+                title={estado === "outra-aba" ? "Fechar" : "Encerrar chamada"}
                 autoFocus
                 className="tap flex h-control w-control items-center justify-center rounded-pill bg-primary text-on-primary transition-colors hover:bg-white focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-fg-3"
               >

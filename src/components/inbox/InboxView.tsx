@@ -3,15 +3,18 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useToast } from "@/components/ui/Toast";
 import { useRealtime } from "@/components/realtime/RealtimeProvider";
-import { conversationChannel } from "@/lib/realtime/channels";
+import { conversationChannel, memberChannel } from "@/lib/realtime/channels";
 import type {
   ConversationDetail,
   ConversationSummary,
+  InboxMember,
   Message,
 } from "@/lib/inbox/types";
 import { sortSummaries } from "@/lib/inbox/view";
 import {
+  apiAddMember,
   apiConversation,
+  apiCreateGroup,
   apiInbox,
   apiOpenDirect,
   apiPatchConversation,
@@ -57,7 +60,14 @@ export function InboxView({
   initialConversation: ConversationDetail | null;
 }) {
   const { toast } = useToast();
-  const { eventos, conectado, online, assinar, renovar } = useRealtime();
+  const { eventos, conectado, presencaPronta, online, assinar, renovar } = useRealtime();
+  /*
+   * Presença ao vivo só vale com a conexão de pé **e** a lista sincronizada.
+   * Entre um e outro (reconexão, crachá novo) a lista pode vir pela metade, e
+   * usá-la pintaria de offline quem está aqui — era o que acontecia ao entrar
+   * e sair de chamada.
+   */
+  const aoVivoOk = eventos && conectado && presencaPronta;
   const [state, setState] = useState(snapshot);
   const [detail, setDetail] = useState<ConversationDetail | null>(
     initialConversation,
@@ -92,7 +102,7 @@ export function InboxView({
    */
   const aoVivo = useCallback(
     (item: ConversationSummary): ConversationSummary => {
-      if (!eventos || !conectado) return item;
+      if (!aoVivoOk) return item;
       const outro = item.memberIds.find((id) => id !== state.me.id);
       return {
         ...item,
@@ -101,7 +111,16 @@ export function InboxView({
         onlineCount: item.memberIds.filter((id) => !!online[id]).length,
       };
     },
-    [eventos, conectado, online, state.me.id],
+    [aoVivoOk, online, state.me.id],
+  );
+
+  /** A equipe com a presença de agora — é dela que sai o "adicionar alguém". */
+  const team = useMemo<InboxMember[]>(
+    () =>
+      aoVivoOk
+        ? state.members.map((m) => ({ ...m, presence: online[m.id] ?? "offline" }))
+        : state.members,
+    [aoVivoOk, online, state.members],
   );
 
   const conversations = useMemo(
@@ -179,31 +198,38 @@ export function InboxView({
   useEffect(() => {
     if (!eventos || !conectado) return;
     const agencyId = state.me.agencyId;
+    const meId = state.me.id;
     let vivo = true;
     let cancelar: (() => void)[] = [];
     (async () => {
+      const canais = [
+        memberChannel(agencyId, meId),
+        ...idsAssinados
+          .split(",")
+          .filter(Boolean)
+          .map((id) => conversationChannel(agencyId, id)),
+      ];
       /*
-       * Crachá novo antes de assinar. O crachá foi emitido quando o app
-       * abriu, com as conversas daquele instante: uma direta criada depois
-       * (por você ou por alguém com você) ficaria fora da permissão e o canal
-       * dela falharia calado até o crachá vencer, uma hora depois.
+       * Crachá novo antes de assinar — mas só se faltar permissão. O crachá
+       * foi emitido quando o app abriu, com as conversas daquele instante: um
+       * grupo criado depois ficaria fora dele e o canal falharia calado.
+       * Renovar sem precisar faz o Ably reconectar os canais, e a presença
+       * piscava de offline no meio.
        */
-      await renovar();
+      await renovar(canais);
       if (!vivo) return;
-      cancelar = idsAssinados
-        .split(",")
-        .filter(Boolean)
-        .map((id) =>
-          assinar(conversationChannel(agencyId, id), () => {
-            void refresh();
-          }),
-        );
+      // O canal pessoal avisa "suas conversas mudaram" (um grupo com você).
+      cancelar = canais.map((canal) =>
+        assinar(canal, () => {
+          void refresh();
+        }),
+      );
     })();
     return () => {
       vivo = false;
       cancelar.forEach((parar) => parar());
     };
-  }, [idsAssinados, eventos, conectado, assinar, renovar, state.me.agencyId, refresh]);
+  }, [idsAssinados, eventos, conectado, assinar, renovar, state.me.agencyId, state.me.id, refresh]);
 
   /*
    * No desktop a conversa mais recente já vem aberta (é o que o desenho
@@ -253,6 +279,34 @@ export function InboxView({
       setDetail(conversation);
       setOpenId(conversation.id);
       setShowChat(true);
+      await refresh();
+    } catch (err) {
+      fail(err);
+    }
+  }
+
+  /*
+   * O "adicionar alguém" da conversa aberta. Num grupo, a pessoa entra nele.
+   * Numa direta, nasce um grupo com as três pessoas e ele abre na hora — a
+   * direta fica como estava.
+   */
+  async function addPerson(memberId: string) {
+    const current = detail;
+    if (!current) return;
+    const name = state.members.find((m) => m.id === memberId)?.name ?? "A pessoa";
+    try {
+      if (current.kind === "grupo") {
+        const updated = await apiAddMember(current.id, memberId);
+        setDetail((d) => (d?.id === updated.id ? updated : d));
+        toast(`${name} entrou no grupo.`, "success");
+      } else {
+        const others = current.members.filter((m) => m.id !== state.me.id).map((m) => m.id);
+        const group = await apiCreateGroup([...others, memberId]);
+        setDetail(group);
+        setOpenId(group.id);
+        setShowChat(true);
+        toast(`Grupo criado com ${group.title}.`, "success");
+      }
       await refresh();
     } catch (err) {
       fail(err);
@@ -350,7 +404,7 @@ export function InboxView({
     <section className="flex h-full min-h-0 overflow-hidden rounded-screen border border-panel-ring bg-surface">
       <ConversationList
         conversations={conversations}
-        members={state.members}
+        members={team}
         me={state.me}
         openId={openId}
         query={query}
@@ -374,6 +428,8 @@ export function InboxView({
           onMarkUnread={markUnread}
           onBack={() => setShowChat(false)}
           onUndesigned={undesigned}
+          team={team}
+          onAddPerson={addPerson}
           className={showChat ? "flex" : "hidden md:flex"}
         />
       ) : (

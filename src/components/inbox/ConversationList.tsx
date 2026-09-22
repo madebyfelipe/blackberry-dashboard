@@ -8,7 +8,8 @@ import type {
   InboxMember,
 } from "@/lib/inbox/types";
 import { listTime, matchesQuery, splitByKind } from "@/lib/inbox/view";
-import { PresenceBadge, PresenceDot } from "./PresenceDot";
+import { MemberMenuPanel } from "./MemberMenu";
+import { PresenceBadge } from "./PresenceDot";
 
 /*
  * A coluna de 300px do export: "Mensagens", busca, e as conversas em duas
@@ -159,8 +160,8 @@ function HeaderAction({
 }
 
 /**
- * O lápis do topo: com quem falar. Só direta — grupo novo (nome, quem entra,
- * quem sai) é tela à parte e ainda não tem desenho.
+ * O lápis do topo: com quem falar. Só direta — grupo nasce do "adicionar
+ * alguém" dentro de uma conversa (ver `ChatPane`).
  */
 function NewDirect({
   members,
@@ -202,33 +203,14 @@ function NewDirect({
       </HeaderAction>
 
       {open && (
-        <div
-          role="menu"
-          className="absolute right-0 top-[calc(100%+6px)] z-50 w-[220px] animate-pop-in overflow-hidden rounded-menu border border-border bg-surface-2 p-1.5 shadow-[0_16px_40px_rgba(0,0,0,0.55)]"
-        >
-          {others.length === 0 ? (
-            <p className="px-2.5 py-2 text-[12px] leading-[17px] text-muted">
-              Você é a única pessoa da agência por aqui. Convite de equipe ainda
-              não existe — ver ROADMAP.
-            </p>
-          ) : (
-            others.map((m) => (
-              <button
-                key={m.id}
-                type="button"
-                role="menuitem"
-                onClick={() => {
-                  setOpen(false);
-                  onSelect(m.id);
-                }}
-                className="flex w-full items-center gap-2.5 rounded-mark px-2.5 py-2 text-left text-[13px] text-fg-soft transition-colors hover:bg-border"
-              >
-                <PresenceDot presence={m.presence} size={9} />
-                <span className="truncate">{m.name}</span>
-              </button>
-            ))
-          )}
-        </div>
+        <MemberMenuPanel
+          members={others}
+          emptyText="Você é a única pessoa da agência por aqui. Convite de equipe ainda não existe — ver ROADMAP."
+          onSelect={(id) => {
+            setOpen(false);
+            onSelect(id);
+          }}
+        />
       )}
     </div>
   );
