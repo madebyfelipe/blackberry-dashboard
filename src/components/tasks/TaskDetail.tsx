@@ -11,6 +11,7 @@ import { Screen } from "@/components/ui/Screen";
 import { Chip } from "@/components/ui/Badge";
 import { PersonAvatar } from "@/components/ui/Mark";
 import { useToast } from "@/components/ui/Toast";
+import { RichTextArea } from "@/components/editor/RichTextArea";
 import { ActionMenu } from "./ActionMenu";
 import { PriorityBars } from "./PriorityBars";
 import {
@@ -45,6 +46,12 @@ export function TaskDetail({ task: initial }: { task: Task }) {
   const { toast } = useToast();
   const [task, setTask] = useState<Task>(initial);
   const titleRef = useRef<HTMLTextAreaElement>(null);
+  /*
+   * O rascunho do comentário mora aqui, não dentro da caixa: "Comentar o
+   * trecho" (menu de formatação da descrição) escreve nele.
+   */
+  const [commentDraft, setCommentDraft] = useState("");
+  const commentRef = useRef<HTMLInputElement>(null);
 
   // Voltar do cache do roteador com dados novos: a tela acompanha.
   useEffect(() => setTask(initial), [initial]);
@@ -82,6 +89,25 @@ export function TaskDetail({ task: initial }: { task: Task }) {
       toast(errMsg(e), "error");
       throw e;
     }
+  }
+
+  /** Quem o menu de menção do briefing oferece: quem já aparece na tarefa. */
+  const people = [
+    ...new Set(
+      [task.assignee, task.creator, ...task.comments.map((c) => c.author)].filter(
+        (p) => p && p !== "—",
+      ),
+    ),
+  ];
+
+  /** Traz o trecho selecionado na descrição para a caixa de comentário. */
+  function quote(selected: string) {
+    const text = selected.trim();
+    if (!text) return;
+    setCommentDraft((prev) =>
+      [`> ${text.split("\n").join("\n> ")}`, "", prev].join("\n").trimStart(),
+    );
+    commentRef.current?.focus();
   }
 
   const status = STATUS_BY_ID[task.status];
@@ -156,10 +182,24 @@ export function TaskDetail({ task: initial }: { task: Task }) {
           <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto pr-1">
             <section className="flex shrink-0 flex-col gap-3">
               <SectionLabel>Descrição</SectionLabel>
-              <AutoTextarea
+              {/*
+               * O briefing da tarefa: linha vazia mostra "/ para formatação",
+               * `/` abre os comandos, `@` as pessoas e o texto selecionado abre
+               * o menu de formatação (ver `components/editor`).
+               */}
+              <RichTextArea
                 value={task.description}
                 placeholder="Adicionar descrição…"
                 aria-label="Descrição da tarefa"
+                people={people}
+                preview
+                onAttach={(kind) =>
+                  toast(
+                    `Anexar ${kind} chega junto com o upload da tarefa.`,
+                    "info",
+                  )
+                }
+                onComment={quote}
                 onCommit={(v) =>
                   v !== task.description && patch({ description: v })
                 }
@@ -200,7 +240,12 @@ export function TaskDetail({ task: initial }: { task: Task }) {
             </section>
           </div>
 
-          <CommentBox onSubmit={comment} />
+          <CommentBox
+            inputRef={commentRef}
+            value={commentDraft}
+            onChange={setCommentDraft}
+            onSubmit={comment}
+          />
         </div>
 
         {/*
@@ -699,11 +744,27 @@ function LabelsEditor({
   );
 }
 
-/** A caixa de comentário presa no pé da coluna da esquerda. */
-function CommentBox({ onSubmit }: { onSubmit: (text: string) => Promise<void> }) {
+/**
+ * A caixa de comentário presa no pé da coluna da esquerda.
+ *
+ * O texto vem de fora porque não é só dela: o menu de formatação da descrição
+ * manda o trecho selecionado para cá ("Comentar o trecho").
+ */
+function CommentBox({
+  value,
+  onChange,
+  onSubmit,
+  inputRef,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  onSubmit: (text: string) => Promise<void>;
+  inputRef?: React.Ref<HTMLInputElement>;
+}) {
   const { toast } = useToast();
-  const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
+  const text = value;
+  const setText = onChange;
 
   async function send() {
     const value = text.trim();
@@ -728,6 +789,7 @@ function CommentBox({ onSubmit }: { onSubmit: (text: string) => Promise<void> })
       className="flex w-full shrink-0 items-center gap-2 rounded-field bg-surface-2 px-2.5 py-2 inset-ring-1 inset-ring-border"
     >
       <input
+        ref={inputRef}
         value={text}
         onChange={(e) => setText(e.target.value)}
         placeholder="Deixe um comentário..."

@@ -5,6 +5,7 @@ import type { Task, TaskPriority, TaskStatus } from "@/lib/tasks/types";
 import { PRIORITIES, PRIORITY_BY_ID, isRealPriority } from "@/lib/tasks/priority";
 import { toDatetimeLocal } from "@/lib/format";
 import { useToast } from "@/components/ui/Toast";
+import { RichTextArea } from "@/components/editor/RichTextArea";
 import { Spinner } from "@/components/ui/Spinner";
 import { StatusMenu } from "./StatusMenu";
 import {
@@ -154,12 +155,21 @@ export function TaskModal({
             placeholder="Título da tarefa"
             className="w-full bg-transparent text-[20px] font-semibold text-fg placeholder:text-muted focus:outline-none"
           />
-          <textarea
+          {/*
+           * Mesma escrita da tela da tarefa: hint na linha vazia, `/` para os
+           * comandos e menu de formatação na seleção (`components/editor`).
+           * Aqui o texto é rascunho até o "Criar", então ele avisa a cada
+           * tecla (`onChange`), não só quando o campo perde o foco.
+           */}
+          <RichTextArea
             value={description}
-            onChange={(e) => setDescription(e.target.value)}
             placeholder="Adicionar descrição..."
-            rows={2}
-            className="w-full resize-none bg-transparent text-[14px] text-fg-soft placeholder:text-muted focus:outline-none"
+            aria-label="Descrição da tarefa"
+            people={assignee ? [assignee] : []}
+            onAttach={() => soon()}
+            onChange={setDescription}
+            onCommit={setDescription}
+            className="text-[14px] leading-[21px] text-fg-soft"
           />
         </div>
 

@@ -9,6 +9,9 @@ import {
   CalendarIcon,
   CheckIcon,
   ChevronRightIcon,
+  MailIcon,
+  MapPinIcon,
+  PhoneIcon,
   TagIcon,
   UserCircleIcon,
   XIcon,
@@ -33,6 +36,10 @@ export type ClientModalValues = {
   owner: string;
   billingDay: number | null;
   status: ClientStatus;
+  /** Contato que o cartão de hover do nome mostra. */
+  city: string;
+  email: string;
+  phone: string;
 };
 
 export type ClientModalState =
@@ -56,6 +63,9 @@ export function ClientModal({
   const [owner, setOwner] = useState("");
   const [billingDay, setBillingDay] = useState<number | null>(null);
   const [status, setStatus] = useState<ClientStatus>("novo");
+  const [city, setCity] = useState("");
+  const [email, setEmail] = useState("");
+  const [phone, setPhone] = useState("");
 
   useEffect(() => {
     if (!state) return;
@@ -67,6 +77,9 @@ export function ClientModal({
       setOwner(c.owner === "—" ? "" : c.owner);
       setBillingDay(c.billingDay);
       setStatus(c.status);
+      setCity(c.city);
+      setEmail(c.email);
+      setPhone(c.phone);
     } else {
       setName("");
       setSegment("");
@@ -74,6 +87,9 @@ export function ClientModal({
       setOwner("");
       setBillingDay(null);
       setStatus("novo");
+      setCity("");
+      setEmail("");
+      setPhone("");
     }
   }, [state]);
 
@@ -90,7 +106,17 @@ export function ClientModal({
   function submit(e: React.FormEvent) {
     e.preventDefault();
     if (!name.trim()) return;
-    onSubmit({ name, segment, services, owner, billingDay, status });
+    onSubmit({
+      name,
+      segment,
+      services,
+      owner,
+      billingDay,
+      status,
+      city,
+      email,
+      phone,
+    });
   }
 
   return (
@@ -166,6 +192,32 @@ export function ClientModal({
           />
 
           <BillingChip value={billingDay} onChange={setBillingDay} />
+
+          {/*
+           * Contato — é o que o cartão de hover do nome mostra (export "hover
+           * clientes"). Fica na mesma tira dos outros campos: continua sendo
+           * ficha da carteira, não uma tela nova.
+           */}
+          <ChipField
+            icon={<MapPinIcon size={14} />}
+            placeholder="Cidade"
+            value={city}
+            onChange={setCity}
+          />
+
+          <ChipField
+            icon={<MailIcon size={14} />}
+            placeholder="E-mail"
+            value={email}
+            onChange={setEmail}
+          />
+
+          <ChipField
+            icon={<PhoneIcon size={14} />}
+            placeholder="Telefone"
+            value={phone}
+            onChange={setPhone}
+          />
         </div>
 
         <div className="h-px w-full bg-border" />

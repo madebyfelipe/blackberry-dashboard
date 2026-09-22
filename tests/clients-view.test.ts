@@ -13,7 +13,10 @@ import {
   countActiveClientFilters,
   distinctServices,
   distinctValues,
+  groupClients,
   sortClients,
+  toggleClientColumn,
+  CLIENT_COLUMN_OPTIONS,
   EMPTY_CLIENT_FILTERS,
   DEFAULT_CLIENT_DISPLAY,
 } from "../src/lib/clients/view";
@@ -26,6 +29,9 @@ function cliente(over: Partial<Client> = {}): Client {
     name: "Clínica Aurora",
     segment: "Estética facial",
     services: ["Instagram", "Blog"],
+    city: "",
+    email: "",
+    phone: "",
     owner: "Fernanda",
     billingDay: 5,
     status: "ativo",
@@ -192,5 +198,108 @@ describe("valores distintos para os menus", () => {
       "LinkedIn",
       "Site",
     ]);
+  });
+});
+
+describe("agrupamento da lista de clientes", () => {
+  test("sem agrupamento é um grupo só, com todos", () => {
+    const grupos = groupClients(CARTEIRA, "nenhum");
+    assert.equal(grupos.length, 1);
+    assert.equal(grupos[0].clients.length, CARTEIRA.length);
+  });
+
+  test("por status segue a ordem da régua de saúde, não o alfabeto", () => {
+    const grupos = groupClients(CARTEIRA, "status");
+    const ordem = grupos.map((g) => g.key);
+    assert.deepEqual(
+      ordem,
+      ordem.slice().sort(
+        (a, b) =>
+          ["ativo", "renovacao", "risco", "pausado", "novo", "vip"].indexOf(a) -
+          ["ativo", "renovacao", "risco", "pausado", "novo", "vip"].indexOf(b),
+      ),
+    );
+  });
+
+  test("grupo vazio só aparece quando o menu pede", () => {
+    const so = CARTEIRA.filter((c) => c.status === "risco");
+    assert.equal(groupClients(so, "status").length, 1);
+    assert.equal(
+      groupClients(so, "status", { showEmpty: true }).length,
+      6,
+      "os seis degraus da régua, mesmo sem cliente",
+    );
+  });
+
+  test("segmento e responsável vazios ganham rótulo próprio", () => {
+    const orfao = cliente({ id: "cx", segment: "", owner: "—" });
+    assert.equal(groupClients([orfao], "segment")[0].label, "Sem segmento");
+    assert.equal(groupClients([orfao], "owner")[0].label, "Sem responsável");
+  });
+
+  test("todo cliente cai em exatamente um grupo", () => {
+    for (const key of ["status", "segment", "owner"] as const) {
+      const total = groupClients(CARTEIRA, key).reduce(
+        (n, g) => n + g.clients.length,
+        0,
+      );
+      assert.equal(total, CARTEIRA.length, `agrupando por ${key}`);
+    }
+  });
+});
+
+describe("opções da lista de clientes", () => {
+  test("'Mostrar arquivados' desligado esconde os pausados", () => {
+    const comPausado = applyClientFilters(CARTEIRA, EMPTY_CLIENT_FILTERS, "", {
+      showArchived: true,
+    });
+    const sem = applyClientFilters(CARTEIRA, EMPTY_CLIENT_FILTERS, "", {
+      showArchived: false,
+    });
+    assert.ok(comPausado.some((c) => c.status === "pausado"));
+    assert.equal(sem.some((c) => c.status === "pausado"), false);
+  });
+
+  test("o padrão da tela mostra os cinco chips acesos do desenho", () => {
+    assert.deepEqual(DEFAULT_CLIENT_DISPLAY.columns, [
+      "segment",
+      "services",
+      "owner",
+      "billing",
+      "status",
+    ]);
+  });
+
+  test("todo chip do menu é uma coluna que a lista sabe desenhar", () => {
+    for (const opt of CLIENT_COLUMN_OPTIONS) {
+      assert.ok(
+        toggleClientColumn([], opt.id).includes(opt.id),
+        `${opt.id} liga e desliga`,
+      );
+    }
+  });
+
+  test("ligar e desligar a mesma coluna volta ao começo", () => {
+    const uma = toggleClientColumn(["status"], "segment");
+    assert.deepEqual(uma, ["status", "segment"]);
+    assert.deepEqual(toggleClientColumn(uma, "segment"), ["status"]);
+  });
+
+  test("a busca também acha pela cidade e pelo e-mail do contato", () => {
+    const comContato = cliente({
+      id: "cc",
+      name: "Studio Raiz",
+      city: "Sorocaba",
+      email: "alo@studioraiz.com",
+    });
+    const carteira = [...CARTEIRA, comContato];
+    assert.deepEqual(
+      applyClientFilters(carteira, EMPTY_CLIENT_FILTERS, "sorocaba").map((c) => c.id),
+      ["cc"],
+    );
+    assert.deepEqual(
+      applyClientFilters(carteira, EMPTY_CLIENT_FILTERS, "alo@studio").map((c) => c.id),
+      ["cc"],
+    );
   });
 });

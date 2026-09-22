@@ -115,6 +115,46 @@ describe("updateClient", () => {
   });
 });
 
+describe("contato da ficha (cidade, e-mail, telefone)", () => {
+  test("nasce vazio e entra aparado", async () => {
+    const vazio = await criar({ name: "Sem contato" });
+    assert.equal(vazio.city, "");
+    assert.equal(vazio.email, "");
+    assert.equal(vazio.phone, "");
+
+    const c = await criar({
+      name: "Studio Raiz",
+      city: "  Sorocaba ",
+      email: " alo@studioraiz.com ",
+      phone: " +55 15 99171-8747 ",
+    });
+    assert.equal(c.city, "Sorocaba");
+    assert.equal(c.email, "alo@studioraiz.com");
+    assert.equal(c.phone, "+55 15 99171-8747");
+  });
+
+  test("e-mail que não é e-mail é recusado, na criação e na edição", async () => {
+    await assert.rejects(() => criar({ email: "alo(arroba)studioraiz" }), ValidationError);
+    const c = await criar({ name: "Para editar" });
+    await assert.rejects(
+      () => updateClient(AGENCIA_A, c.id, { email: "sem arroba" }),
+      ValidationError,
+    );
+    assert.equal(
+      (await getClient(AGENCIA_A, c.id))?.email,
+      "",
+      "a recusa não deixa meia gravação atrás",
+    );
+  });
+
+  test("apagar o contato é permitido — a ficha não exige contato", async () => {
+    const c = await criar({ email: "alo@studioraiz.com", city: "Sorocaba" });
+    const limpo = await updateClient(AGENCIA_A, c.id, { email: "", city: "" });
+    assert.equal(limpo?.email, "");
+    assert.equal(limpo?.city, "");
+  });
+});
+
 describe("isolamento entre agências", () => {
   test("cliente de outra agência não aparece, não lê, não altera, não some", async () => {
     escreverData("clients.json", []);

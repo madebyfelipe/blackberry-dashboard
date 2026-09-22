@@ -14,12 +14,17 @@ import { PRIORITY_BY_ID, isRealPriority } from "@/lib/tasks/priority";
 import { formatShortDate } from "@/lib/format";
 import { Badge, Chip } from "@/components/ui/Badge";
 import {
+  Cell as ColumnCell,
   Checkbox,
+  ColumnsProvider,
+  HeadCell,
   TableBody,
   TableFrame,
   TableHead,
   TableRow,
 } from "@/components/ui/DataTable";
+import { useColumnWidths } from "@/components/ui/useColumnWidths";
+import { tableMinWidth, type ColumnSpec } from "@/lib/ui/columns";
 import { EntityMark, PersonChip } from "@/components/ui/Mark";
 import { FieldLabel } from "@/components/ui/Screen";
 import { ChevronDownIcon } from "@/components/icons";
@@ -35,23 +40,34 @@ import { cn } from "@/lib/cn";
  * seleção é a única parte dela que não abre (ela seleciona).
  *
  * Quais colunas aparecem continua vindo do menu "Personalizar"
- * (`lib/tasks/view.ts`) — o desenho mostra o conjunto padrão.
+ * (`lib/tasks/view.ts`) — o desenho mostra o conjunto padrão. A largura de
+ * cada uma começa na medida do export e a divisória do cabeçalho arrasta (ver
+ * `lib/ui/columns.ts`).
  */
 
-/** Largura e rótulo de cada coluna opcional, na ordem em que o export as põe. */
-const COLUMNS: Record<ColumnKey, { label: string; width: string; px: number }> = {
-  status: { label: "Status", width: "w-[130px]", px: 130 },
-  assignee: { label: "Responsável", width: "w-[150px]", px: 150 },
-  dueDate: { label: "Prazo", width: "w-[100px]", px: 100 },
-  priority: { label: "Prioridade", width: "w-[120px]", px: 120 },
-  labels: { label: "Etiquetas", width: "w-[150px]", px: 150 },
-  createdAt: { label: "Criado", width: "w-[100px]", px: 100 },
-  id: { label: "ID", width: "w-[80px]", px: 80 },
-  // `client` não tem coluna própria: ele é a segunda linha da célula TAREFA.
-  client: { label: "Cliente", width: "w-0", px: 0 },
+/** A célula TAREFA: cresce até alguém arrastá-la. */
+const TAREFA: ColumnSpec = {
+  id: "tarefa",
+  label: "Tarefa",
+  width: 240,
+  flex: true,
 };
 
-const ORDER: ColumnKey[] = [
+/** Largura e rótulo de cada coluna opcional, na ordem em que o export as põe. */
+const COLUMNS: Record<VisibleColumnKey, ColumnSpec> = {
+  status: { id: "status", label: "Status", width: 130 },
+  assignee: { id: "responsavel", label: "Responsável", width: 150 },
+  dueDate: { id: "prazo", label: "Prazo", width: 100 },
+  priority: { id: "prioridade", label: "Prioridade", width: 120 },
+  labels: { id: "etiquetas", label: "Etiquetas", width: 150 },
+  createdAt: { id: "criado", label: "Criado", width: 100 },
+  id: { id: "id", label: "ID", width: 80 },
+};
+
+/** `client` não tem coluna própria: ele é a segunda linha da célula TAREFA. */
+type VisibleColumnKey = Exclude<ColumnKey, "client">;
+
+const ORDER: VisibleColumnKey[] = [
   "status",
   "assignee",
   "dueDate",
@@ -60,6 +76,8 @@ const ORDER: ColumnKey[] = [
   "createdAt",
   "id",
 ];
+
+const ALL_SPECS: ColumnSpec[] = [TAREFA, ...ORDER.map((c) => COLUMNS[c])];
 
 export function TaskTable({
   groups,
@@ -84,81 +102,87 @@ export function TaskTable({
   someSelected: boolean;
   onOpen: (t: Task) => void;
 }) {
+  const api = useColumnWidths("tarefas.lista", ALL_SPECS);
   const shown = ORDER.filter((c) => columns.includes(c));
-  // 16px de respiro em cada ponta + a caixa de seleção + a célula TAREFA
-  // (mínimo confortável) + 16px de espaço antes de cada coluna visível.
-  const minWidth =
-    32 + 18 + 16 + 240 + shown.reduce((sum, c) => sum + COLUMNS[c].px + 16, 0);
+  // 16px de respiro em cada ponta + a caixa de seleção; o resto vem das
+  // colunas, cada uma com os 16px de espaço que a antecede.
+  const minWidth = tableMinWidth(
+    [TAREFA, ...shown.map((c) => COLUMNS[c])],
+    api.widths,
+    32 + 18,
+  );
   const grouped = groups.length > 1 || groups[0]?.key !== "todas";
 
   return (
-    <TableFrame minWidth={minWidth}>
-      <TableHead>
-        <Checkbox
-          label="Selecionar todas as tarefas"
-          checked={allSelected}
-          indeterminate={!allSelected && someSelected}
-          onChange={onToggleAll}
-        />
-        <div className="flex min-w-0 flex-1 items-center gap-[5px]">
-          <FieldLabel>Tarefa</FieldLabel>
-          <ChevronDownIcon size={13} className="text-label" />
-        </div>
-        {shown.map((c) => (
-          <div key={c} className={cn("shrink-0", COLUMNS[c].width)}>
-            <FieldLabel>{COLUMNS[c].label}</FieldLabel>
-          </div>
-        ))}
-      </TableHead>
+    <ColumnsProvider value={api}>
+      <TableFrame minWidth={minWidth}>
+        <TableHead>
+          <Checkbox
+            label="Selecionar todas as tarefas"
+            checked={allSelected}
+            indeterminate={!allSelected && someSelected}
+            onChange={onToggleAll}
+          />
+          <HeadCell spec={TAREFA}>
+            <FieldLabel>Tarefa</FieldLabel>
+            <ChevronDownIcon size={13} className="text-label" />
+          </HeadCell>
+          {shown.map((c) => (
+            <HeadCell key={c} spec={COLUMNS[c]}>
+              <FieldLabel>{COLUMNS[c].label}</FieldLabel>
+            </HeadCell>
+          ))}
+        </TableHead>
 
-      <TableBody>
-        {groups.map((g) => (
-          <section key={g.key}>
-            {grouped && (
-              <header className="flex items-center gap-2 border-b border-rule-soft bg-surface-2/40 px-4 py-2">
-                <h3 className="text-[11px] font-semibold uppercase tracking-[0.6px] text-fg-3">
-                  {g.label}
-                </h3>
-                <span className="rounded-pill bg-border px-2 py-0.5 text-[11px] font-semibold text-fg-soft">
-                  {g.tasks.length}
-                </span>
-              </header>
-            )}
+        <TableBody>
+          {groups.map((g) => (
+            <section key={g.key}>
+              {grouped && (
+                <header className="flex items-center gap-2 border-b border-rule-soft bg-surface-2/40 px-4 py-2">
+                  <h3 className="text-[11px] font-semibold uppercase tracking-[0.6px] text-fg-3">
+                    {g.label}
+                  </h3>
+                  <span className="rounded-pill bg-border px-2 py-0.5 text-[11px] font-semibold text-fg-soft">
+                    {g.tasks.length}
+                  </span>
+                </header>
+              )}
 
-            {g.tasks.length === 0 ? (
-              <p className="border-b border-rule-soft px-4 py-3 text-[13px] text-muted">
-                Nenhuma tarefa neste grupo.
-              </p>
-            ) : subgroupKey === "nenhum" ? (
-              <Rows
-                tasks={g.tasks}
-                perGroup={perGroup}
-                columns={shown}
-                selected={selected}
-                onToggle={onToggle}
-                onOpen={onOpen}
-              />
-            ) : (
-              groupTasks(g.tasks, subgroupKey).map((sg) => (
-                <div key={sg.key}>
-                  <p className="px-4 py-1.5 pl-6 text-[11px] font-medium uppercase tracking-[0.6px] text-muted">
-                    {sg.label} · {sg.tasks.length}
-                  </p>
-                  <Rows
-                    tasks={sg.tasks}
-                    perGroup={perGroup}
-                    columns={shown}
-                    selected={selected}
-                    onToggle={onToggle}
-                    onOpen={onOpen}
-                  />
-                </div>
-              ))
-            )}
-          </section>
-        ))}
-      </TableBody>
-    </TableFrame>
+              {g.tasks.length === 0 ? (
+                <p className="border-b border-rule-soft px-4 py-3 text-[13px] text-muted">
+                  Nenhuma tarefa neste grupo.
+                </p>
+              ) : subgroupKey === "nenhum" ? (
+                <Rows
+                  tasks={g.tasks}
+                  perGroup={perGroup}
+                  columns={shown}
+                  selected={selected}
+                  onToggle={onToggle}
+                  onOpen={onOpen}
+                />
+              ) : (
+                groupTasks(g.tasks, subgroupKey).map((sg) => (
+                  <div key={sg.key}>
+                    <p className="px-4 py-1.5 pl-6 text-[11px] font-medium uppercase tracking-[0.6px] text-muted">
+                      {sg.label} · {sg.tasks.length}
+                    </p>
+                    <Rows
+                      tasks={sg.tasks}
+                      perGroup={perGroup}
+                      columns={shown}
+                      selected={selected}
+                      onToggle={onToggle}
+                      onOpen={onOpen}
+                    />
+                  </div>
+                ))
+              )}
+            </section>
+          ))}
+        </TableBody>
+      </TableFrame>
+    </ColumnsProvider>
   );
 }
 
@@ -172,7 +196,7 @@ function Rows({
 }: {
   tasks: Task[];
   perGroup: number | "todas";
-  columns: ColumnKey[];
+  columns: VisibleColumnKey[];
   selected: ReadonlySet<string>;
   onToggle: (id: string) => void;
   onOpen: (t: Task) => void;
@@ -197,7 +221,7 @@ function Rows({
             onChange={() => onToggle(t.id)}
           />
 
-          <div className="flex min-w-0 flex-1 items-center gap-2.5">
+          <ColumnCell spec={TAREFA} className="gap-2.5">
             <EntityMark name={t.title} />
             <div className="flex min-w-0 flex-col gap-0.5">
               <span className="truncate text-[13px] font-medium text-fg">
@@ -207,12 +231,12 @@ function Rows({
                 {t.client || "Sem cliente"}
               </span>
             </div>
-          </div>
+          </ColumnCell>
 
           {columns.map((c) => (
-            <div key={c} className={cn("shrink-0", COLUMNS[c].width)}>
+            <ColumnCell key={c} spec={COLUMNS[c]}>
               <Cell column={c} task={t} />
-            </div>
+            </ColumnCell>
           ))}
         </TableRow>
       ))}
@@ -230,7 +254,7 @@ function Rows({
   );
 }
 
-function Cell({ column, task }: { column: ColumnKey; task: Task }) {
+function Cell({ column, task }: { column: VisibleColumnKey; task: Task }) {
   switch (column) {
     case "status": {
       const meta = STATUS_BY_ID[task.status];
