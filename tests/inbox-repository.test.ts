@@ -72,6 +72,8 @@ const {
   ValidationError,
   ensureMember,
   getConversation,
+  joinCall,
+  leaveCall,
   listConversations,
   listMembers,
   openDirect,
@@ -237,5 +239,42 @@ describe("abrir uma direta", () => {
       () => openDirect(AGENCIA_A, "felipe", "felipe"),
       ValidationError,
     );
+  });
+});
+
+describe("chamada em andamento", () => {
+  test("quem entra abre a chamada; entrar de novo não duplica ninguém", async () => {
+    const um = await joinCall(AGENCIA_A, "felipe", "g-monte");
+    assert.deepEqual(um!.callMemberIds, ["felipe"]);
+    const outra = await joinCall(AGENCIA_A, "marina", "g-monte");
+    assert.deepEqual(outra!.callMemberIds, ["felipe", "marina"]);
+    const denovo = await joinCall(AGENCIA_A, "marina", "g-monte");
+    assert.deepEqual(denovo!.callMemberIds, ["felipe", "marina"]);
+  });
+
+  test("sair não fecha a chamada enquanto ainda tem gente nela", async () => {
+    const antes = (await getConversation(AGENCIA_A, "felipe", "g-monte"))!.messages.length;
+    const saiu = await leaveCall(AGENCIA_A, "marina", "g-monte");
+    assert.deepEqual(saiu!.callMemberIds, ["felipe"]);
+    assert.equal(saiu!.messages.length, antes, "ninguém escreveu no histórico ainda");
+  });
+
+  test("o último a sair fecha, e a linha fica com o nome de quem começou", async () => {
+    const fim = await leaveCall(AGENCIA_A, "felipe", "g-monte");
+    assert.deepEqual(fim!.callMemberIds, []);
+    const ultima = fim!.messages[fim!.messages.length - 1];
+    assert.equal(ultima.kind, "chamada");
+    assert.match(ultima.text, /^Felipe iniciou uma chamada que durou/);
+  });
+
+  test("sair de uma chamada que não existe não inventa registro", async () => {
+    const antes = (await getConversation(AGENCIA_A, "felipe", "g-monte"))!.messages.length;
+    const c = await leaveCall(AGENCIA_A, "felipe", "g-monte");
+    assert.equal(c!.messages.length, antes);
+  });
+
+  test("chamada de outra agência (ou de conversa alheia) não existe", async () => {
+    assert.equal(await joinCall(AGENCIA_A, "felipe", "g-da-b"), undefined);
+    assert.equal(await joinCall(AGENCIA_A, "felipe", "g-sem-felipe"), undefined);
   });
 });

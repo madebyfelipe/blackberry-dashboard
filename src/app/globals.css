@@ -139,17 +139,23 @@
 
   /*
    * Presença da equipe (Inbox, issue #30) — disponível, ocupado, ausente e
-   * offline. São **cinzas**, de propósito: o que distingue um degrau do outro
-   * na tela é a forma do símbolo (disco cheio, disco com corte, meia-lua,
-   * anel vazado), não o matiz. Cor com significado segue existindo só na
-   * ação destrutiva e na saúde do cliente — matiz novo entra com desenho.
-   * O tom de "disponível" é o ponto que o export desenha no cabeçalho da
-   * conversa; os outros descem a escala de cinza do produto.
+   * offline.
+   *
+   * A cor é a **mesma escala da saúde do cliente**, e por isso é `var()` dos
+   * tokens de cima em vez de quatro hex novos: o produto ganhou matiz com
+   * significado uma vez, e quem lê "verde é bom, vermelho pede atenção,
+   * âmbar é meio-termo, cinza é inerte" em `/clientes` lê a mesma coisa aqui.
+   * Matiz novo continua não entrando.
+   *
+   * A **forma** do símbolo continua carregando o estado sozinha (disco
+   * cheio, disco com corte, meia-lua, anel vazado): a cor entra por cima,
+   * não no lugar dela — senão o estado some para quem não distingue os
+   * matizes.
    */
-  --color-presence-on: #e0e0e0;
-  --color-presence-busy: #acacac;
-  --color-presence-away: #898989;
-  --color-presence-off: #565656;
+  --color-presence-on: var(--color-client-ativo-fg);
+  --color-presence-busy: var(--color-client-risco-fg);
+  --color-presence-away: var(--color-client-renovacao-fg);
+  --color-presence-off: var(--color-client-pausado-fg);
 
   /* Radii */
   --radius-field: 24px;

@@ -57,6 +57,7 @@ function conversa(over: Partial<Conversation> = {}): Conversation {
     messages: [],
     mutedBy: [],
     readAt: {},
+    call: null,
     createdAt: "2026-09-18T12:00:00.000Z",
     ...over,
   };
@@ -191,8 +192,10 @@ describe("ordem e seções da lista", () => {
     unread: 0,
     muted: false,
     presence: null,
+    memberIds: ["felipe", "marina"],
     memberCount: 2,
     onlineCount: 1,
+    callMemberIds: [],
     ...over,
   });
 

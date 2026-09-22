@@ -1,15 +1,20 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useToast } from "@/components/ui/Toast";
-import type { ConversationDetail, Message } from "@/lib/inbox/types";
+import { useRealtime } from "@/components/realtime/RealtimeProvider";
+import { conversationChannel } from "@/lib/realtime/channels";
+import type {
+  ConversationDetail,
+  ConversationSummary,
+  Message,
+} from "@/lib/inbox/types";
 import { sortSummaries } from "@/lib/inbox/view";
 import {
   apiConversation,
   apiInbox,
   apiOpenDirect,
   apiPatchConversation,
-  apiRegisterCall,
   apiSendMessage,
   type InboxSnapshot,
 } from "./api";
@@ -33,7 +38,16 @@ import { ConversationList } from "./ConversationList";
  * nada na frente de ninguém.
  */
 
+/*
+ * De quanto em quanto tempo a tela relê tudo.
+ *
+ * Com o tempo real ligado, a releitura deixa de ser o mecanismo e vira rede
+ * de segurança: cobre o intervalo entre a conexão cair e voltar, e qualquer
+ * evento que se perca no caminho. Sem ele, continua sendo o mecanismo — e aí
+ * precisa ser frequente.
+ */
 const POLL_MS = 12_000;
+const POLL_MS_COM_EVENTOS = 60_000;
 
 export function InboxView({
   snapshot,
@@ -43,6 +57,7 @@ export function InboxView({
   initialConversation: ConversationDetail | null;
 }) {
   const { toast } = useToast();
+  const { eventos, conectado, online, assinar } = useRealtime();
   const [state, setState] = useState(snapshot);
   const [detail, setDetail] = useState<ConversationDetail | null>(
     initialConversation,
@@ -62,7 +77,37 @@ export function InboxView({
   const sendingRef = useRef(sending);
   sendingRef.current = sending;
 
-  const conversations = sortSummaries(state.conversations);
+  /*
+   * Presença ao vivo por cima da gravada.
+   *
+   * O que está no banco é o status que a pessoa escolheu; quem está de fato
+   * com o produto aberto é o que a conexão sabe. Com a conexão de pé, quem
+   * não está nela é offline — sem depender de alguém ter lembrado de se
+   * marcar como tal antes de fechar o navegador.
+   *
+   * **Com a conexão caída, vale o gravado.** A conexão só sabe de ausência
+   * enquanto ela mesma existe: tratar "não sei" como "todo mundo offline"
+   * apagaria o time inteiro da tela por um problema que é do navegador de
+   * quem está olhando, não deles.
+   */
+  const aoVivo = useCallback(
+    (item: ConversationSummary): ConversationSummary => {
+      if (!eventos || !conectado) return item;
+      const outro = item.memberIds.find((id) => id !== state.me.id);
+      return {
+        ...item,
+        presence:
+          item.kind === "direta" ? (outro ? (online[outro] ?? "offline") : "offline") : null,
+        onlineCount: item.memberIds.filter((id) => !!online[id]).length,
+      };
+    },
+    [eventos, conectado, online, state.me.id],
+  );
+
+  const conversations = useMemo(
+    () => sortSummaries(state.conversations).map(aoVivo),
+    [state.conversations, aoVivo],
+  );
 
   const fail = useCallback(
     (err: unknown) =>
@@ -108,7 +153,10 @@ export function InboxView({
     const tick = () => {
       if (document.visibilityState === "visible") void refresh();
     };
-    const id = setInterval(tick, POLL_MS);
+    const id = setInterval(
+      tick,
+      eventos && conectado ? POLL_MS_COM_EVENTOS : POLL_MS,
+    );
     window.addEventListener("focus", tick);
     document.addEventListener("visibilitychange", tick);
     return () => {
@@ -116,7 +164,31 @@ export function InboxView({
       window.removeEventListener("focus", tick);
       document.removeEventListener("visibilitychange", tick);
     };
-  }, [refresh]);
+  }, [refresh, eventos, conectado]);
+
+  /*
+   * Ouve as conversas de que você participa. O evento é só um empurrão — quem
+   * traz o conteúdo é a mesma API de sempre, então não existe um segundo
+   * caminho pelo qual a conversa possa chegar diferente.
+   *
+   * Reassina quando a lista de conversas muda (uma direta nova, por exemplo),
+   * e aí o crachá também precisa ser renovado: a permissão dele lista as
+   * conversas que existiam quando foi emitido.
+   */
+  const idsAssinados = state.conversations.map((c) => c.id).sort().join(",");
+  useEffect(() => {
+    if (!eventos || !conectado) return;
+    const agencyId = state.me.agencyId;
+    const cancelar = idsAssinados
+      .split(",")
+      .filter(Boolean)
+      .map((id) =>
+        assinar(conversationChannel(agencyId, id), () => {
+          void refresh();
+        }),
+      );
+    return () => cancelar.forEach((parar) => parar());
+  }, [idsAssinados, eventos, conectado, assinar, state.me.agencyId, refresh]);
 
   /*
    * No desktop a conversa mais recente já vem aberta (é o que o desenho
@@ -204,17 +276,15 @@ export function InboxView({
     }
   }
 
-  async function endCall(seconds: number) {
-    const id = detail?.id;
+  /*
+   * A chamada fechou. Quem sai por último deixa a linha no histórico, e o
+   * servidor devolve a conversa já com ela — por isso a tela aceita a
+   * conversa de volta em vez de recarregar tudo às cegas.
+   */
+  function closeCall(updated?: ConversationDetail) {
     setCall(null);
-    if (!id) return;
-    try {
-      const updated = await apiRegisterCall(id, seconds);
-      setDetail((d) => (d?.id === updated.id ? updated : d));
-      void refresh();
-    } catch (err) {
-      fail(err);
-    }
+    if (updated) setDetail((d) => (d?.id === updated.id ? updated : d));
+    void refresh();
   }
 
   async function toggleMuted() {
@@ -279,9 +349,10 @@ export function InboxView({
 
       {detail ? (
         <ChatPane
-          detail={detail}
+          detail={{ ...detail, ...aoVivo(detail) }}
           me={state.me}
           sending={sending}
+          emChamada={!!call}
           onSend={send}
           onStartCall={(withScreen) => setCall({ withScreen })}
           onToggleMuted={toggleMuted}
@@ -305,7 +376,7 @@ export function InboxView({
           detail={detail}
           me={state.me}
           withScreen={call.withScreen}
-          onEnd={endCall}
+          onClose={closeCall}
         />
       )}
     </section>

@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { Sidebar } from "@/components/Sidebar";
+import { RealtimeProvider } from "@/components/realtime/RealtimeProvider";
 import { currentUser } from "@/lib/auth/session";
 
 export const dynamic = "force-dynamic";
@@ -20,12 +21,20 @@ export default async function AppLayout({
   const user = await currentUser();
   if (!user) redirect("/login?sessao=encerrada");
 
+  /*
+   * A conexão de tempo real envolve o shell inteiro, não só o Inbox: presença
+   * é "esta pessoa está com o produto aberto", e quem está em Tarefas está
+   * tão online quanto quem está na conversa. Sem `ABLY_API_KEY` o provedor
+   * não conecta nada e todas as telas seguem como antes.
+   */
   return (
-    <div className="flex h-screen flex-col gap-3 bg-bg p-3 md:flex-row md:gap-4 md:p-4">
-      <Sidebar user={user} />
-      <main className="flex min-w-0 flex-1 flex-col overflow-hidden">
-        {children}
-      </main>
-    </div>
+    <RealtimeProvider>
+      <div className="flex h-screen flex-col gap-3 bg-bg p-3 md:flex-row md:gap-4 md:p-4">
+        <Sidebar user={user} />
+        <main className="flex min-w-0 flex-1 flex-col overflow-hidden">
+          {children}
+        </main>
+      </div>
+    </RealtimeProvider>
   );
 }

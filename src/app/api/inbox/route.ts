@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { listConversations, listMembers } from "@/lib/inbox/repository";
 import { currentInboxSession } from "@/lib/inbox/viewer";
+import { ablyEnabled, livekitEnabled } from "@/lib/realtime/server";
 import { unauthorized } from "@/lib/auth/session";
 
 export const dynamic = "force-dynamic";
@@ -22,5 +23,15 @@ export async function GET() {
     listConversations(session.scope, session.me.id),
   ]);
 
-  return NextResponse.json({ me: session.me, members, conversations });
+  return NextResponse.json({
+    me: session.me,
+    members,
+    conversations,
+    /*
+     * O que está ligado neste ambiente. A tela usa isso para decidir entre
+     * ouvir os eventos e reler de tempos em tempos — e para não prometer
+     * chamada onde não há provedor de mídia.
+     */
+    realtime: { eventos: ablyEnabled(), chamada: livekitEnabled() },
+  });
 }
