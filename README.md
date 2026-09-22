@@ -272,11 +272,13 @@ Três decisões que vale saber antes de mexer:
   condições, não uma: ser da agência *e* ter você dentro. Conversa da sua
   agência em que você não está responde como inexistente, igual a conversa de
   outra agência.
-- **Presença é forma, não cor.** Disponível, ocupado, ausente e offline se
-  distinguem pelo desenho do símbolo (disco cheio, disco com corte, meia-lua,
-  anel vazado) em quatro cinzas — o produto segue monocromático, e quem não
-  distingue tons continua lendo o estado. O seu status se troca no menu da sua
-  conta, no rodapé da lateral.
+- **Presença é forma primeiro, cor depois.** Disponível, ocupado, ausente e
+  offline se distinguem pelo desenho do símbolo (disco cheio, disco com corte,
+  meia-lua, anel vazado) — quem não distingue matiz continua lendo o estado. A
+  cor entra por cima, e é a **mesma escala da saúde do cliente** (verde de
+  Ativo, vermelho de Em risco, âmbar de Renovação, cinza de Pausado): o
+  produto tem uma paleta com significado só, não duas. O seu status se troca
+  no menu da sua conta, no rodapé da lateral.
 - **A chamada ainda não transmite.** Não existe camada de tempo real no
   projeto (WebSocket/WebRTC), e a issue registra que essa decisão técnica vem
   *depois* do desenho. Então a chamada abre no popup desenhado, conta o tempo

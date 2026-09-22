@@ -6,8 +6,9 @@ import { usePathname, useRouter } from "next/navigation";
 import type { PublicUser } from "@/lib/auth/types";
 import { cn } from "@/lib/cn";
 import { useToast } from "@/components/ui/Toast";
-import { apiMyPresence, apiSetPresence } from "@/components/inbox/api";
+import { apiSetPresence } from "@/components/inbox/api";
 import { PresenceDot } from "@/components/inbox/PresenceDot";
+import { useRealtime } from "@/components/realtime/RealtimeProvider";
 import { PRESENCES } from "@/lib/inbox/constants";
 import type { Presence } from "@/lib/inbox/types";
 import {
@@ -173,9 +174,10 @@ function SidebarPanel({
   /*
    * A disponibilidade de quem está logado (Inbox, issue #30). Mora no menu da
    * conta porque é aqui que "você" está na tela inteira — e porque ela vale em
-   * todo o produto, não só dentro do Inbox. Só é buscada quando o menu abre:
-   * é um dado do Inbox, e nenhuma outra tela deve pagar por ele ao carregar.
+   * todo o produto, não só dentro do Inbox. Quem sabe quem você é (e anuncia
+   * a troca para o time na hora) é o provedor de tempo real do shell.
    */
+  const { me, anunciar } = useRealtime();
   const [presence, setPresence] = useState<Presence | null>(null);
   const [leaving, setLeaving] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -198,16 +200,8 @@ function SidebarPanel({
   }, [menuOpen]);
 
   useEffect(() => {
-    if (!menuOpen || presence) return;
-    let alive = true;
-    apiMyPresence()
-      .then((me) => alive && setPresence(me.presence))
-      // Sem resposta, o menu simplesmente não mostra o status — nada quebra.
-      .catch(() => undefined);
-    return () => {
-      alive = false;
-    };
-  }, [menuOpen, presence]);
+    if (me) setPresence(me.presence);
+  }, [me]);
 
   useEffect(() => {
     if (!quickOpen) return;
@@ -424,10 +418,14 @@ function SidebarPanel({
                     onClick={async () => {
                       const previous = presence;
                       setPresence(option.id);
+                      // Para o time, agora; gravado logo em seguida, para
+                      // continuar valendo na próxima vez que você abrir.
+                      anunciar(option.id);
                       try {
                         await apiSetPresence(option.id);
                       } catch {
                         setPresence(previous);
+                        if (previous) anunciar(previous);
                         toast("Não foi possível mudar seu status.", "error");
                       }
                     }}

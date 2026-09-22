@@ -43,6 +43,7 @@ export function ChatPane({
   detail,
   me,
   sending,
+  emChamada,
   onSend,
   onStartCall,
   onToggleMuted,
@@ -54,6 +55,8 @@ export function ChatPane({
   detail: ConversationDetail;
   me: InboxMember;
   sending: boolean;
+  /** Você já está na chamada — então não se oferece "entrar" de novo. */
+  emChamada: boolean;
   onSend: (text: string) => void;
   onStartCall: (withScreen: boolean) => void;
   onToggleMuted: () => void;
@@ -207,6 +210,30 @@ export function ChatPane({
             className="tap shrink-0 text-fg-3 transition-colors hover:text-fg-soft"
           >
             <XIcon size={14} />
+          </button>
+        </div>
+      )}
+
+      {/*
+       * Chamada acontecendo agora. Não estava no export — é o que faz a
+       * chamada existir para quem não estava com a tela aberta no segundo
+       * em que ela começou, e some sozinha quando o último sai.
+       */}
+      {detail.callMemberIds.length > 0 && !emChamada && (
+        <div className="flex shrink-0 items-center gap-3 border-b border-panel-ring bg-surface-2/60 px-4 py-2.5 md:px-5">
+          <PhoneIcon size={14} className="shrink-0 text-fg-3" />
+          <p className="min-w-0 flex-1 truncate text-[12px] text-fg-3">
+            Chamada em andamento ·{" "}
+            {detail.callMemberIds
+              .map((id) => (id === me.id ? "Você" : memberName(detail.members, id)))
+              .join(", ")}
+          </p>
+          <button
+            type="button"
+            onClick={() => onStartCall(false)}
+            className="tap shrink-0 rounded-chip bg-primary px-3 py-1 text-[12px] font-medium text-on-primary transition-colors hover:bg-white"
+          >
+            Entrar
           </button>
         </div>
       )}

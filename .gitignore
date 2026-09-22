@@ -32,6 +32,8 @@ next-env.d.ts
 
 .vercel
 .env*
+# O modelo de variáveis é o único .env que entra — sem valor nenhum dentro.
+!.env.example
 
 # worktrees dos agentes (o harness as cria dentro do repo)
 /.claude/

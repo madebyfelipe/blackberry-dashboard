@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { ValidationError, sendMessage } from "@/lib/inbox/repository";
 import { currentInboxSession } from "@/lib/inbox/viewer";
+import { publishToConversation } from "@/lib/realtime/server";
 import { unauthorized } from "@/lib/auth/session";
 
 export const dynamic = "force-dynamic";
@@ -37,6 +38,17 @@ export async function POST(req: Request, { params }: Ctx) {
         { status: 404 },
       );
     }
+    /*
+     * Avisa quem está com a conversa aberta. Depois da gravação, nunca no
+     * lugar dela: o evento é só um empurrão ("tem coisa nova aqui"), e quem
+     * recebe vai buscar o conteúdo pela API de sempre. Assim existe uma
+     * verdade só, e o tempo real fora do ar atrasa a entrega em vez de
+     * inventar uma segunda versão da conversa.
+     */
+    await publishToConversation(session.scope, id, {
+      tipo: "mensagem",
+      conversationId: id,
+    });
     return NextResponse.json({ conversation }, { status: 201 });
   } catch (err) {
     if (err instanceof ValidationError) {

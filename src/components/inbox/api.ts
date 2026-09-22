@@ -51,16 +51,44 @@ export async function apiSendMessage(
   return data.conversation as ConversationDetail;
 }
 
-/** Registra no histórico a chamada que acabou de terminar. */
-export async function apiRegisterCall(
+/** O que o navegador precisa para entrar na sala da chamada. */
+export type CallMedia = { url: string; token: string; room: string };
+
+/**
+ * Entra na chamada da conversa: registra que você está nela (para quem
+ * abrir depois poder entrar) e devolve o crachá do LiveKit. `media` vem
+ * nulo quando o ambiente não tem provedor de mídia configurado — a chamada
+ * ainda abre, só não transmite.
+ */
+export async function apiJoinCall(
   id: string,
-  seconds: number,
-): Promise<ConversationDetail> {
+): Promise<{ conversation: ConversationDetail; media: CallMedia | null }> {
   const data = await parse(
-    await fetch(`/api/inbox/conversations/${id}/calls`, {
-      method: "POST",
-      ...json({ seconds }),
-    }),
+    await fetch(`/api/inbox/conversations/${id}/call`, { method: "POST" }),
+  );
+  return data as { conversation: ConversationDetail; media: CallMedia | null };
+}
+
+/**
+ * Sai da chamada sem esperar resposta — para quando a página está indo
+ * embora (aba fechando, troca de tela). `keepalive` faz o navegador terminar
+ * de mandar o pedido mesmo depois de a página morrer.
+ */
+export function leaveCallOnExit(id: string): void {
+  try {
+    void fetch(`/api/inbox/conversations/${id}/call`, {
+      method: "DELETE",
+      keepalive: true,
+    }).catch(() => undefined);
+  } catch {
+    // Página já desmontando: não há mais o que fazer daqui.
+  }
+}
+
+/** Sai da chamada. Quem sai por último fecha, e a linha entra no histórico. */
+export async function apiLeaveCall(id: string): Promise<ConversationDetail> {
+  const data = await parse(
+    await fetch(`/api/inbox/conversations/${id}/call`, { method: "DELETE" }),
   );
   return data.conversation as ConversationDetail;
 }

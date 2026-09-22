@@ -251,8 +251,10 @@ export function summarize(
     unread: unreadCount(conversation, viewerId),
     muted: conversation.mutedBy.includes(viewerId),
     presence: conversation.kind === "direta" ? (others[0]?.presence ?? "offline") : null,
+    memberIds: participants.map((m) => m.id),
     memberCount: participants.length,
     onlineCount: participants.filter((m) => isOnline(m.presence)).length,
+    callMemberIds: conversation.call?.memberIds ?? [],
   };
 }
 

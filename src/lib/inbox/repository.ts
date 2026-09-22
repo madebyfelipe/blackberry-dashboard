@@ -200,6 +200,7 @@ export async function openDirect(
       messages: [],
       mutedBy: [],
       readAt: { [viewerId]: new Date().toISOString() },
+      call: null,
       createdAt: new Date().toISOString(),
     };
     data.conversations.push(created);
@@ -281,6 +282,70 @@ export async function registerCall(
       callSummary(memberName(members, viewerId), duration),
       "chamada",
     );
+    return detail(conversation, members, viewerId);
+  });
+}
+
+/**
+ * Entra na chamada da conversa — e abre uma, se ainda não houver.
+ *
+ * Quem abriu fica registrado porque é o nome que vai para o histórico
+ * quando a chamada acabar ("Fulano iniciou uma chamada que durou 12
+ * minutos", a linha do export). Entrar duas vezes não duplica ninguém: a
+ * mesma pessoa em duas abas é uma pessoa só na sala.
+ */
+export async function joinCall(
+  scope: AgencyScope,
+  viewerId: string,
+  id: string,
+): Promise<ConversationDetail | undefined> {
+  return transaction((data) => {
+    const conversation = find(data, scope, viewerId, id);
+    if (!conversation) return undefined;
+    const now = new Date().toISOString();
+    if (!conversation.call) {
+      conversation.call = { startedBy: viewerId, startedAt: now, memberIds: [viewerId] };
+    } else if (!conversation.call.memberIds.includes(viewerId)) {
+      conversation.call.memberIds.push(viewerId);
+    }
+    return detail(conversation, membersOf(data, scope), viewerId);
+  });
+}
+
+/**
+ * Sai da chamada. A **última** pessoa a sair fecha a chamada e deixa a linha
+ * no histórico, com o nome de quem começou e o tempo que ela durou de ponta
+ * a ponta — não o tempo que cada um ficou. É uma chamada só, e o histórico
+ * conta uma coisa só.
+ */
+export async function leaveCall(
+  scope: AgencyScope,
+  viewerId: string,
+  id: string,
+): Promise<ConversationDetail | undefined> {
+  return transaction((data) => {
+    const conversation = find(data, scope, viewerId, id);
+    if (!conversation) return undefined;
+    const members = membersOf(data, scope);
+    const call = conversation.call;
+    if (!call) return detail(conversation, members, viewerId);
+
+    call.memberIds = call.memberIds.filter((m) => m !== viewerId);
+    if (call.memberIds.length === 0) {
+      const seconds = Math.max(
+        0,
+        Math.round((Date.now() - new Date(call.startedAt).getTime()) / 1000),
+      );
+      conversation.call = null;
+      pushMessage(
+        conversation,
+        call.startedBy,
+        callSummary(memberName(members, call.startedBy), Math.min(seconds, CALL_MAX_SECONDS)),
+        "chamada",
+      );
+      // Quem fechou a chamada acabou de ler a linha que ele mesmo gerou.
+      conversation.readAt[viewerId] = new Date().toISOString();
+    }
     return detail(conversation, members, viewerId);
   });
 }
