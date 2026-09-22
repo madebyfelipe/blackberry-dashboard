@@ -5,7 +5,6 @@ import type { Batch, Piece, PieceStatus } from "@/lib/approval/types";
 import { PieceThumb } from "./PieceThumb";
 import { StatusBadge } from "./StatusBadge";
 import { CheckIcon, XIcon } from "@/components/icons";
-import { cn } from "@/lib/cn";
 
 const THRESHOLD = 120;
 
