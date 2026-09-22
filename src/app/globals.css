@@ -137,6 +137,20 @@
   --color-client-vip-bg: #241d33;
   --color-client-vip-fg: #a78bfa;
 
+  /*
+   * Presença da equipe (Inbox, issue #30) — disponível, ocupado, ausente e
+   * offline. São **cinzas**, de propósito: o que distingue um degrau do outro
+   * na tela é a forma do símbolo (disco cheio, disco com corte, meia-lua,
+   * anel vazado), não o matiz. Cor com significado segue existindo só na
+   * ação destrutiva e na saúde do cliente — matiz novo entra com desenho.
+   * O tom de "disponível" é o ponto que o export desenha no cabeçalho da
+   * conversa; os outros descem a escala de cinza do produto.
+   */
+  --color-presence-on: #e0e0e0;
+  --color-presence-busy: #acacac;
+  --color-presence-away: #898989;
+  --color-presence-off: #565656;
+
   /* Radii */
   --radius-field: 24px;
   --radius-pill: 999px;

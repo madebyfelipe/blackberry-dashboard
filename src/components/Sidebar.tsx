@@ -6,9 +6,14 @@ import { usePathname, useRouter } from "next/navigation";
 import type { PublicUser } from "@/lib/auth/types";
 import { cn } from "@/lib/cn";
 import { useToast } from "@/components/ui/Toast";
+import { apiMyPresence, apiSetPresence } from "@/components/inbox/api";
+import { PresenceDot } from "@/components/inbox/PresenceDot";
+import { PRESENCES } from "@/lib/inbox/constants";
+import type { Presence } from "@/lib/inbox/types";
 import {
   BellIcon,
   ChartLineIcon,
+  CheckIcon,
   ChevronsUpDownIcon,
   InboxIcon,
   LogOutIcon,
@@ -165,6 +170,13 @@ function SidebarPanel({
   const { toast } = useToast();
   const [menuOpen, setMenuOpen] = useState(false);
   const [quickOpen, setQuickOpen] = useState(false);
+  /*
+   * A disponibilidade de quem está logado (Inbox, issue #30). Mora no menu da
+   * conta porque é aqui que "você" está na tela inteira — e porque ela vale em
+   * todo o produto, não só dentro do Inbox. Só é buscada quando o menu abre:
+   * é um dado do Inbox, e nenhuma outra tela deve pagar por ele ao carregar.
+   */
+  const [presence, setPresence] = useState<Presence | null>(null);
   const [leaving, setLeaving] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   const quickRef = useRef<HTMLDivElement>(null);
@@ -184,6 +196,18 @@ function SidebarPanel({
       window.removeEventListener("keydown", onKey);
     };
   }, [menuOpen]);
+
+  useEffect(() => {
+    if (!menuOpen || presence) return;
+    let alive = true;
+    apiMyPresence()
+      .then((me) => alive && setPresence(me.presence))
+      // Sem resposta, o menu simplesmente não mostra o status — nada quebra.
+      .catch(() => undefined);
+    return () => {
+      alive = false;
+    };
+  }, [menuOpen, presence]);
 
   useEffect(() => {
     if (!quickOpen) return;
@@ -386,6 +410,44 @@ function SidebarPanel({
             <div className="p-1">
               <div className="h-px bg-border" />
             </div>
+            {presence && (
+              <>
+                <p className="px-2.5 pb-1 pt-1.5 text-[11px] font-semibold tracking-[0.4px] text-muted">
+                  Status
+                </p>
+                {PRESENCES.map((option) => (
+                  <button
+                    key={option.id}
+                    type="button"
+                    role="menuitemradio"
+                    aria-checked={presence === option.id}
+                    onClick={async () => {
+                      const previous = presence;
+                      setPresence(option.id);
+                      try {
+                        await apiSetPresence(option.id);
+                      } catch {
+                        setPresence(previous);
+                        toast("Não foi possível mudar seu status.", "error");
+                      }
+                    }}
+                    className={cn(
+                      "flex w-full items-center gap-2.5 rounded-mark px-2.5 py-1.5 text-left text-[13px] transition-colors hover:bg-surface-2",
+                      presence === option.id ? "text-fg-soft" : "text-fg-3",
+                    )}
+                  >
+                    <PresenceDot presence={option.id} size={10} />
+                    <span className="flex-1">{option.label}</span>
+                    {presence === option.id && (
+                      <CheckIcon size={13} className="text-muted" />
+                    )}
+                  </button>
+                ))}
+                <div className="p-1">
+                  <div className="h-px bg-border" />
+                </div>
+              </>
+            )}
             <Link
               href="/configuracoes"
               role="menuitem"

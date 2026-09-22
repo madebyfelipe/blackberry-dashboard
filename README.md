@@ -34,7 +34,9 @@ importam os módulos exatamente como o app os importa.
 Cobrem as funções puras que sustentam o produto: sessão e senha, filtros e
 ordenações das tarefas e dos clientes, normalização e validação nos
 repositórios (incluindo a conversa da tarefa), leitura de dimensões de imagem,
-régua de formatos das peças e a revalidação do store de arquivo. O que
+régua de formatos das peças, a revalidação do store de arquivo e a régua do
+Inbox (título, prévia, não lidas, agrupamento por dia, carimbos de hora e o
+registro da chamada, mais o isolamento por agência *e* por participante). O que
 depende de requisição (route handlers, `next/headers`) fica de fora — esse
 caminho é conferido subindo o app.
 
@@ -57,7 +59,7 @@ Dá para criar outra conta em `/criar-conta` — o cadastro já entra logado.
 | --- | --- |
 | `AUTH_SECRET` | Chave que assina o cookie de sessão. **Obrigatória em produção** (mín. 16 caracteres): sem ela o servidor recusa subir e qualquer assinatura/conferência de cookie lança. Gere com `openssl rand -base64 32` e defina em Vercel → Settings → Environment Variables. Fora de produção o app cai num segredo de desenvolvimento, que não protege nada e invalida as sessões a cada deploy. |
 | `DEMO_PASSWORD` | Senha da conta semeada, para instalações compartilhadas. |
-| `DATABASE_URL` | String de conexão do Postgres (Neon, criado pelo marketplace da Vercel — Storage → Marketplace Database Providers → Neon). Presente, os quatro stores (tarefas, lotes, contas, índice de mídia) passam a gravar lá. Ausente, o app usa arquivo JSON local (dev) — nunca em produção sem disco gravável. |
+| `DATABASE_URL` | String de conexão do Postgres (Neon, criado pelo marketplace da Vercel — Storage → Marketplace Database Providers → Neon). Presente, os cinco stores (tarefas, clientes, lotes, contas, índice de mídia — e o Inbox) passam a gravar lá. Ausente, o app usa arquivo JSON local (dev) — nunca em produção sem disco gravável. |
 | `BLOB_READ_WRITE_TOKEN` | Token do Vercel Blob (Storage → Create Database → Blob), injetado automaticamente ao conectar o projeto. Presente, a arte vai do navegador **direto** para o Blob (sem passar pela função, ver "O teto de 4,5 MB") e sobrevive a redeploy. Ausente, o editor volta ao upload multipart e os bytes ficam em `data/uploads/`, com fallback em memória em disco somente-leitura. **O store precisa ser criado com acesso "Private"** — ver "Store privado" abaixo; a Vercel não deixa trocar o modo de acesso depois de criado. |
 
 ## Rotas principais
@@ -74,7 +76,8 @@ Dá para criar outra conta em `/criar-conta` — o cadastro já entra logado.
 | `/social/[cliente]/[lote]/editor` | **Editor de lote** — peças, detalhes da peça (data, formato, canal, legenda, hashtags), preview do post e as ações do link (enviar, gerar, desativar) |
 | `/a/[token]` | **Aprovação pública** (cliente, sem login): tela de início + swipe para aprovar/pedir ajuste |
 | `/configuracoes` | Conta: perfil, troca de senha e sessão |
-| `/inbox`, `/notificacoes`, `/conversas`, `/relatorios`, `/equipe` | Placeholders prontos para desenhar |
+| `/inbox` | **Inbox** — a conversa do time: grupos e diretas, histórico salvo e pesquisável, presença (disponível · ocupado · ausente · offline) e a chamada com registro no histórico |
+| `/notificacoes`, `/conversas`, `/relatorios`, `/equipe` | Placeholders prontos para desenhar |
 
 ## Design
 
@@ -89,7 +92,7 @@ discordarem:
 
 | Camada | Exports | Onde está aplicada |
 | --- | --- | --- |
-| **v3** (atual) | `Tarefas · Painel (Lista)`, `Tarefas · Painel (Quadro)`, `Tarefas · Descrição da tarefa`, `Clientes · Painel (Lista)`, `Clientes · Painel (Grade)` | Shell (lateral), Tarefas, Descrição da tarefa, Clientes |
+| **v3** (atual) | `Tarefas · Painel (Lista)`, `Tarefas · Painel (Quadro)`, `Tarefas · Descrição da tarefa`, `Clientes · Painel (Lista)`, `Clientes · Painel (Grade)`, `Inbox` | Shell (lateral), Tarefas, Descrição da tarefa, Clientes, Inbox |
 | **v2** (gradiente) | `2. Gradiente`, `Clínica Aurora - *`, `Lotes de Aprovação*`, `Filtros · Menu` | Aprovação de conteúdo (Social media, Lote, Editor de lote, link público) |
 
 Os exports `List View` e `2. Board · Kanban` são a versão v2 das Tarefas, hoje
@@ -178,6 +181,7 @@ O app só conversa com `repository.ts`, que só conversa com `store.ts`. Trocar 
 - Tarefas: `src/lib/tasks/{types,constants,priority,seed,store,repository}.ts` — o pipeline de status vive **só** em `constants.ts`; a régua de prioridade, **só** em `priority.ts`. A conversa da tarefa (`Task.comments`) entra por `POST /api/tasks/<id>/comments`, com o autor vindo da sessão — nunca do corpo.
 - Clientes: `src/lib/clients/{types,constants,seed,store,repository,view}.ts` — mesma forma das tarefas; a régua de saúde do cliente (e os pares fundo/texto do selo) vive **só** em `constants.ts`, e o que a tela filtra/ordena, **só** em `view.ts`.
 - Aprovação: `src/lib/approval/{types,constants,seed,store,repository}.ts`.
+- Inbox: `src/lib/inbox/{types,constants,view,seed,store,repository,viewer}.ts` — a equipe e as conversas dela no mesmo arquivo (`inbox.json`), porque conversa sem saber quem é quem não existe. A régua de presença vive **só** em `constants.ts`; título, prévia, não lidas, ordem e carimbos de hora, **só** em `view.ts`. `viewer.ts` é a única porta que liga a sessão ao membro da equipe — ver "Inbox" abaixo.
 - Contas: `src/lib/auth/{types,password,token,session,seed,store,repository}.ts`. `token.ts` não importa nada do Node nem do Next — é o único pedaço compartilhado com o `proxy.ts`.
 - Mídia: `src/lib/media/*` — metadados pelo store comum; bytes em `data/uploads/` (ou fallback em memória) sem `BLOB_READ_WRITE_TOKEN`, no Vercel Blob com ela. Como os bytes entram e saem está em "O teto de 4,5 MB" abaixo — leia antes de mexer em upload de arte.
 - Base comum: `src/lib/store/index.ts` decide entre os dois backends por `DATABASE_URL`, com a mesma interface (`read`/`transaction`) para quem consome:
@@ -251,6 +255,37 @@ Para ligar de verdade, alguém com acesso ao dashboard da Vercel precisa:
 
 Esse é um passo manual, fora do que este PR consegue fazer sozinho — ver a
 issue #39 para o estado disso.
+
+## Inbox: a conversa do time, e o que ainda não é tempo real
+
+A tela do Inbox (issue #30, export "Inbox") é comunicação interna: **só o time
+da agência** — cliente não entra em sala nenhuma; ele continua decidindo pelo
+link público. Grupos e diretas, como o Discord separa servidor de DM, com o
+histórico **salvo** (e pesquisável, dentro da conversa e pela lista).
+
+Três decisões que vale saber antes de mexer:
+
+- **Quem é você aqui.** A conversa é entre membros (`InboxMember`), não entre
+  contas. O vínculo é o e-mail: `ensureMember` (em `viewer.ts`) encontra o
+  membro da sessão ou cria um na primeira visita — é o que povoa a agência
+  enquanto não existir convite de equipe. Uma conversa exige **duas**
+  condições, não uma: ser da agência *e* ter você dentro. Conversa da sua
+  agência em que você não está responde como inexistente, igual a conversa de
+  outra agência.
+- **Presença é forma, não cor.** Disponível, ocupado, ausente e offline se
+  distinguem pelo desenho do símbolo (disco cheio, disco com corte, meia-lua,
+  anel vazado) em quatro cinzas — o produto segue monocromático, e quem não
+  distingue tons continua lendo o estado. O seu status se troca no menu da sua
+  conta, no rodapé da lateral.
+- **A chamada ainda não transmite.** Não existe camada de tempo real no
+  projeto (WebSocket/WebRTC), e a issue registra que essa decisão técnica vem
+  *depois* do desenho. Então a chamada abre no popup desenhado, conta o tempo
+  e **deixa o registro no histórico** ("Fulano iniciou uma chamada que durou 12
+  minutos", a linha de sistema do export); microfone e tela aparecem
+  desligados, dizendo por quê, em vez de acenderem fingindo que alguém ouve do
+  outro lado. Pela mesma razão, mensagem nova chega por releitura periódica da
+  tela (12s, só com a aba à vista), não por push. Quando a camada entrar, ela
+  substitui essas duas coisas — o resto da tela não muda.
 
 ## Multi-tenant: isolamento por agência
 
