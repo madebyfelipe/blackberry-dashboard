@@ -42,25 +42,75 @@ function blobPathFor(asset: Pick<MediaAsset, "id" | "mime">): string {
   return `media/${asset.id}.${ext}`;
 }
 
-/** Grava no Vercel Blob e devolve a URL pública, ou `undefined` sem o token. */
+/** Grava no Vercel Blob (privado) e devolve URL e pathname, ou `undefined` sem o token. */
 async function putBlob(
   asset: Pick<MediaAsset, "id" | "mime">,
   bytes: Uint8Array,
-): Promise<string | undefined> {
+): Promise<{ url: string; pathname: string } | undefined> {
   if (!process.env.BLOB_READ_WRITE_TOKEN) return undefined;
-  const { put } = await import("@vercel/blob");
-  const blob = await put(blobPathFor(asset), Buffer.from(bytes), {
-    access: "public",
-    contentType: asset.mime,
-    addRandomSuffix: false,
-  });
-  return blob.url;
+  const { put, BlobError } = await import("@vercel/blob");
+  try {
+    const blob = await put(blobPathFor(asset), Buffer.from(bytes), {
+      access: "private",
+      contentType: asset.mime,
+      addRandomSuffix: false,
+    });
+    return { url: blob.url, pathname: blob.pathname };
+  } catch (err) {
+    // Acesso não pode ser trocado num store existente (issue #39): a
+    // plataforma exige um store criado como privado. Mensagem clara em vez
+    // de 500 cru, até o store trocar.
+    if (err instanceof BlobError && /private access on a public store/i.test(err.message)) {
+      throw new MediaError(
+        "Envio indisponível: o Blob store precisa ser recriado como privado (issue #39) antes de aceitar artes.",
+      );
+    }
+    throw err;
+  }
 }
 
 async function deleteBlob(url: string): Promise<void> {
   if (!process.env.BLOB_READ_WRITE_TOKEN) return;
   const { del } = await import("@vercel/blob");
   await del(url);
+}
+
+/**
+ * URL de download de curta duração para um objeto privado do Blob.
+ *
+ * Substitui o antigo redirect para a `blobUrl` pública (issue #39): o store
+ * não serve mais nada sem assinatura, então quem quer os bytes — o link
+ * público do cliente, sem sessão — precisa desta URL, que expira sozinha.
+ * `issueSignedToken` + `presignUrl` não fazem chamada de rede: a assinatura é
+ * HMAC local com o token do servidor, então isto é barato de chamar por
+ * requisição.
+ */
+export async function presignMediaUrl(pathname: string): Promise<string> {
+  const { issueSignedToken, presignUrl } = await import("@vercel/blob");
+  const validUntil = Date.now() + 5 * 60 * 1000; // 5 minutos bastam para o navegador buscar a arte.
+  const signed = await issueSignedToken({
+    pathname,
+    operations: ["get"],
+    validUntil,
+  });
+  const { presignedUrl } = await presignUrl(signed, {
+    operation: "get",
+    pathname,
+    access: "private",
+  });
+  return presignedUrl;
+}
+
+/** Bytes de um objeto privado do Blob, opcionalmente por `Range`. */
+async function fetchBlobBytes(
+  pathname: string,
+  headers?: HeadersInit,
+): Promise<Uint8Array | undefined> {
+  const { get } = await import("@vercel/blob");
+  const result = await get(pathname, { access: "private", headers });
+  if (!result || result.statusCode !== 200) return undefined;
+  const buf = await new Response(result.stream).arrayBuffer();
+  return new Uint8Array(buf);
 }
 
 /**
@@ -99,9 +149,10 @@ export async function saveMedia(
   };
 
   // Bytes primeiro: um registro sem arquivo daria uma arte quebrada na tela.
-  const blobUrl = await putBlob(asset, bytes);
-  if (blobUrl) {
-    asset.blobUrl = blobUrl;
+  const blob = await putBlob(asset, bytes);
+  if (blob) {
+    asset.blobUrl = blob.url;
+    asset.blobPathname = blob.pathname;
   } else {
     try {
       await fs.mkdir(UPLOAD_DIR, { recursive: true });
@@ -127,10 +178,10 @@ export async function readMedia(
 ): Promise<{ asset: MediaAsset; bytes: Uint8Array } | undefined> {
   const asset = await getMedia(id);
   if (!asset) return undefined;
-  if (asset.blobUrl) {
-    const res = await fetch(asset.blobUrl);
-    if (!res.ok) return undefined;
-    return { asset, bytes: new Uint8Array(await res.arrayBuffer()) };
+  if (asset.blobPathname) {
+    const bytes = await fetchBlobBytes(asset.blobPathname);
+    if (!bytes) return undefined;
+    return { asset, bytes };
   }
   const cached = memoryBytes.get(id);
   if (cached) return { asset, bytes: cached };
@@ -177,14 +228,16 @@ const HEADER_TIMEOUT_MS = 3000;
  * qualquer falha engolida, a arte só fica sem dimensão, do mesmo jeito que um
  * formato que o leitor não reconhece.
  */
-async function readBlobHeader(url: string): Promise<Uint8Array | undefined> {
+async function readBlobHeader(pathname: string): Promise<Uint8Array | undefined> {
   try {
-    const res = await fetch(url, {
+    const { get } = await import("@vercel/blob");
+    const result = await get(pathname, {
+      access: "private",
       headers: { range: `bytes=0-${HEADER_BYTES - 1}` },
-      signal: AbortSignal.timeout(HEADER_TIMEOUT_MS),
+      abortSignal: AbortSignal.timeout(HEADER_TIMEOUT_MS),
     });
-    if (!res.ok) return undefined;
-    const buf = await res.arrayBuffer();
+    if (!result || result.statusCode !== 200) return undefined;
+    const buf = await new Response(result.stream).arrayBuffer();
     return new Uint8Array(buf.byteLength > HEADER_BYTES ? buf.slice(0, HEADER_BYTES) : buf);
   } catch {
     return undefined;
@@ -197,8 +250,9 @@ async function readBlobHeader(url: string): Promise<Uint8Array | undefined> {
  * O contrato é: nada que o cliente manda entra no registro sem passar pelo
  * `head()`. Do navegador vem só o `pathname` (validado no formato) e o nome
  * original do arquivo; **tamanho, tipo e URL vêm do Blob**. É isso que impede
- * registrar uma URL externa como arte — `readMedia` faz `fetch` na `blobUrl`,
- * então aceitar URL do cliente seria abrir um SSRF.
+ * registrar uma URL externa como arte — `readMedia` busca os bytes pelo
+ * `pathname` no store configurado, então aceitar URL do cliente seria abrir
+ * um SSRF.
  *
  * O id continua nascendo aqui, aleatório e longo, porque é ele que protege
  * `/api/media/<id>` — servido sem sessão para o link de aprovação.
@@ -232,7 +286,7 @@ export async function saveBlobMedia(meta: {
   if (found.size > MAX_UPLOAD_BYTES) throw new MediaError("Arquivo acima de 50 MB.");
 
   const id = randomBytes(16).toString("hex");
-  const header = accepted.kind === "image" ? await readBlobHeader(found.url) : undefined;
+  const header = accepted.kind === "image" ? await readBlobHeader(found.pathname) : undefined;
   const dims = header ? readDimensions(header) : undefined;
   const asset: MediaAsset = {
     id,
@@ -245,6 +299,7 @@ export async function saveBlobMedia(meta: {
     height: dims?.height,
     createdAt: new Date().toISOString(),
     blobUrl: found.url,
+    blobPathname: found.pathname,
   };
 
   await index.transaction((map) => {

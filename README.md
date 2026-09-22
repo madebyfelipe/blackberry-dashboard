@@ -58,7 +58,7 @@ Dá para criar outra conta em `/criar-conta` — o cadastro já entra logado.
 | `AUTH_SECRET` | Chave que assina o cookie de sessão. **Obrigatória em produção** (mín. 16 caracteres): sem ela o servidor recusa subir e qualquer assinatura/conferência de cookie lança. Gere com `openssl rand -base64 32` e defina em Vercel → Settings → Environment Variables. Fora de produção o app cai num segredo de desenvolvimento, que não protege nada e invalida as sessões a cada deploy. |
 | `DEMO_PASSWORD` | Senha da conta semeada, para instalações compartilhadas. |
 | `DATABASE_URL` | String de conexão do Postgres (Neon, criado pelo marketplace da Vercel — Storage → Marketplace Database Providers → Neon). Presente, os quatro stores (tarefas, lotes, contas, índice de mídia) passam a gravar lá. Ausente, o app usa arquivo JSON local (dev) — nunca em produção sem disco gravável. |
-| `BLOB_READ_WRITE_TOKEN` | Token do Vercel Blob (Storage → Create Database → Blob), injetado automaticamente ao conectar o projeto. Presente, a arte vai do navegador **direto** para o Blob (sem passar pela função, ver "O teto de 4,5 MB") e sobrevive a redeploy. Ausente, o editor volta ao upload multipart e os bytes ficam em `data/uploads/`, com fallback em memória em disco somente-leitura. |
+| `BLOB_READ_WRITE_TOKEN` | Token do Vercel Blob (Storage → Create Database → Blob), injetado automaticamente ao conectar o projeto. Presente, a arte vai do navegador **direto** para o Blob (sem passar pela função, ver "O teto de 4,5 MB") e sobrevive a redeploy. Ausente, o editor volta ao upload multipart e os bytes ficam em `data/uploads/`, com fallback em memória em disco somente-leitura. **O store precisa ser criado com acesso "Private"** — ver "Store privado" abaixo; a Vercel não deixa trocar o modo de acesso depois de criado. |
 
 ## Rotas principais
 
@@ -202,17 +202,19 @@ duas direções**:
   `{ pathname }`). Quem valida sessão, dono do lote, tipo e tamanho é a rota do
   token — o Blob passa a impor `allowedContentTypes` e `maximumSizeInBytes` por
   conta própria, então o token não serve para gravar outra coisa.
-- **Descida** — `GET /api/media/<id>` responde **307** para a URL do Blob em
-  vez de devolver os bytes. Devolver uma arte de 9 MB pelo corpo da resposta
-  bateria no mesmo teto: a imagem subiria e não apareceria. De quebra, o
-  navegador pega os bytes do CDN, não da função.
+- **Descida** — `GET /api/media/<id>` responde **307** para uma URL assinada
+  de 5 minutos (`presignMediaUrl`, issue #39), não para a `blobUrl` direto.
+  Devolver uma arte de 9 MB pelo corpo da resposta bateria no mesmo teto: a
+  imagem subiria e não apareceria. De quebra, o navegador pega os bytes do
+  CDN, não da função — só que agora com uma URL que expira sozinha, porque o
+  store é privado.
 
 Duas regras ao mexer nisso:
 
 1. **Nada que o navegador manda entra no registro.** Do cliente vem só o
    `pathname` (validado por `isMediaBlobPathname`) e o nome do arquivo; tamanho,
    tipo e URL vêm do `head()` do Blob. Aceitar URL do cliente seria um SSRF,
-   porque `readMedia` faz `fetch` na `blobUrl`.
+   porque `readMedia` busca os bytes pelo `pathname` guardado no registro.
 2. **Sem `onUploadCompleted`.** A Vercel não consegue chamar de volta um
    `localhost`, então registrar a arte por ali faria o dev local se comportar
    diferente da produção — exatamente a diferença que escondeu o `413`. Quem
@@ -220,6 +222,35 @@ Duas regras ao mexer nisso:
 
 Sem `BLOB_READ_WRITE_TOKEN` nada disso liga: o editor volta ao multipart e os
 bytes vão para o disco, como sempre foi em dev.
+
+### Store privado, e por que a arte não é mais pública por URL (issue #39)
+
+`putBlob` grava com `access: "private"`: o store não serve mais nenhum objeto
+só por quem tiver a `blobUrl` — toda leitura passa por `get()`/`presignUrl()`
+com o `BLOB_READ_WRITE_TOKEN` do servidor. Isso fecha o buraco que a issue #39
+descreveu (arte de cliente acessível para sempre a quem vazasse a URL, sem
+sessão nem revogação).
+
+**Mas a Vercel não deixa trocar o modo de acesso (`public`/`private`) de um
+store depois de criado.** O store atual (`ragick-artes`, criado pela issue
+#11 como público) continua público enquanto for esse store — `put(...,
+{ access: "private" })` nele responde com o erro "Cannot use private access
+on a public store", que `putBlob` transforma num `MediaError` claro em vez de
+um 500 cru. Até então **novos uploads ficam bloqueados**, não inseguros: o
+código não volta sozinho a gravar público.
+
+Para ligar de verdade, alguém com acesso ao dashboard da Vercel precisa:
+
+1. Criar um **novo** Blob store com acesso **Private** (Storage → Create
+   Database → Blob → Private) — não dá para converter o existente.
+2. Conectar o novo store ao projeto e migrar (copiar) os objetos do store
+   público antigo para o novo, ou aceitar que artes já enviadas param de
+   abrir (`blobPathname` delas aponta para o store velho).
+3. Atualizar `BLOB_READ_WRITE_TOKEN` para o token do novo store, nos
+   ambientes de produção e preview.
+
+Esse é um passo manual, fora do que este PR consegue fazer sozinho — ver a
+issue #39 para o estado disso.
 
 ## Multi-tenant: isolamento por agência
 

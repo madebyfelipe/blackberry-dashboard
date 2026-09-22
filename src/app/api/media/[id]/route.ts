@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getMedia, readMedia } from "@/lib/media/store";
+import { getMedia, presignMediaUrl, readMedia } from "@/lib/media/store";
 
 export const dynamic = "force-dynamic";
 
@@ -10,21 +10,25 @@ type Ctx = { params: Promise<{ id: string }> };
  *
  * Sem sessão de propósito: o link público de aprovação (`/a/<token>`) precisa
  * carregar as imagens no navegador do cliente, que não tem login. O que
- * protege é o id — 16 bytes aleatórios, não sequencial e não listável.
+ * protege é o id — 16 bytes aleatórios, não sequencial e não listável — e,
+ * desde a issue #39, o próprio store: o objeto no Blob é privado, então
+ * ninguém abre a arte só de ter a `blobUrl`.
  *
- * Quando a arte está no Blob, aqui vai um **redirect** em vez dos bytes. Não
- * é otimização: a resposta de uma função na Vercel tem o mesmo teto de 4,5 MB
- * que o corpo da requisição, então devolver uma arte de 9 MB por aqui daria
- * `413` — a imagem subiria e não apareceria. No redirect o navegador pega os
- * bytes direto do CDN do Blob, sem passar pela função.
+ * Quando a arte está no Blob, aqui vai um **redirect** para uma URL assinada
+ * de 5 minutos, em vez dos bytes. Não é otimização: a resposta de uma função
+ * na Vercel tem o mesmo teto de 4,5 MB que o corpo da requisição, então
+ * devolver uma arte de 9 MB por aqui daria `413` — a imagem subiria e não
+ * apareceria. No redirect o navegador pega os bytes direto do CDN do Blob,
+ * sem passar pela função, só que agora com uma URL que expira sozinha.
  */
 export async function GET(_req: Request, { params }: Ctx) {
   const { id } = await params;
 
   const stored = await getMedia(id);
-  if (stored?.blobUrl) {
-    // 307: o id não muda de arte, mas a URL do Blob pode mudar num reenvio.
-    return NextResponse.redirect(stored.blobUrl, 307);
+  if (stored?.blobPathname) {
+    // 307: o id não muda de arte, mas a URL assinada muda a cada pedido.
+    const url = await presignMediaUrl(stored.blobPathname);
+    return NextResponse.redirect(url, 307);
   }
 
   // Disco ou memória (dev local sem Blob): arquivos pequenos, cabem no corpo.
