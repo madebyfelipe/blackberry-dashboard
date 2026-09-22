@@ -914,3 +914,112 @@ export function ListOrderedIcon(p: IconProps) {
     </Svg>
   );
 }
+
+/* --------------------------------------- Inbox (export "Inbox", issue #30) */
+
+export function SquarePenIcon(p: IconProps) {
+  return (
+    <Svg {...p}>
+      <path d="M12 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+      <path d="M18.375 2.625a2.121 2.121 0 1 1 3 3L12 15l-4 1 1-4Z" />
+    </Svg>
+  );
+}
+
+export function VideoIcon(p: IconProps) {
+  return (
+    <Svg {...p}>
+      <path d="m16 13 5.223 3.482a.5.5 0 0 0 .777-.416V7.87a.5.5 0 0 0-.752-.432L16 10.5" />
+      <rect x="2" y="6" width="14" height="12" rx="2" />
+    </Svg>
+  );
+}
+
+export function PinIcon(p: IconProps) {
+  return (
+    <Svg {...p}>
+      <path d="M12 17v5" />
+      <path d="M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7a1 1 0 0 1 1-1 2 2 0 0 0 0-4H8a2 2 0 0 0 0 4 1 1 0 0 1 1 1z" />
+    </Svg>
+  );
+}
+
+export function UserPlusIcon(p: IconProps) {
+  return (
+    <Svg {...p}>
+      <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+      <circle cx="9" cy="7" r="4" />
+      <path d="M19 8v6" />
+      <path d="M22 11h-6" />
+    </Svg>
+  );
+}
+
+export function StickerIcon(p: IconProps) {
+  return (
+    <Svg {...p}>
+      <path d="M15.5 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V8.5z" />
+      <path d="M15 3v4a2 2 0 0 0 2 2h4" />
+      <path d="M8 13h.01" />
+      <path d="M16 13h.01" />
+      <path d="M10 16s.8 1 2 1c1.3 0 2-1 2-1" />
+    </Svg>
+  );
+}
+
+export function BellOffIcon(p: IconProps) {
+  return (
+    <Svg {...p}>
+      <path d="M8.7 3A6 6 0 0 1 18 8a21.3 21.3 0 0 0 .6 5" />
+      <path d="M17 17H3s3-2 3-9a4.67 4.67 0 0 1 .3-1.7" />
+      <path d="M10.3 21a1.94 1.94 0 0 0 3.4 0" />
+      <path d="m2 2 20 20" />
+    </Svg>
+  );
+}
+
+export function MicIcon(p: IconProps) {
+  return (
+    <Svg {...p}>
+      <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z" />
+      <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
+      <path d="M12 19v3" />
+    </Svg>
+  );
+}
+
+export function MicOffIcon(p: IconProps) {
+  return (
+    <Svg {...p}>
+      <path d="M12 19v3" />
+      <path d="M15 9.34V5a3 3 0 0 0-5.68-1.33" />
+      <path d="M16.95 16.95A7 7 0 0 1 5 12v-2" />
+      <path d="M18.89 13.23A7 7 0 0 0 19 12v-2" />
+      <path d="M9 9v3a3 3 0 0 0 5.12 2.12" />
+      <path d="m2 2 20 20" />
+    </Svg>
+  );
+}
+
+/** Compartilhar tela — a chamada do produto é áudio + tela, não vídeo. */
+export function ScreenShareIcon(p: IconProps) {
+  return (
+    <Svg {...p}>
+      <path d="M13 3H4a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-3" />
+      <path d="M8 21h8" />
+      <path d="M12 17v4" />
+      <path d="m17 8 5-5" />
+      <path d="M17 3h5v5" />
+    </Svg>
+  );
+}
+
+export function PhoneOffIcon(p: IconProps) {
+  return (
+    <Svg {...p}>
+      <path d="M13.832 16.568a1 1 0 0 0 1.213-.303l.355-.465A2 2 0 0 1 17 15h3a2 2 0 0 1 2 2v3a2 2 0 0 1-2 2 18 18 0 0 1-12.728-5.272" />
+      <path d="M4.828 4.828A18 18 0 0 0 2 4a2 2 0 0 1 2-2h3a2 2 0 0 1 2 2v3a2 2 0 0 1-.8 1.6l-.468.351a1 1 0 0 0-.292 1.233 14 14 0 0 0 1.55 2.288" />
+      <path d="m2 2 20 20" />
+    </Svg>
+  );
+}
