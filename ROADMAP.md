@@ -84,7 +84,7 @@ Legenda: ✅ pronto · 🟡 parcial/placeholder · ⬜ não começado · 🎨 pr
 - ⬜ Papéis/permissões (Coordenação, Social media, Designer, Cliente) — o papel é gravado, mas ainda não muda o que a pessoa pode fazer
 - ✅ **Configurações**: perfil, troca de senha e sessão
 - ⬜ Inbox, Notificações, Conversas, Relatórios, Membros (hoje placeholders — todos aparecem na lateral do v3)
-- ✅ **Testes automatizados** (`tests/`, runner do próprio Node, 217 casos das funções puras, incluindo o isolamento entre agências e a régua de clientes) **+ CI** (`.github/workflows/ci.yml`: tipos, testes e build a cada push e pull request)
+- ✅ **Testes automatizados** (`tests/`, runner do próprio Node, 280 casos das funções puras, incluindo o isolamento entre agências e a régua de clientes) **+ CI** (`.github/workflows/ci.yml`: tipos, testes e build a cada push e pull request)
 - ✅ **`npm run lint` volta a funcionar**: o Next 16 removeu o `next lint`; entrou ESLint direto (`eslint.config.mjs`, flat config) com `eslint-config-next/core-web-vitals` + `/typescript`. Duas regras novas do plugin de React Compiler (`react-hooks/set-state-in-effect`, `react-hooks/refs`) ficaram desligadas — pegam padrões usados de propósito em várias telas (sincronizar estado com uma prop que muda, ler `ref.current` para medir menu/toolbar); satisfazê-las seria reescrever esses componentes, não corrigir lint. Ainda fora do CI, que continua só com tipos/testes/build.
 
 ## Fora do MVP (não construir sem pedido)
