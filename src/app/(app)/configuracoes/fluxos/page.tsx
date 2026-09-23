@@ -7,6 +7,8 @@ import { isWorking } from "@/lib/inbox/users";
 
 export const dynamic = "force-dynamic";
 
+export const metadata = { title: "Fluxos e Processos" };
+
 export default async function FluxosPage({
   searchParams,
 }: {

@@ -79,10 +79,38 @@ export function createPostgresStore<T>(options: {
     return after.length > 0 ? parse(after[0].data) : seeded;
   }
 
+  /*
+   * O último valor lido, com a versão da linha (`updated_at` em texto, exato
+   * até o microssegundo). A leitura sempre pergunta a versão ao banco — então
+   * continua valendo entre instâncias —, mas só traz e revive o JSON inteiro
+   * quando ela mudou. Uma tela lê a mesma área várias vezes (sessão, acesso,
+   * time…); antes, cada leitura transferia e reprocessava o arquivo todo.
+   * Quem recebe ganha uma cópia, como no store de arquivo: mexer no retorno
+   * não pode estragar o que está guardado.
+   */
+  let cached: { version: string; value: T } | null = null;
+
+  async function readCached(): Promise<T> {
+    const { rows } = await getPool().query(
+      `SELECT updated_at::text AS version,
+              CASE WHEN updated_at::text = $2 THEN NULL ELSE data END AS data
+         FROM kv_store WHERE key = $1`,
+      [options.key, cached?.version ?? ""],
+    );
+    if (rows.length === 0) return load(getPool(), false);
+    const row = rows[0] as { version: string; data: unknown };
+    if (row.data === null && cached && cached.version === row.version) {
+      return structuredClone(cached.value);
+    }
+    const value = parse(row.data);
+    cached = { version: row.version, value };
+    return structuredClone(value);
+  }
+
   return {
     async read(): Promise<T> {
       await ensureSchema();
-      return load(getPool(), false);
+      return readCached();
     },
 
     async transaction<R>(mutate: (data: T) => R): Promise<R> {

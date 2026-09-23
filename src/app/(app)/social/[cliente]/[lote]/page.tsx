@@ -7,6 +7,8 @@ import { LoteView } from "@/components/approval/LoteView";
 
 export const dynamic = "force-dynamic";
 
+export const metadata = { title: "Lote" };
+
 export default async function LotePage({
   params,
 }: {

@@ -7,6 +7,8 @@ import { PlanningCalendar } from "@/components/approval/PlanningCalendar";
 
 export const dynamic = "force-dynamic";
 
+export const metadata = { title: "Planejamento" };
+
 /** Planejamento do lote — o calendário, a primeira tela depois de criar o lote. */
 export default async function PlanejamentoPage({
   params,

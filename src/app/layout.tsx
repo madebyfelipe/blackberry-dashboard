@@ -10,7 +10,8 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "black berry",
+  // Cada tela põe o próprio nome na aba (e na janela do app de desktop).
+  title: { default: "black berry", template: "%s · black berry" },
   description: "Gestão e aprovação de conteúdo para agências de social media.",
 };
 

@@ -26,7 +26,7 @@ export async function POST(req: Request) {
   } catch {
     return NextResponse.json({ error: "JSON inválido." }, { status: 400 });
   }
-  const { name, segment, services, owner, billingDay, status, city, email, phone } =
+  const { name, segment, services, owner, billingDay, status, city, email, phone, squad, flowId } =
     (body ?? {}) as Record<string, unknown>;
 
   try {
@@ -40,6 +40,8 @@ export async function POST(req: Request) {
       city: city === undefined ? undefined : String(city),
       email: email === undefined ? undefined : String(email),
       phone: phone === undefined ? undefined : String(phone),
+      squad: squad as never,
+      flowId: flowId ? String(flowId) : null,
     });
     return NextResponse.json({ client }, { status: 201 });
   } catch (err) {

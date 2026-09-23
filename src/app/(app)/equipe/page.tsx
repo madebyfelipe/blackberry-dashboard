@@ -7,6 +7,8 @@ import { UsersView } from "@/components/team/UsersView";
 
 export const dynamic = "force-dynamic";
 
+export const metadata = { title: "Usuários" };
+
 /** Usuários — export "Usuários · Painel (Lista)". O time da agência. */
 export default async function EquipePage() {
   const session = await currentInboxSession();
