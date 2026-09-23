@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useTaskSub } from "./stepNames";
 import type { Task, TaskStatus } from "@/lib/tasks/types";
 import { STATUSES, STATUS_BY_ID } from "@/lib/tasks/constants";
 import { formatShortDate } from "@/lib/format";
@@ -36,6 +37,7 @@ export function TaskBoard({
   onDelete: (t: Task) => void;
   onAdd: (s: TaskStatus) => void;
 }) {
+  const taskSub = useTaskSub();
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [overCol, setOverCol] = useState<TaskStatus | null>(null);
 
@@ -96,7 +98,7 @@ export function TaskBoard({
                   key={t.id}
                   index={i}
                   name={t.title}
-                  sub={t.client || "Sem cliente"}
+                  sub={taskSub(t)}
                   draggable
                   onDragStart={() => setDraggingId(t.id)}
                   onDragEnd={() => {

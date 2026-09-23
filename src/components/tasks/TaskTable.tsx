@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useTaskSub } from "./stepNames";
 import type { Task } from "@/lib/tasks/types";
 import { STATUS_BY_ID } from "@/lib/tasks/constants";
 import {
@@ -201,6 +202,7 @@ function Rows({
   onToggle: (id: string) => void;
   onOpen: (t: Task) => void;
 }) {
+  const taskSub = useTaskSub();
   const [expanded, setExpanded] = useState(false);
   const limit = perGroup === "todas" || expanded ? tasks.length : perGroup;
   const visible = tasks.slice(0, limit);
@@ -228,7 +230,7 @@ function Rows({
                 {t.title}
               </span>
               <span className="truncate text-[11px] text-sub">
-                {t.client || "Sem cliente"}
+                {taskSub(t)}
               </span>
             </div>
           </ColumnCell>
