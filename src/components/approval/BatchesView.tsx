@@ -1,21 +1,18 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { Batch } from "@/lib/approval/types";
 import { batchProgress, progressCaption } from "@/lib/approval/constants";
 import { Breadcrumb } from "@/components/ui/Breadcrumb";
-import { RoundIconButton } from "./RoundIconButton";
+import { Screen, ScreenAction, ScreenHeader } from "@/components/ui/Screen";
+import { TabStrip } from "@/components/ui/Tabs";
+import { Toolbar, ToolbarSearch } from "@/components/ui/Toolbar";
+import { CardRow, EntityCard } from "@/components/ui/EntityCard";
+import { Badge } from "@/components/ui/Badge";
 import { NewBatchModal, type NewBatchValues } from "./NewBatchModal";
 import { useToast } from "@/components/ui/Toast";
-import {
-  ChevronRightIcon,
-  PlusIcon,
-  SearchIcon,
-  Settings2Icon,
-  SlidersIcon,
-} from "@/components/icons";
+import { ChevronRightIcon } from "@/components/icons";
 
 /**
  * Lotes de um cliente — segundo passo do Social media, export "Lotes de
@@ -37,7 +34,7 @@ export function BatchesView({
   const router = useRouter();
   const [batches, setBatches] = useState(initialBatches);
   const [search, setSearch] = useState("");
-  const [showSearch, setShowSearch] = useState(false);
+  const [tab, setTab] = useState<"todos" | "rascunho" | "em-aprovacao">("todos");
   const [creating, setCreating] = useState(false);
   const [saving, setSaving] = useState(false);
 
@@ -72,92 +69,59 @@ export function BatchesView({
     }
   }
 
+  const stageOf = (b: Batch) => b.stage ?? "em-aprovacao";
+  const byTab = filtered.filter((b) => tab === "todos" || stageOf(b) === tab);
+
   return (
-    <div className="flex h-full min-h-0 flex-col gap-6 overflow-y-auto px-1 py-5 md:py-6 md:pl-2 md:pr-6">
-      {/* Header Row */}
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <Breadcrumb
-          items={[
-            { label: "black berry", href: "/tarefas" },
-            { label: "Social media", href: "/social" },
-            { label: client },
+    <Screen gap="md">
+      <Breadcrumb
+        items={[
+          { label: "black berry", href: "/tarefas" },
+          { label: "Social media", href: "/social" },
+          { label: client },
+        ]}
+      />
+
+      <ScreenHeader actions={<ScreenAction onClick={() => setCreating(true)}>Novo lote</ScreenAction>}>
+        <TabStrip
+          tabs={[
+            { id: "todos", label: "Todos", count: batches.length },
+            { id: "rascunho", label: "Rascunho", count: batches.filter((b) => stageOf(b) === "rascunho").length },
+            { id: "em-aprovacao", label: "Em aprovação", count: batches.filter((b) => stageOf(b) === "em-aprovacao").length },
           ]}
+          active={tab}
+          onSelect={(id) => setTab(id as typeof tab)}
         />
+      </ScreenHeader>
 
-        <div className="flex items-center gap-2.5">
-          <div className="relative shrink-0">
-            {showSearch && (
-              <input
-                autoFocus
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                onBlur={() => !search && setShowSearch(false)}
-                onKeyDown={(e) => {
-                  if (e.key === "Escape") {
-                    setSearch("");
-                    setShowSearch(false);
-                  }
-                }}
-                placeholder="Buscar lote…"
-                className="absolute left-0 top-1/2 h-10 w-[240px] max-w-[calc(100vw-32px)] -translate-y-1/2 animate-fade-in rounded-pill border border-border bg-surface pl-4 pr-12 text-[13px] text-fg-soft placeholder:text-muted focus:border-border-strong focus:outline-none md:left-auto md:right-0"
-              />
-            )}
-            <RoundIconButton
-              label="Buscar lote"
-              onClick={() => setShowSearch((v) => !v)}
-              active={showSearch || !!search}
-            >
-              <SearchIcon size={18} />
-            </RoundIconButton>
-          </div>
+      <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden rounded-card">
+        <Toolbar>
+          <ToolbarSearch value={search} onChange={setSearch} placeholder="Buscar lote" />
+        </Toolbar>
 
-          <RoundIconButton
-            label="Filtrar lotes"
-            onClick={() => toast("Os filtros de lote ainda não têm desenho.", "info")}
-          >
-            <SlidersIcon size={18} />
-          </RoundIconButton>
-          <RoundIconButton
-            label="Organizar lotes"
-            onClick={() => toast("Organizar lotes ainda não tem desenho.", "info")}
-          >
-            <Settings2Icon size={18} />
-          </RoundIconButton>
-
-          <RoundIconButton
-            tone="primary"
-            label="Novo lote"
-            onClick={() => setCreating(true)}
-          >
-            <PlusIcon size={18} />
-          </RoundIconButton>
-        </div>
-      </div>
-
-      {filtered.length === 0 ? (
-        <div className="flex flex-col items-center gap-4 rounded-card border border-border px-5 py-10 text-center">
-          <p className="text-[13px] text-muted">
-            {batches.length === 0
-              ? `Nenhum lote de ${client} ainda.`
-              : "Nenhum lote com esse nome."}
-          </p>
-          {batches.length === 0 && (
-            <button
-              type="button"
-              onClick={() => setCreating(true)}
-              className="tap flex items-center gap-2 rounded-pill bg-primary px-5 py-2.5 text-[14px] font-semibold text-on-primary transition-colors hover:bg-white"
-            >
-              <PlusIcon size={16} /> Criar o primeiro lote
-            </button>
+        <div className="min-h-0 flex-1 overflow-y-auto pt-4">
+          {byTab.length === 0 ? (
+            <div className="flex flex-col items-center gap-4 px-5 py-10 text-center">
+              <p className="text-[13px] text-muted">
+                {batches.length === 0
+                  ? `Nenhum lote de ${client} ainda.`
+                  : search
+                    ? "Nenhum lote com esse nome."
+                    : "Nenhum lote aqui."}
+              </p>
+              {batches.length === 0 && (
+                <ScreenAction onClick={() => setCreating(true)}>Criar o primeiro lote</ScreenAction>
+              )}
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-2 xl:grid-cols-3">
+              {byTab.map((batch, i) => (
+                <BatchCard key={batch.id} batch={batch} slug={slug} index={i} />
+              ))}
+            </div>
           )}
         </div>
-      ) : (
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
-          {filtered.map((batch, i) => (
-            <BatchCard key={batch.id} batch={batch} slug={slug} index={i} />
-          ))}
-        </div>
-      )}
+      </div>
 
       <NewBatchModal
         client={client}
@@ -166,7 +130,7 @@ export function BatchesView({
         onClose={() => !saving && setCreating(false)}
         onSubmit={create}
       />
-    </div>
+    </Screen>
   );
 }
 
@@ -179,42 +143,32 @@ function BatchCard({
   slug: string;
   index: number;
 }) {
+  const router = useRouter();
   const p = batchProgress(batch);
+  const draft = (batch.stage ?? "em-aprovacao") === "rascunho";
   return (
-    <Link
-      href={`/social/${slug}/${batch.id}`}
-      style={{ ["--d" as string]: index }}
-      className="stagger-item group flex flex-col gap-4 rounded-panel border border-border p-5 transition-[border-color,transform] duration-200 hover:-translate-y-0.5 hover:border-border-strong"
+    <EntityCard
+      index={index}
+      name={batch.label}
+      sub={`${p.total} ${p.total === 1 ? "peça" : "peças"}`}
+      onClick={() => router.push(`/social/${slug}/${batch.id}`)}
+      badge={<Badge label={draft ? "Rascunho" : "Em aprovação"} size="sm" />}
+      footer={
+        <>
+          <span className="truncate text-[12px] text-muted">{progressCaption(batch)}</span>
+          <ChevronRightIcon
+            size={15}
+            className="shrink-0 text-fg-3 transition-transform duration-200 group-hover:translate-x-0.5"
+          />
+        </>
+      }
     >
-      {/* Card Header */}
-      <div className="flex items-center gap-3">
-        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-thumb bg-border text-[14px] font-semibold text-fg-soft transition-transform duration-200 group-hover:scale-105">
-          {batch.client.charAt(0).toUpperCase()}
-        </span>
-        <span className="min-w-0 flex-1 truncate text-[15px] font-semibold text-fg-soft">
-          {batch.label}
-        </span>
-        <ChevronRightIcon
-          size={18}
-          className="shrink-0 text-muted transition-transform duration-200 group-hover:translate-x-1"
-        />
-      </div>
-
-      {/* Progress */}
-      <div className="flex flex-col gap-2">
-        <div className="flex items-center justify-between">
-          <span className="text-[11px] font-semibold tracking-[0.5px] text-muted">
-            PROGRESSO DO LOTE
-          </span>
-          <span className="text-[13px] font-semibold text-fg-soft">
-            {p.decided} / {p.total}
-          </span>
-        </div>
+      <div className="flex w-full flex-col gap-2">
+        <CardRow label="Progresso">
+          {p.decided} / {p.total}
+        </CardRow>
         <div className="h-1.5 w-full overflow-hidden rounded-pill bg-border">
-          {/*
-           * A barra cresce da esquerda ao abrir a tela: `scaleX` em vez de
-           * `width` para a animação ficar no compositor.
-           */}
+          {/* Cresce da esquerda ao abrir a tela — `scaleX`, no compositor. */}
           <div
             className="h-1.5 origin-left rounded-pill bg-primary"
             style={{
@@ -224,8 +178,7 @@ function BatchCard({
             }}
           />
         </div>
-        <span className="text-[12px] text-muted">{progressCaption(batch)}</span>
       </div>
-    </Link>
+    </EntityCard>
   );
 }

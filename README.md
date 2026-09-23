@@ -95,12 +95,12 @@ discordarem:
 | Camada | Exports | Onde está aplicada |
 | --- | --- | --- |
 | **v3** (atual) | `Tarefas · Painel (Lista)`, `Tarefas · Painel (Quadro)`, `Tarefas · Descrição da tarefa`, `Clientes · Painel (Lista)`, `Clientes · Painel (Grade)`, `Inbox` | Shell (lateral), Tarefas, Descrição da tarefa, Clientes, Inbox |
-| **v2** (gradiente) | `2. Gradiente`, `Clínica Aurora - *`, `Lotes de Aprovação*`, `Filtros · Menu` | Aprovação de conteúdo (Social media, Lote, Editor de lote, link público) |
+| **v2** (gradiente) | `2. Gradiente`, `Clínica Aurora - *`, `Lotes de Aprovação*`, `Filtros · Menu` | Só o link público do cliente (`/a/<token>`). Social media, Lote, Editor, Planejamento e Configurações passaram para o painel v3 (2026-09-23) — o conteúdo dos exports v2 continua, dentro do vocabulário v3 |
 
 Os exports `List View` e `2. Board · Kanban` são a versão v2 das Tarefas, hoje
 substituída pelos dois `Tarefas · Painel (…)`; ficam no repo como histórico.
-O redesenho das telas de aprovação ainda não chegou — elas seguem em v2 de
-propósito, não por esquecimento.
+As telas de aprovação da agência usam o painel, as abas, a barra e o card do
+v3 desde 2026-09-23; o link público do cliente segue o desenho mobile próprio.
 
 **O que o v3 traz.** Painel de conteúdo de 28px de raio sobre o fundo preto
 (`ui/Screen`), abas em pílula (`ui/Tabs`), barra de ferramentas com

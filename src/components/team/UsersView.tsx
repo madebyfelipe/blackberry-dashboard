@@ -1,6 +1,8 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
+import { anchorMenu, useCloseOnScroll, type MenuPosition } from "@/components/ui/anchoredMenu";
 import { cn } from "@/lib/cn";
 import { Breadcrumb } from "@/components/ui/Breadcrumb";
 import { Screen, ScreenAction, ScreenHeader, ScreenIconAction, FieldLabel } from "@/components/ui/Screen";
@@ -99,7 +101,8 @@ export function UsersView({
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [modal, setModal] = useState<{ mode: "create" } | { mode: "edit"; user: UserRow } | null>(null);
-  const [menuFor, setMenuFor] = useState<string | null>(null);
+  /** A linha com o menu aberto, e onde está o botão que o abriu. */
+  const [menu, setMenu] = useState<{ id: string; anchor: DOMRect } | null>(null);
 
   const visible = useMemo(
     () =>
@@ -317,8 +320,8 @@ export function UsersView({
               onToggle={toggleOne}
               onToggleAll={(next) => setSelected(next ? new Set(visibleIds) : new Set())}
               onOpen={(u) => (canManage ? setModal({ mode: "edit", user: u }) : undefined)}
-              menuFor={menuFor}
-              onMenu={setMenuFor}
+              menuFor={menu?.id ?? null}
+              onMenu={(id, anchor) => setMenu(id && anchor ? { id, anchor } : null)}
               rowMenu={(u) => (
                 <RowMenu
                   user={u}
@@ -348,7 +351,8 @@ export function UsersView({
                     ),
                   )}
                   onDelete={guard(() => void remove(u))}
-                  onClose={() => setMenuFor(null)}
+                  anchor={menu!.anchor}
+                  onClose={() => setMenu(null)}
                 />
               )}
             />
@@ -452,7 +456,7 @@ function UsersTable({
   onToggleAll: (next: boolean) => void;
   onOpen: (u: UserRow) => void;
   menuFor: string | null;
-  onMenu: (id: string | null) => void;
+  onMenu: (id: string | null, anchor?: DOMRect) => void;
   rowMenu: (u: UserRow) => React.ReactNode;
 }) {
   const api = useColumnWidths("usuarios.lista", ALL_SPECS);
@@ -531,7 +535,9 @@ function UsersTable({
                     aria-label={`Ações de ${u.name}`}
                     aria-haspopup="menu"
                     aria-expanded={menuFor === u.id}
-                    onClick={() => onMenu(menuFor === u.id ? null : u.id)}
+                    onClick={(e) =>
+                      onMenu(menuFor === u.id ? null : u.id, e.currentTarget.getBoundingClientRect())
+                    }
                     className="flex h-7 w-8 items-center justify-center rounded-mark text-muted transition-colors hover:bg-border hover:text-fg-soft"
                   >
                     <EllipsisIcon size={16} />
@@ -558,9 +564,11 @@ function RowMenu({
   onArchive,
   onToggleActive,
   onDelete,
+  anchor,
   onClose,
 }: {
   user: UserRow;
+  anchor: DOMRect;
   isMe: boolean;
   onEdit: () => void;
   onResend: () => void;
@@ -572,18 +580,36 @@ function RowMenu({
   onDelete: () => void;
   onClose: () => void;
 }) {
+  /*
+   * Por portal, no `body`: dentro da linha (que anima com `transform`) o menu
+   * ficava atrás das linhas de baixo — ver `ui/anchoredMenu`.
+   */
+  const ref = useRef<HTMLDivElement>(null);
+  const [pos, setPos] = useState<MenuPosition | null>(null);
+  useLayoutEffect(() => {
+    const m = ref.current;
+    if (m) setPos(anchorMenu(anchor, { width: m.offsetWidth, height: m.offsetHeight }, "right"));
+  }, [anchor]);
+  useCloseOnScroll(true, onClose);
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
   const run = (fn: () => void) => () => {
     onClose();
     fn();
   };
   const invite = user.status === "convite";
-  return (
+  return createPortal(
     <>
-      <div className="fixed inset-0 z-40" onClick={onClose} />
+      <div className="fixed inset-0 z-[60]" onClick={onClose} />
       <div
+        ref={ref}
         role="menu"
         aria-label={`Ações de ${user.name}`}
-        className="absolute right-0 top-[calc(100%+4px)] z-50 flex w-[238px] animate-pop-in flex-col gap-0.5 rounded-nav border border-border bg-overlay p-1.5 shadow-[0_12px_32px_rgba(0,0,0,0.6)]"
+        style={pos ? { top: pos.top, left: pos.left } : { top: 0, left: 0, visibility: "hidden" }}
+        className="fixed z-[61] flex w-[238px] animate-pop-in flex-col gap-0.5 rounded-nav border border-border bg-overlay p-1.5 shadow-[0_12px_32px_rgba(0,0,0,0.6)]"
       >
         <Item icon={<PencilIcon size={15} />} label="Editar" onClick={run(onEdit)} />
         {invite ? (
@@ -619,7 +645,8 @@ function RowMenu({
           </>
         )}
       </div>
-    </>
+    </>,
+    document.body,
   );
 }
 

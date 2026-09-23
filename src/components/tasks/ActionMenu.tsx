@@ -1,6 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useLayoutEffect, useState } from "react";
+import { createPortal } from "react-dom";
+import { anchorMenu, useCloseOnScroll, type MenuPosition } from "@/components/ui/anchoredMenu";
 import { EllipsisIcon } from "@/components/icons";
 import { useMenuKeys } from "@/components/ui/useMenuKeys";
 import { cn } from "@/lib/cn";
@@ -28,9 +30,22 @@ export function ActionMenu({
   menuClassName?: string;
 }) {
   const [open, setOpen] = useState(false);
-  const { menuRef, triggerRef, onKeyDown } = useMenuKeys(open, () =>
-    setOpen(false),
-  );
+  const close = useCallback(() => setOpen(false), []);
+  const { menuRef, triggerRef, onKeyDown } = useMenuKeys(open, close);
+  /*
+   * O painel sai por portal no `body` e se posiciona junto do botão (ver
+   * `ui/anchoredMenu`): dentro de um card ou linha animados ele ficava
+   * atrás do item seguinte.
+   */
+  const [pos, setPos] = useState<MenuPosition | null>(null);
+  useLayoutEffect(() => {
+    if (!open) return setPos(null);
+    const t = triggerRef.current?.getBoundingClientRect();
+    const m = menuRef.current;
+    if (!t || !m) return;
+    setPos(anchorMenu(t, { width: m.offsetWidth, height: m.offsetHeight }, align));
+  }, [open, align, triggerRef, menuRef]);
+  useCloseOnScroll(open, close);
 
   return (
     <div className="relative shrink-0">
@@ -57,10 +72,10 @@ export function ActionMenu({
       >
         <EllipsisIcon size={18} />
       </button>
-      {open && (
+      {open && createPortal(
         <>
           <div
-            className="fixed inset-0 z-40"
+            className="fixed inset-0 z-[60]"
             onClick={(e) => {
               e.stopPropagation();
               setOpen(false);
@@ -70,9 +85,13 @@ export function ActionMenu({
             ref={menuRef}
             role="menu"
             aria-label="Ações"
+            style={
+              pos
+                ? { top: pos.top, left: pos.left, maxHeight: pos.maxHeight }
+                : { top: 0, left: 0, visibility: "hidden" }
+            }
             className={cn(
-              "absolute z-50 mt-1 w-[176px] animate-pop-in overflow-hidden rounded-menu border border-border bg-surface-2 p-1.5 shadow-[0_16px_40px_rgba(0,0,0,0.55)]",
-              align === "right" ? "right-0" : "left-0",
+              "fixed z-[61] w-[176px] animate-pop-in overflow-y-auto rounded-menu border border-border bg-surface-2 p-1.5 shadow-[0_16px_40px_rgba(0,0,0,0.55)]",
               menuClassName,
             )}
             onClick={(e) => e.stopPropagation()}
@@ -106,7 +125,8 @@ export function ActionMenu({
               </div>
             ))}
           </div>
-        </>
+        </>,
+        document.body,
       )}
     </div>
   );
