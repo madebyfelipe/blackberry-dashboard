@@ -7,6 +7,7 @@ import {
 } from "./constants";
 import { slugify } from "./clients";
 import { deleteMedia } from "@/lib/media/store";
+import { resolveClientId } from "@/lib/clients/repository";
 import type { AgencyScope } from "@/lib/agency/types";
 import type { MediaAsset } from "@/lib/media/types";
 import type {
@@ -291,6 +292,7 @@ export async function createBatch(
   const period = input.period?.trim();
   const description = input.description?.trim();
   if (!client || !title) return undefined;
+  const clientId = await resolveClientId(scope, client);
 
   return transaction((batches) => {
     const base = slugify(`${client}-${title}`) || "lote";
@@ -304,6 +306,7 @@ export async function createBatch(
       id,
       agencyId: scope.agencyId,
       client,
+      clientId,
       label: period ? `${title} · ${period}` : title,
       description: description || undefined,
       stage: "rascunho",

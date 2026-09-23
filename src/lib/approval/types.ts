@@ -68,6 +68,13 @@ export type Batch = {
    */
   agencyId: AgencyId;
   client: string;
+  /**
+   * O `Client.id` cujo nome bate com `client`, resolvido na criação do lote
+   * (`resolveClientId`, em `lib/clients/repository.ts`). `null` quando não
+   * bate com nenhum cliente cadastrado — o lote continua existindo, só sem
+   * o vínculo (ver "Cliente ainda é texto livre" no ROADMAP).
+   */
+  clientId: string | null;
   /** e.g. "Lote setembro · 01-30 set" */
   label: string;
   /** Briefing curto que a agência escreve ao criar o lote. */

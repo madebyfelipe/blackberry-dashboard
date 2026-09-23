@@ -34,6 +34,13 @@ export type Task = {
   title: string;
   /** Cliente / contexto (linha secundária) */
   client: string;
+  /**
+   * O `Client.id` cujo nome bate com `client`, resolvido a cada gravação
+   * (`resolveClientId`, em `lib/clients/repository.ts`). `null` quando o
+   * texto está vazio ou não bate com nenhum cliente cadastrado — a tarefa
+   * continua existindo, só sem o vínculo. Nunca vem do corpo da requisição.
+   */
+  clientId: string | null;
   status: TaskStatus;
   /**
    * Nome curto de quem toca a tarefa ("Felipe", "Marina"). A lista e o card
@@ -85,5 +92,8 @@ export type NewTask = {
  * da sessão, e um PATCH que pudesse reescrever a conversa seria outra coisa.
  */
 export type TaskPatch = Partial<
-  Omit<Task, "id" | "createdAt" | "agencyId" | "comments" | "flowId" | "stepId" | "source">
+  Omit<
+    Task,
+    "id" | "createdAt" | "agencyId" | "comments" | "flowId" | "stepId" | "source" | "clientId"
+  >
 >;

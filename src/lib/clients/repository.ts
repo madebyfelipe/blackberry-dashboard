@@ -179,6 +179,21 @@ function foldName(s: string): string {
     .trim();
 }
 
+/**
+ * O id do cliente cujo nome bate com o texto livre gravado na tarefa ou no
+ * lote — a ponte entre as duas pontas enquanto elas não apontam direto para
+ * `Client.id` (ver "Cliente ainda é texto livre" no ROADMAP). Nome vazio ou
+ * sem cliente correspondente vira `null`, nunca erro: tarefa/lote sem cliente
+ * cadastrado continua existindo, só sem o vínculo.
+ */
+export async function resolveClientId(
+  scope: AgencyScope,
+  name: string,
+): Promise<string | null> {
+  const client = await findClientByName(scope, name);
+  return client?.id ?? null;
+}
+
 export async function deleteClient(
   scope: AgencyScope,
   id: string,

@@ -9,6 +9,7 @@ export function seedBatches(): Batch[] {
       // Os dois lotes de demonstração são da agência semeada.
       agencyId: LEGACY_AGENCY_ID,
       client: "Clínica Aurora",
+      clientId: null,
       label: "Lote setembro · 01-30 set",
       token: "BJnMavwFGlmU67F",
       pieces: [
@@ -35,6 +36,7 @@ export function seedBatches(): Batch[] {
       id: "monte-bar-set",
       agencyId: LEGACY_AGENCY_ID,
       client: "Montê bar",
+      clientId: null,
       label: "Lote setembro · 01-30 set",
       token: "Mn7bQrLZ2kTv0aX",
       pieces: [

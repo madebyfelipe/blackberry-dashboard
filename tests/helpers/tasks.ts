@@ -8,6 +8,7 @@ export function makeTask(over: Partial<Task> = {}): Task {
     agencyId: AGENCIA_A.agencyId,
     title: "Tarefa",
     client: "Clínica Aurora",
+    clientId: null,
     status: "a-fazer",
     assignee: "MD",
     createdAt: new Date("2026-09-10T12:00:00.000Z").toISOString(),

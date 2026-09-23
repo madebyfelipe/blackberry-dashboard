@@ -33,6 +33,10 @@ export function seedTasks(): Task[] {
     ...row,
     // A demonstração é da agência semeada — é ela que abre o app na primeira vez.
     agencyId: LEGACY_AGENCY_ID,
+    // Semente não passa pelo `createTask`, então não resolve contra a lista
+    // de clientes — os nomes daqui (Montê bar etc.) não são o cliente
+    // semeado ("Clínica Aurora"/"Montê bar" de `clients/seed.ts` variam).
+    clientId: null,
     description: description ?? "",
     comments: [],
     flowId: null,
