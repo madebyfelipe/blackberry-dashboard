@@ -22,6 +22,8 @@ const EDITABLE = [
   "city",
   "email",
   "phone",
+  "squad",
+  "flowId",
 ] as const;
 
 function pickPatch(body: unknown): ClientPatch {

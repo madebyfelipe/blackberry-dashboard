@@ -12,6 +12,8 @@ import { BatchesView } from "@/components/approval/BatchesView";
 
 export const dynamic = "force-dynamic";
 
+export const metadata = { title: "Lotes" };
+
 /** Social media, passo 2: os lotes de um cliente (export "Lotes de Aprovação"). */
 export default async function ClientBatchesPage({
   params,

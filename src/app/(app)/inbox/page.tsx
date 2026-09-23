@@ -10,6 +10,8 @@ import { currentInboxSession } from "@/lib/inbox/viewer";
 
 export const dynamic = "force-dynamic";
 
+export const metadata = { title: "Inbox" };
+
 /**
  * Inbox — a conversa do time (issue #30).
  *

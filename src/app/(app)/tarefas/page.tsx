@@ -5,6 +5,8 @@ import { TasksView } from "@/components/tasks/TasksView";
 
 export const dynamic = "force-dynamic";
 
+export const metadata = { title: "Tarefas" };
+
 export default async function TarefasPage() {
   // A tela lê só as tarefas da agência da sessão. O layout já barra quem não
   // tem sessão; este redirect existe porque sem escopo não há o que listar.

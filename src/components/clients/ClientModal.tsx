@@ -9,14 +9,17 @@ import {
   CalendarIcon,
   CheckIcon,
   ChevronRightIcon,
+  GitBranchIcon,
   MailIcon,
   MapPinIcon,
   PhoneIcon,
   TagIcon,
   UserCircleIcon,
+  UsersIcon,
   XIcon,
 } from "@/components/icons";
 import { cn } from "@/lib/cn";
+import { useTeam } from "@/components/team/useTeam";
 
 /*
  * Criação e edição de cliente.
@@ -40,6 +43,10 @@ export type ClientModalValues = {
   city: string;
   email: string;
   phone: string;
+  /** Quem do time cuida do cliente — recebe as etapas "squad do cliente". */
+  squad: string[];
+  /** Fluxo das tarefas deste cliente; `null` = o padrão da agência. */
+  flowId: string | null;
 };
 
 export type ClientModalState =
@@ -66,6 +73,8 @@ export function ClientModal({
   const [city, setCity] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
+  const [squad, setSquad] = useState<string[]>([]);
+  const [flowId, setFlowId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!state) return;
@@ -80,6 +89,8 @@ export function ClientModal({
       setCity(c.city);
       setEmail(c.email);
       setPhone(c.phone);
+      setSquad(c.squad ?? []);
+      setFlowId(c.flowId ?? null);
     } else {
       setName("");
       setSegment("");
@@ -90,6 +101,8 @@ export function ClientModal({
       setCity("");
       setEmail("");
       setPhone("");
+      setSquad([]);
+      setFlowId(null);
     }
   }, [state]);
 
@@ -116,6 +129,8 @@ export function ClientModal({
       city,
       email,
       phone,
+      squad,
+      flowId,
     });
   }
 
@@ -192,6 +207,10 @@ export function ClientModal({
           />
 
           <BillingChip value={billingDay} onChange={setBillingDay} />
+
+          {/* Quem recebe as tarefas do cliente, e por qual esteira elas passam. */}
+          <SquadChip value={squad} onChange={setSquad} />
+          <FlowChip value={flowId} onChange={setFlowId} />
 
           {/*
            * Contato — é o que o cartão de hover do nome mostra (export "hover
@@ -527,5 +546,138 @@ function ChipField({
       <span className="text-muted">{icon}</span>
       {value || placeholder}
     </button>
+  );
+}
+
+/* ------------------------------------------------- squad e fluxo */
+
+function useOutside(open: boolean, close: () => void) {
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    const onDown = (e: MouseEvent) => !ref.current?.contains(e.target as Node) && close();
+    window.addEventListener("mousedown", onDown);
+    return () => window.removeEventListener("mousedown", onDown);
+  }, [open, close]);
+  return ref;
+}
+
+/** O squad: gente do time, o primeiro na frente (é quem recebe primeiro). */
+function SquadChip({ value, onChange }: { value: string[]; onChange: (v: string[]) => void }) {
+  const team = useTeam();
+  const [open, setOpen] = useState(false);
+  const ref = useOutside(open, () => setOpen(false));
+  const names = value.map((id) => team.find((p) => p.id === id)?.name).filter(Boolean) as string[];
+  const label =
+    names.length === 0 ? "Squad" : names.length === 1 ? names[0] : `${names[0]} +${names.length - 1}`;
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        type="button"
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        onClick={() => setOpen((o) => !o)}
+        className={cn(chipBase, names.length ? "text-fg-soft inset-ring-border-strong" : "text-muted inset-ring-border hover:text-fg-soft")}
+      >
+        <UsersIcon size={14} />
+        {label}
+      </button>
+      {open && (
+        <div
+          role="listbox"
+          aria-multiselectable="true"
+          aria-label="Squad do cliente"
+          className="absolute left-0 top-[calc(100%+6px)] z-10 w-[240px] animate-pop-in rounded-menu border border-border bg-surface-2 p-1.5 shadow-[0_16px_40px_rgba(0,0,0,0.55)]"
+        >
+          <p className="px-2.5 pb-1 pt-1 text-[11px] text-muted">A primeira pessoa marcada recebe as tarefas do squad.</p>
+          {team.map((p) => {
+            const i = value.indexOf(p.id);
+            const on = i !== -1;
+            return (
+              <button
+                key={p.id}
+                type="button"
+                role="option"
+                aria-selected={on}
+                onClick={() => onChange(on ? value.filter((x) => x !== p.id) : [...value, p.id])}
+                className="flex w-full items-center gap-2.5 rounded-mark px-2.5 py-2 text-left text-[13px] text-fg-soft hover:bg-border"
+              >
+                <span
+                  className={cn(
+                    "flex h-4 w-4 shrink-0 items-center justify-center rounded-check text-[10px] font-bold",
+                    on ? "bg-primary text-on-primary" : "inset-ring-1 inset-ring-badge",
+                  )}
+                >
+                  {on ? i + 1 : ""}
+                </span>
+                <span className="min-w-0 flex-1 truncate">{p.name}</span>
+                <span className="shrink-0 text-[11px] text-muted">@{p.handle}</span>
+              </button>
+            );
+          })}
+          {team.length === 0 && <p className="px-2.5 py-2 text-[12px] text-muted">Carregando o time…</p>}
+        </div>
+      )}
+    </div>
+  );
+}
+
+type FlowOption = { id: string; name: string; status: string };
+
+/** O fluxo do cliente, entre os fluxos ativos da agência. */
+function FlowChip({ value, onChange }: { value: string | null; onChange: (v: string | null) => void }) {
+  const [flows, setFlows] = useState<FlowOption[]>([]);
+  const [open, setOpen] = useState(false);
+  const ref = useOutside(open, () => setOpen(false));
+  useEffect(() => {
+    let vivo = true;
+    fetch("/api/flows")
+      .then((r) => (r.ok ? r.json() : { flows: [] }))
+      .then((d) => vivo && setFlows((d.flows ?? []).filter((f: FlowOption) => f.status === "ativo")))
+      .catch(() => undefined);
+    return () => {
+      vivo = false;
+    };
+  }, []);
+  const current = flows.find((f) => f.id === value);
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        type="button"
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        onClick={() => setOpen((o) => !o)}
+        className={cn(chipBase, current ? "text-fg-soft inset-ring-border-strong" : "text-muted inset-ring-border hover:text-fg-soft")}
+      >
+        <GitBranchIcon size={14} />
+        {current ? current.name : "Fluxo padrão"}
+      </button>
+      {open && (
+        <div
+          role="listbox"
+          aria-label="Fluxo do cliente"
+          className="absolute left-0 top-[calc(100%+6px)] z-10 w-[240px] animate-pop-in rounded-menu border border-border bg-surface-2 p-1.5 shadow-[0_16px_40px_rgba(0,0,0,0.55)]"
+        >
+          {[{ id: "", name: "Fluxo padrão da agência", status: "ativo" }, ...flows].map((f) => (
+            <button
+              key={f.id || "padrao"}
+              type="button"
+              role="option"
+              aria-selected={(value ?? "") === f.id}
+              onClick={() => {
+                onChange(f.id || null);
+                setOpen(false);
+              }}
+              className="flex w-full items-center gap-2.5 rounded-mark px-2.5 py-2 text-left text-[13px] text-fg-soft hover:bg-border"
+            >
+              <span className="min-w-0 flex-1 truncate">{f.name}</span>
+              {(value ?? "") === f.id && <CheckIcon size={13} className="text-fg-3" />}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }

@@ -7,6 +7,8 @@ import { CreativeComposer } from "@/components/approval/CreativeComposer";
 
 export const dynamic = "force-dynamic";
 
+export const metadata = { title: "Editor do lote" };
+
 export default async function CreativeComposerPage({
   params,
   searchParams,
