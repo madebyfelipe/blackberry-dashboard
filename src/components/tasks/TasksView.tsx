@@ -39,6 +39,7 @@ import {
 } from "@/components/icons";
 import { useToast } from "@/components/ui/Toast";
 import { TaskTable } from "./TaskTable";
+import { TaskStepsProvider } from "./stepNames";
 import { TaskBoard } from "./TaskBoard";
 import { TaskModal, type TaskModalState, type TaskModalValues } from "./TaskModal";
 import { FilterMenu } from "./FilterMenu";
@@ -56,7 +57,16 @@ type OpenMenu = "filtros" | "visualizacao" | null;
 const VISIBLE_TAB_STATUSES = STATUSES.slice(0, 4);
 const HIDDEN_TAB_STATUSES = STATUSES.slice(4);
 
-export function TasksView({ initialTasks, me }: { initialTasks: Task[]; me: string }) {
+export function TasksView({
+  initialTasks,
+  me,
+  stepNames = {},
+}: {
+  initialTasks: Task[];
+  me: string;
+  /** "fluxo:etapa" → nome da etapa (a linha "Cliente · Etapa"). */
+  stepNames?: Record<string, string>;
+}) {
   const { toast } = useToast();
   const router = useRouter();
   const params = useSearchParams();
@@ -266,6 +276,7 @@ export function TasksView({ initialTasks, me }: { initialTasks: Task[]; me: stri
     toast(`"${what}" chega junto com o recurso no produto.`, "info");
 
   return (
+    <TaskStepsProvider value={stepNames}>
     <Screen>
       <Breadcrumb
         items={[{ label: "black berry", href: "/tarefas" }, { label: "Tarefas" }]}
@@ -492,6 +503,7 @@ export function TasksView({ initialTasks, me }: { initialTasks: Task[]; me: stri
         saving={saving}
       />
     </Screen>
+    </TaskStepsProvider>
   );
 }
 
