@@ -17,6 +17,7 @@
 
 const path = require("node:path");
 const fs = require("node:fs");
+const { execFile } = require("node:child_process");
 const {
   app,
   BrowserWindow,
@@ -60,12 +61,40 @@ let pagina = null;
 let bandeja = null;
 let saindo = false;
 
+/*
+ * Sem a moldura amarela do Windows em volta da janela ou tela transmitida.
+ * A captura (Windows Graphics Capture) pede a borda por padrão; o Chromium
+ * deixa desligar por esta chave, e o seletor do app já deixa claro o que está
+ * sendo mostrado. Precisa vir antes do `ready`.
+ */
+if (process.platform === "win32") {
+  app.commandLine.appendSwitch("disable-features", "WebRtcWgcRequireBorder");
+}
+
 // Uma instância só: abrir o app de novo traz a janela que já existe.
 if (!app.requestSingleInstanceLock()) {
   app.quit();
 } else {
   app.on("second-instance", mostrar);
   app.whenReady().then(iniciar);
+}
+
+const APP_USER_MODEL_ID = "app.blackberry.desktop";
+
+/*
+ * O cabeçalho das notificações do Windows: "Black Berry" com o logo. O
+ * Windows tira o nome e o ícone do registro do AppUserModelID (sem isso usa o
+ * nome do atalho, em minúsculas). É uma chave do próprio usuário, só deste
+ * app — refeita a cada abertura, então se corrige sozinha numa atualização.
+ * O ícone fica fora do .asar, porque o Windows não lê dentro dele.
+ */
+function registrarNomeDasNotificacoes() {
+  const icone = path.join(__dirname, "notificacao.png").replace("app.asar", "app.asar.unpacked");
+  const chave = ["HKCU", "Software", "Classes", "AppUserModelId", APP_USER_MODEL_ID].join("\\");
+  const gravar = (nome, valor) =>
+    execFile("reg", ["add", chave, "/v", nome, "/t", "REG_SZ", "/d", valor, "/f"], { windowsHide: true }, () => {});
+  gravar("DisplayName", "Black Berry");
+  if (fs.existsSync(icone)) gravar("IconUri", icone);
 }
 
 function mostrar() {
@@ -76,7 +105,10 @@ function mostrar() {
 }
 
 async function iniciar() {
-  if (process.platform === "win32") app.setAppUserModelId("app.blackberry.desktop");
+  if (process.platform === "win32") {
+    app.setAppUserModelId(APP_USER_MODEL_ID);
+    registrarNomeDasNotificacoes();
+  }
 
   if (!APP_ORIGIN) {
     dialog.showErrorBox(

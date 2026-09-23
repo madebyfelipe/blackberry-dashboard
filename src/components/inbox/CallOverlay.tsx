@@ -3,10 +3,14 @@
 import { useEffect, useRef, useState } from "react";
 import { cn } from "@/lib/cn";
 import {
+  FullscreenIcon,
   Maximize2Icon,
+  MaximizeIcon,
   MicIcon,
   MicOffIcon,
   Minimize2Icon,
+  MinimizeIcon,
+  ReplaceIcon,
   PhoneOffIcon,
   ScreenShareIcon,
   Settings2Icon,
@@ -24,6 +28,13 @@ import {
   type CallDevices,
   type DeviceKind,
 } from "@/lib/inbox/devices";
+import {
+  DEFAULT_SCREEN_QUALITY,
+  loadScreenQuality,
+  saveScreenQuality,
+  screenShareOptions,
+  type ScreenQuality,
+} from "@/lib/inbox/screenQuality";
 
 /*
  * A chamada, no popup que o Felipe pediu: os dois avatares frente a frente, o
@@ -57,7 +68,12 @@ type Faixa = {
 };
 type Publicacao = {
   isMuted: boolean;
-  track?: Faixa & { restartTrack?: (opcoes: unknown) => Promise<void> };
+  source?: string;
+  track?: Faixa & {
+    restartTrack?: (opcoes: unknown) => Promise<void>;
+    mediaStreamTrack?: MediaStreamTrack;
+    sender?: RTCRtpSender;
+  };
 };
 type Captura = {
   deviceId?: string;
@@ -77,7 +93,7 @@ type Sala = {
       on: boolean,
       opcoes?: { deviceId?: string },
     ) => Promise<Publicacao | undefined>;
-    setScreenShareEnabled: (on: boolean) => Promise<unknown>;
+    setScreenShareEnabled: (on: boolean, captura?: unknown, publicacao?: unknown) => Promise<unknown>;
     getTrackPublication: (source: string) => Publicacao | undefined;
   };
   remoteParticipants: Map<
@@ -92,6 +108,23 @@ type Sala = {
 };
 
 const SEM_APARELHOS: CallDevices = { audioinput: [], audiooutput: [], videoinput: [] };
+
+/** Largura mínima do popup redimensionado — a do desenho sem tela. */
+const LARGURA_MIN = 380;
+const LARGURA_KEY = "bb:largura-chamada";
+
+/** Tela cheia da transmissão: entra, ou sai se já estiver nela. */
+function alternarTelaCheiaDe(el: HTMLElement | null) {
+  if (!el) return;
+  if (document.fullscreenElement) void document.exitFullscreen().catch(() => undefined);
+  else void el.requestFullscreen?.().catch(() => undefined);
+}
+
+/** Liga a tela com a qualidade escolhida (resolução, quadros, nitidez/fluidez). */
+function ligarTela(sala: Sala, q: ScreenQuality) {
+  const o = screenShareOptions(q);
+  return sala.localParticipant.setScreenShareEnabled(true, o.capture, o.publish);
+}
 
 /** O Chrome e o Edge deixam a página escolher o alto-falante; o Safari não. */
 function escolheSaida(): boolean {
@@ -161,6 +194,31 @@ export function CallOverlay({
   const cameraRemotaRef = useRef<HTMLVideoElement>(null);
   /** Relê a lista de aparelhos — preenchida quando a sala conecta. */
   const lerAparelhosRef = useRef<() => Promise<void>>(async () => {});
+  /** A qualidade da transmissão — preferência guardada entre chamadas. */
+  const [qualidade, setQualidade] = useState<ScreenQuality>(DEFAULT_SCREEN_QUALITY);
+  const qualidadeRef = useRef(qualidade);
+  qualidadeRef.current = qualidade;
+  useEffect(() => setQualidade(loadScreenQuality()), []);
+  /** Ver a própria tela enquanto transmite (desligado: poupa processamento). */
+  const [previa, setPrevia] = useState(false);
+  const previaRef = useRef<HTMLVideoElement>(null);
+  /** O popup ocupando a janela inteira, para ver a tela grande. */
+  const [maximizado, setMaximizado] = useState(false);
+  /** A largura escolhida arrastando o canto; `null` é a do desenho. */
+  const [largura, setLargura] = useState<number | null>(null);
+  useEffect(() => {
+    try {
+      const salvo = Number(localStorage.getItem(LARGURA_KEY));
+      if (salvo >= LARGURA_MIN) setLargura(salvo);
+    } catch {
+      // Sem armazenamento: começa na largura do desenho.
+    }
+  }, []);
+  /** Onde a tela compartilhada mora — é ele que vai para a tela cheia. */
+  const telaRef = useRef<HTMLDivElement>(null);
+  const [telaCheia, setTelaCheia] = useState(false);
+  /** Resolução e quadros que estão chegando de verdade, para o selo da tela. */
+  const [recebendo, setRecebendo] = useState<{ w: number; h: number; fps: number } | null>(null);
   /** Celular não compartilha tela pelo navegador — o botão não promete. */
   const [podeTela, setPodeTela] = useState(true);
   useEffect(() => {
@@ -312,6 +370,10 @@ export function CallOverlay({
             if (faixa.source === Track.Source.ScreenShare) setTemTela(false);
             if (faixa.source === Track.Source.Camera) conferirCameraRemota();
           }) as never)
+          // "Parar de compartilhar" na barra do navegador também desliga o botão.
+          .on(RoomEvent.LocalTrackUnpublished, ((pub: Publicacao) => {
+            if (vivo && pub.source === Track.Source.ScreenShare) setCompartilhando(false);
+          }) as never)
           .on(RoomEvent.TrackMuted, conferirCameraRemota)
           .on(RoomEvent.TrackUnmuted, conferirCameraRemota)
           .on(RoomEvent.MediaDevicesChanged, (() => void lerAparelhos()) as never)
@@ -362,7 +424,7 @@ export function CallOverlay({
 
         if (withScreen) {
           try {
-            await sala.localParticipant.setScreenShareEnabled(true);
+            await ligarTela(sala, qualidadeRef.current);
             if (vivo) setCompartilhando(true);
           } catch {
             // Escolher a tela é decisão de quem está na frente do
@@ -452,13 +514,28 @@ export function CallOverlay({
   // Esc encerra, como fecha qualquer sobreposição do produto.
   const minimizedRef = useRef(minimized);
   minimizedRef.current = minimized;
+  const maximizadoRef = useRef(maximizado);
+  maximizadoRef.current = maximizado;
+  const temTelaRef = useRef(temTela);
+  temTelaRef.current = temTela;
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
-      if (e.key !== "Escape") return;
-      // Recolhida no canto ela não é sobreposição: o Esc é de quem está na tela.
+      // Recolhida no canto ela não é sobreposição: o teclado é de quem está na tela.
       if (minimizedRef.current) return;
+      const alvo = e.target instanceof Element ? e.target : null;
+      const digitando = alvo?.closest("input, textarea, [contenteditable='true']");
+      // F: tela cheia da transmissão, quando há uma na tela.
+      if ((e.key === "f" || e.key === "F") && !digitando && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        if (temTelaRef.current) alternarTelaCheiaDe(telaRef.current);
+        return;
+      }
+      if (e.key !== "Escape") return;
+      // Na tela cheia, o Esc é do navegador (sai dela) — não derruba a chamada.
+      if (document.fullscreenElement) return;
       // Com o menu aberto, o Esc fecha o menu — não derruba a chamada.
       if (menuAbertoRef.current) return setMenuAberto(false);
+      // Maximizada, o Esc seguinte só devolve o popup ao tamanho normal.
+      if (maximizadoRef.current) return setMaximizado(false);
       void encerrar();
     }
     window.addEventListener("keydown", onKey);
@@ -558,11 +635,141 @@ export function CallOverlay({
     if (!sala) return;
     const proximo = !compartilhando;
     try {
-      await sala.localParticipant.setScreenShareEnabled(proximo);
+      if (proximo) await ligarTela(sala, qualidade);
+      else await sala.localParticipant.setScreenShareEnabled(false);
       setCompartilhando(proximo);
-      if (!proximo) setTemTela(false);
     } catch {
       // Cancelar o seletor de tela do navegador não é erro.
+    }
+  }
+
+  /** Trocar o que está sendo mostrado sem sair da chamada: abre o seletor de novo. */
+  async function trocarTela() {
+    const sala = salaRef.current;
+    if (!sala || !compartilhando) return;
+    try {
+      await sala.localParticipant.setScreenShareEnabled(false);
+      await ligarTela(sala, qualidade);
+      setCompartilhando(true);
+    } catch {
+      // Cancelou o seletor: a transmissão anterior já parou, o botão acompanha.
+      setCompartilhando(false);
+    }
+  }
+
+  /*
+   * Trocar a qualidade no meio da transmissão vale na hora: a captura é
+   * reajustada e o codificador recebe o novo teto de banda e de quadros —
+   * sem abrir o seletor de tela de novo.
+   */
+  async function mudarQualidade(q: ScreenQuality) {
+    setQualidade(q);
+    saveScreenQuality(q);
+    const sala = salaRef.current;
+    if (!sala || !compartilhando) return;
+    const { Track } = await import("livekit-client");
+    const faixa = sala.localParticipant.getTrackPublication(Track.Source.ScreenShare)?.track;
+    const o = screenShareOptions(q);
+    try {
+      const mst = faixa?.mediaStreamTrack;
+      if (mst) {
+        await mst.applyConstraints(o.constraints);
+        mst.contentHint = o.capture.contentHint;
+      }
+      const sender = faixa?.sender;
+      if (sender) {
+        const params = sender.getParameters();
+        for (const enc of params.encodings ?? []) {
+          enc.maxBitrate = o.publish.screenShareEncoding.maxBitrate;
+          enc.maxFramerate = o.publish.screenShareEncoding.maxFramerate;
+        }
+        (params as { degradationPreference?: string }).degradationPreference =
+          o.publish.degradationPreference;
+        await sender.setParameters(params);
+      }
+    } catch {
+      // Tela que não aceita a resolução pedida segue na que tinha.
+    }
+  }
+
+  // A prévia da própria tela: pendura a faixa local no <video> só quando pedida.
+  useEffect(() => {
+    const el = previaRef.current;
+    if (!el || !previa || !compartilhando) return;
+    let faixa: Faixa | undefined;
+    let vivo = true;
+    void import("livekit-client").then(({ Track }) => {
+      if (!vivo) return;
+      faixa = salaRef.current?.localParticipant.getTrackPublication(Track.Source.ScreenShare)?.track;
+      faixa?.attach(el);
+    });
+    return () => {
+      vivo = false;
+      // Só solta este <video>: o `detach()` sem argumento soltaria todos.
+      (faixa as unknown as { detach: (el?: HTMLMediaElement) => unknown } | undefined)?.detach(el);
+    };
+  }, [previa, compartilhando]);
+
+  // O selo "1920×1080 · 30 fps": o que está chegando de verdade, a cada segundo.
+  useEffect(() => {
+    if (!temTela) {
+      setRecebendo(null);
+      return;
+    }
+    let antes = -1;
+    const id = setInterval(() => {
+      const v = videoRef.current;
+      if (!v || !v.videoWidth) return;
+      const quadros = v.getVideoPlaybackQuality?.().totalVideoFrames ?? 0;
+      const fps = antes < 0 ? 0 : Math.max(0, quadros - antes);
+      antes = quadros;
+      setRecebendo({ w: v.videoWidth, h: v.videoHeight, fps });
+    }, 1000);
+    return () => clearInterval(id);
+  }, [temTela]);
+
+  // Tela cheia do navegador: acompanha também o Esc do próprio navegador.
+  useEffect(() => {
+    const aoMudar = () =>
+      setTelaCheia(!!telaRef.current && document.fullscreenElement === telaRef.current);
+    document.addEventListener("fullscreenchange", aoMudar);
+    return () => document.removeEventListener("fullscreenchange", aoMudar);
+  }, []);
+
+  const alternarTelaCheia = () => alternarTelaCheiaDe(telaRef.current);
+
+  // Arrastar o canto do popup: cresce para os dois lados, porque ele é centralizado.
+  function redimensionar(e: React.PointerEvent<HTMLDivElement>) {
+    e.preventDefault();
+    const painel = e.currentTarget.parentElement;
+    if (!painel) return;
+    const inicioX = e.clientX;
+    const inicio = painel.getBoundingClientRect().width;
+    let final = inicio;
+    const mover = (ev: PointerEvent) => {
+      const max = window.innerWidth - 32;
+      final = Math.round(Math.min(max, Math.max(LARGURA_MIN, inicio + (ev.clientX - inicioX) * 2)));
+      setLargura(final);
+    };
+    const soltar = () => {
+      window.removeEventListener("pointermove", mover);
+      window.removeEventListener("pointerup", soltar);
+      try {
+        localStorage.setItem(LARGURA_KEY, String(final));
+      } catch {
+        // Sem armazenamento: a largura vale só para esta chamada.
+      }
+    };
+    window.addEventListener("pointermove", mover);
+    window.addEventListener("pointerup", soltar);
+  }
+
+  function larguraPadrao() {
+    setLargura(null);
+    try {
+      localStorage.removeItem(LARGURA_KEY);
+    } catch {
+      // Nada guardado para apagar.
     }
   }
 
@@ -570,9 +777,11 @@ export function CallOverlay({
   const doOutroLado = detail.kind === "direta" ? outros[0]?.name : detail.title;
   const extras = detail.kind === "grupo" ? Math.max(0, outros.length - 1) : 0;
   const ativo = estado === "na-chamada";
+  const mostraPrevia = previa && compartilhando;
 
   function minimizar() {
     setMenuAberto(false);
+    setMaximizado(false);
     onMinimize();
   }
 
@@ -594,7 +803,7 @@ export function CallOverlay({
         "fixed z-50",
         minimized
           ? "bottom-3 right-3 md:bottom-4 md:right-4"
-          : "inset-0 flex items-center justify-center p-4",
+          : cn("inset-0 flex items-center justify-center", maximizado ? "p-3" : "p-4"),
       )}
     >
       {/*
@@ -658,11 +867,17 @@ export function CallOverlay({
 
       <div
         className={cn(
-          "relative w-full animate-scale-in flex-col items-center gap-5 rounded-card border border-border bg-surface p-6 shadow-[0_24px_64px_rgba(0,0,0,0.65)]",
+          "relative w-full animate-scale-in flex-col items-center rounded-card border border-border bg-surface shadow-[0_24px_64px_rgba(0,0,0,0.65)]",
           minimized ? "hidden" : "flex",
-          // A tela compartilhada precisa de espaço; sem ela o popup é o do desenho.
-          temTela ? "max-w-[720px]" : "max-w-[380px]",
+          maximizado
+            ? cn("h-full max-w-none gap-3 p-4", !temTela && !mostraPrevia && "justify-center")
+            : cn(
+                "max-h-[calc(100dvh-32px)] gap-5 p-6",
+                // A tela compartilhada precisa de espaço; sem ela o popup é o do desenho.
+                largura === null && (temTela || mostraPrevia ? "max-w-[720px]" : "max-w-[380px]"),
+              ),
         )}
+        style={!maximizado && largura !== null ? { maxWidth: largura } : undefined}
       >
         {/* Recolher para o canto — a chamada continua. */}
         <button
@@ -673,6 +888,18 @@ export function CallOverlay({
           className="tap absolute right-3 top-3 flex h-8 w-8 items-center justify-center rounded-pill text-fg-3 transition-colors hover:bg-surface-2 hover:text-fg-soft focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-fg-3"
         >
           <Minimize2Icon size={15} />
+        </button>
+
+        {/* Ocupar a janela inteira — para ver a tela compartilhada grande. */}
+        <button
+          type="button"
+          onClick={() => setMaximizado((m) => !m)}
+          aria-label={maximizado ? "Restaurar o tamanho da chamada" : "Maximizar a chamada"}
+          aria-pressed={maximizado}
+          title={maximizado ? "Restaurar tamanho" : "Maximizar"}
+          className="tap absolute right-12 top-3 flex h-8 w-8 items-center justify-center rounded-pill text-fg-3 transition-colors hover:bg-surface-2 hover:text-fg-soft focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-fg-3"
+        >
+          {maximizado ? <MinimizeIcon size={15} /> : <MaximizeIcon size={15} />}
         </button>
 
         <div className="flex flex-col items-center gap-1">
@@ -689,16 +916,55 @@ export function CallOverlay({
          * por ora ela ocupa o corpo do popup e os avatares descem, que é o
          * arranjo que não esconde nenhum dos dois. Falta confirmar.
          */}
-        <video
-          ref={videoRef}
-          autoPlay
-          playsInline
-          muted
+        <div
+          ref={telaRef}
+          onDoubleClick={alternarTelaCheia}
           className={cn(
-            "w-full rounded-panel bg-black",
-            temTela ? "block aspect-video" : "hidden",
+            "group relative w-full overflow-hidden rounded-panel bg-black",
+            !temTela && "hidden",
+            maximizado || telaCheia ? "min-h-0 flex-1" : "aspect-video shrink",
+            telaCheia && "rounded-none",
           )}
-        />
+        >
+          <video
+            ref={videoRef}
+            autoPlay
+            playsInline
+            muted
+            className="absolute inset-0 h-full w-full object-contain"
+          />
+          {/* Controles da transmissão: aparecem ao passar o mouse. */}
+          <div className="absolute right-2 top-2 flex items-center gap-1.5 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
+            {recebendo && (
+              <span className="rounded-pill bg-black/70 px-2 py-1 text-[11px] tabular-nums text-fg-soft">
+                {recebendo.w}×{recebendo.h}
+                {recebendo.fps > 0 && ` · ${recebendo.fps} fps`}
+              </span>
+            )}
+            <ScreenControl
+              label={telaCheia ? "Sair da tela cheia (F)" : "Tela cheia (F)"}
+              onClick={alternarTelaCheia}
+            >
+              {telaCheia ? <MinimizeIcon size={14} /> : <FullscreenIcon size={14} />}
+            </ScreenControl>
+          </div>
+        </div>
+
+        {/* A prévia da sua própria tela, quando pedida no menu de ajustes. */}
+        {mostraPrevia && (
+          <div className={cn("relative w-full overflow-hidden rounded-panel bg-black", temTela ? "max-w-[240px] self-end" : "aspect-video")}>
+            <video
+              ref={previaRef}
+              autoPlay
+              playsInline
+              muted
+              className={cn("w-full object-contain", temTela ? "aspect-video" : "absolute inset-0 h-full")}
+            />
+            <span className="absolute left-2 top-2 rounded-pill bg-black/70 px-2 py-1 text-[11px] text-fg-soft">
+              Sua tela
+            </span>
+          </div>
+        )}
 
         <div className="flex items-center gap-3">
           <CallAvatar
@@ -785,6 +1051,11 @@ export function CallOverlay({
               >
                 {mudo ? <MicOffIcon size={18} /> : <MicIcon size={18} />}
               </CallButton>
+              {compartilhando && (
+                <CallButton label="Trocar o que estou compartilhando" onClick={trocarTela} disabled={!ativo}>
+                  <ReplaceIcon size={18} />
+                </CallButton>
+              )}
               <CallButton
                 label={
                   !podeTela
@@ -822,8 +1093,29 @@ export function CallOverlay({
             noiseSuppression={reduzirRuido}
             onToggleNoiseSuppression={alternarReduzirRuido}
             outputSupported={saidaSuportada}
+            screenQuality={qualidade}
+            onScreenQuality={mudarQualidade}
+            screenSupported={podeTela}
+            preview={previa}
+            onTogglePreview={() => setPrevia((v) => !v)}
           />
         </Popover>
+
+        {/* Arrastar o canto muda a largura; dois cliques voltam à do desenho. */}
+        {!maximizado && (
+          <div
+            role="separator"
+            aria-label="Redimensionar a chamada"
+            title="Arraste para redimensionar · dois cliques para o tamanho padrão"
+            onPointerDown={redimensionar}
+            onDoubleClick={larguraPadrao}
+            className="absolute bottom-0 right-0 hidden h-5 w-5 cursor-nwse-resize md:block"
+          >
+            <svg viewBox="0 0 20 20" className="h-full w-full text-border-strong" aria-hidden="true">
+              <path d="M16 8 8 16M16 12l-4 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+            </svg>
+          </div>
+        )}
       </div>
 
       {/* A voz das outras pessoas mora aqui — som, sem nada para ver. */}
@@ -880,6 +1172,29 @@ function CallAvatar({
       </span>
       <span className="max-w-[96px] truncate text-[11px] text-fg-3">{label}</span>
     </div>
+  );
+}
+
+function ScreenControl({
+  label,
+  onClick,
+  children,
+}: {
+  label: string;
+  onClick: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      aria-label={label}
+      title={label}
+      onClick={onClick}
+      onDoubleClick={(e) => e.stopPropagation()}
+      className="tap flex h-7 w-7 items-center justify-center rounded-pill bg-black/70 text-fg-soft transition-colors hover:bg-black hover:text-fg focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-fg-3"
+    >
+      {children}
+    </button>
   );
 }
 

@@ -5,6 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useRealtime } from "@/components/realtime/RealtimeProvider";
 import { conversationChannel, memberChannel, type RealtimeEvent } from "@/lib/realtime/channels";
 import { desktopBridge } from "@/lib/desktop";
+import { initialsOf } from "@/lib/inbox/view";
 
 /*
  * Notificações de mensagem e de ligação, em qualquer tela do produto.
@@ -20,7 +21,9 @@ import { desktopBridge } from "@/lib/desktop";
  *   esteja no Inbox com a aba à vista (a conversa já está na sua frente);
  * - alguém **começou** uma chamada numa conversa sua ("está te ligando").
  *
- * Clicar abre a conversa — e, no desktop, traz a janela da bandeja.
+ * Clicar abre a conversa — e, no desktop, traz a janela da bandeja. A
+ * notificação leva o avatar de quem mandou (as iniciais, como no produto); o
+ * nome "Black Berry" e o logo no cabeçalho vêm do app de desktop.
  *
  * Sem tempo real configurado (`eventos` falso) não há o que ouvir: nada liga.
  */
@@ -89,7 +92,7 @@ export function InboxNotifier() {
           if (newMessage) changed = true;
           const looking = pathRef.current.startsWith("/inbox") && document.visibilityState === "visible";
           if (newMessage && !c.muted && !looking) {
-            showNotification(router, c.id, c.title, c.preview || "Nova mensagem", false);
+            showNotification(router, c.id, c.title, c.preview || "Nova mensagem", false, c.title);
           }
           const callStarted =
             (prev?.callMemberIds.length ?? 0) === 0 && c.callMemberIds.length > 0 && !c.callMemberIds.includes(me);
@@ -100,6 +103,7 @@ export function InboxNotifier() {
               c.kind === "grupo" ? `Chamada em ${c.title}` : `${c.title} está te ligando`,
               "Clique para abrir a conversa e entrar.",
               true,
+              c.title,
             );
           }
         }
@@ -122,8 +126,8 @@ export function InboxNotifier() {
     let muted = new Set<string>();
     let me = "";
 
-    const notify = (id: string, title: string, body: string, call: boolean) =>
-      showNotification(router, id, title, body, call);
+    const notify = (id: string, title: string, body: string, call: boolean, from: string) =>
+      showNotification(router, id, title, body, call, from);
 
     function onEvent(e: RealtimeEvent) {
       if (!vivo) return;
@@ -137,6 +141,7 @@ export function InboxNotifier() {
           e.group ? `${e.from.name} em ${e.group}` : e.from.name,
           e.preview || "Nova mensagem",
           false,
+          e.from.name,
         );
         return;
       }
@@ -146,6 +151,7 @@ export function InboxNotifier() {
           `${e.from.name} está te ligando`,
           e.group ? `Chamada em ${e.group} — clique para entrar.` : "Clique para abrir a conversa e entrar.",
           true,
+          e.from.name,
         );
       }
     }
@@ -200,15 +206,23 @@ function showNotification(
   title: string,
   body: string,
   call: boolean,
+  /** De quem é o avatar: a pessoa que mandou ou ligou (ou o grupo, sem saber quem). */
+  from: string,
 ) {
+  // O som toca mesmo sem permissão de notificação: é o aviso que sobra.
+  tocarSom();
   if (typeof Notification === "undefined" || Notification.permission !== "granted") return;
   try {
     const n = new Notification(title, {
       body,
+      icon: avatarIcon(from),
+      // Selo pequeno da marca (Android e alguns sistemas; o desktop usa o do app).
+      badge: "/brand/notificacao.png",
       tag: call ? `chamada-${id}` : `conversa-${id}`,
       // Ligação fica na tela até alguém clicar; mensagem some sozinha.
       requireInteraction: call,
-      silent: false,
+      // O som é o do black berry (abaixo), não o padrão do sistema.
+      silent: true,
     });
     n.onclick = () => {
       desktopBridge()?.show?.();
@@ -218,5 +232,59 @@ function showNotification(
     };
   } catch {
     // Navegador sem suporte a construir notificação na página: sem aviso.
+  }
+}
+
+const avatares = new Map<string, string>();
+
+/*
+ * O avatar de quem mandou, como imagem: as iniciais no círculo, com as cores
+ * do produto (lidas dos tokens, não repetidas aqui). Ninguém tem foto no
+ * black berry — o avatar é sempre este, então a notificação mostra o mesmo.
+ */
+function avatarIcon(name: string): string | undefined {
+  const cached = avatares.get(name);
+  if (cached) return cached;
+  try {
+    const size = 128;
+    const canvas = document.createElement("canvas");
+    canvas.width = size;
+    canvas.height = size;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return undefined;
+    const css = getComputedStyle(document.documentElement);
+    ctx.fillStyle = css.getPropertyValue("--color-border-strong").trim() || "gray";
+    ctx.beginPath();
+    ctx.arc(size / 2, size / 2, size / 2, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = css.getPropertyValue("--color-fg").trim() || "white";
+    ctx.font = `600 ${size * 0.38}px ${getComputedStyle(document.body).fontFamily}`;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText(initialsOf(name), size / 2, size / 2 + size * 0.02);
+    const url = canvas.toDataURL("image/png");
+    avatares.set(name, url);
+    return url;
+  } catch {
+    return undefined;
+  }
+}
+
+let som: HTMLAudioElement | null = null;
+let ultimoSom = 0;
+
+/** O somzinho do black berry. Várias mensagens de uma vez tocam uma vez só. */
+function tocarSom() {
+  const agora = Date.now();
+  if (agora - ultimoSom < 1500) return;
+  ultimoSom = agora;
+  try {
+    som ??= new Audio("/sounds/notificacao.wav");
+    som.volume = 0.6;
+    som.currentTime = 0;
+    // Navegador que ainda não viu um clique na página recusa o som: segue calado.
+    void som.play().catch(() => undefined);
+  } catch {
+    // Sem áudio no ambiente: a notificação vai sem som.
   }
 }

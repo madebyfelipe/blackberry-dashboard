@@ -1,7 +1,7 @@
 {
   "name": "blackberry-desktop",
   "productName": "black berry",
-  "version": "0.0.5",
+  "version": "0.0.6",
   "private": true,
   "description": "App de desktop do black berry — uma janela Electron que abre o black berry publicado.",
   "main": "src/main.js",
@@ -29,6 +29,9 @@
     "files": [
       "src/**/*",
       "package.json"
+    ],
+    "asarUnpack": [
+      "src/notificacao.png"
     ],
     "mac": {
       "category": "public.app-category.productivity",
