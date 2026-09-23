@@ -81,6 +81,33 @@ const SECTIONS: { title: string; items: NavItem[] }[] = [
   },
 ];
 
+/**
+ * As não lidas do Inbox para a lateral: relê ao trocar de tela e a cada 30s
+ * com a aba à vista (aba escondida não gasta rede nem bateria).
+ */
+function useInboxUnread(pathname: string): number {
+  const [total, setTotal] = useState(0);
+  useEffect(() => {
+    let vivo = true;
+    const load = () => {
+      if (document.visibilityState !== "visible") return;
+      fetch("/api/inbox/nao-lidas", { cache: "no-store" })
+        .then((r) => (r.ok ? r.json() : null))
+        .then((d) => vivo && d && setTotal(Number(d.total) || 0))
+        .catch(() => undefined);
+    };
+    load();
+    const id = setInterval(load, 30_000);
+    document.addEventListener("visibilitychange", load);
+    return () => {
+      vivo = false;
+      clearInterval(id);
+      document.removeEventListener("visibilitychange", load);
+    };
+  }, [pathname]);
+  return total;
+}
+
 const ALL_HREFS = [...INBOXES, ...SECTIONS.flatMap((s) => s.items)].map((i) => i.href);
 
 const ROLE_LABEL: Record<PublicUser["role"], string> = {
@@ -171,6 +198,7 @@ function SidebarPanel({
   const { toast } = useToast();
   const [menuOpen, setMenuOpen] = useState(false);
   const [quickOpen, setQuickOpen] = useState(false);
+  const unread = useInboxUnread(pathname);
   /*
    * A disponibilidade de quem está logado (Inbox, issue #30). Mora no menu da
    * conta porque é aqui que "você" está na tela inteira — e porque ela vale em
@@ -325,7 +353,13 @@ function SidebarPanel({
 
         <div className="flex flex-col gap-0.5 pt-2.5">
           {INBOXES.map((item, i) => (
-            <NavLink key={item.href} item={item} pathname={pathname} index={i} />
+            <NavLink
+              key={item.href}
+              item={item}
+              pathname={pathname}
+              index={i}
+              count={item.href === "/inbox" ? unread : 0}
+            />
           ))}
         </div>
 
@@ -471,10 +505,13 @@ function NavLink({
   item,
   pathname,
   index,
+  count = 0,
 }: {
   item: NavItem;
   pathname: string;
   index: number;
+  /** O número à direita (as não lidas do Inbox); 0 não mostra nada. */
+  count?: number;
 }) {
   const { href, label, Icon } = item;
   // Vale o item mais específico: em /configuracoes/fluxos acende "Fluxos e
@@ -498,6 +535,14 @@ function NavLink({
     >
       <Icon size={16} />
       <span className="flex-1 truncate">{label}</span>
+      {count > 0 && (
+        <span
+          aria-label={`${count} não lidas`}
+          className="min-w-5 rounded-pill bg-border-strong px-1.5 py-px text-center text-[11px] font-semibold tabular-nums text-fg-soft"
+        >
+          {count > 99 ? "99+" : count}
+        </span>
+      )}
     </Link>
   );
 }
