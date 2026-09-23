@@ -53,8 +53,20 @@ export function clientInitials(name: string): string {
  * agrupamento fosse literal. O nome exibido é o do lote mais antigo do grupo —
  * o primeiro jeito de escrever que a agência usou.
  */
-export function listClientSummaries(batches: Batch[]): ClientSummary[] {
+export function listClientSummaries(
+  batches: Batch[],
+  /**
+   * Os nomes da lista de Clientes. Todo cliente cadastrado aparece — mesmo
+   * sem lote ainda —, e com o nome da ficha, que é a verdade: o Social media
+   * não tem cadastro próprio de cliente, ele lê o de `/clientes`.
+   */
+  registered: string[] = [],
+): ClientSummary[] {
   const groups = new Map<string, { name: string; batches: Batch[] }>();
+  for (const name of registered) {
+    const slug = slugify(name);
+    if (slug && !groups.has(slug)) groups.set(slug, { name, batches: [] });
+  }
 
   for (const batch of batches) {
     const slug = slugify(batch.client);
@@ -88,6 +100,10 @@ export function batchesOfClient(batches: Batch[], slug: string): Batch[] {
 export function clientNameFromSlug(
   batches: Batch[],
   slug: string,
+  registered: string[] = [],
 ): string | undefined {
-  return batches.find((b) => slugify(b.client) === slug)?.client;
+  return (
+    registered.find((name) => slugify(name) === slug) ??
+    batches.find((b) => slugify(b.client) === slug)?.client
+  );
 }

@@ -118,8 +118,34 @@ describe("listClientSummaries", () => {
     assert.equal(summaries[0].name, "Montê bar");
   });
 
+  test("todo cliente da lista de Clientes aparece, mesmo sem lote", () => {
+    const summaries = listClientSummaries([lote({ id: "a", client: "Montê bar" })], [
+      "Clínica Aurora",
+    ]);
+    assert.deepEqual(
+      summaries.map((c) => [c.name, c.lotes]),
+      [
+        ["Clínica Aurora", 0],
+        ["Montê bar", 1],
+      ],
+    );
+  });
+
+  test("o nome da ficha vence o jeito que o lote escreveu", () => {
+    const [only] = listClientSummaries([lote({ id: "a", client: "montê BAR" })], ["Montê bar"]);
+    assert.equal(only.name, "Montê bar");
+    assert.equal(only.lotes, 1);
+  });
+
   test("cliente sem nome não vira card fantasma", () => {
     assert.deepEqual(listClientSummaries([lote({ id: "a", client: "  " })]), []);
+  });
+});
+
+describe("clientNameFromSlug com a lista de Clientes", () => {
+  test("acha o cliente cadastrado que ainda não tem lote", () => {
+    assert.equal(clientNameFromSlug([], "clinica-aurora", ["Clínica Aurora"]), "Clínica Aurora");
+    assert.equal(clientNameFromSlug([], "clinica-aurora"), undefined);
   });
 });
 
