@@ -2,7 +2,7 @@ import { redirect } from "next/navigation";
 import { Sidebar } from "@/components/Sidebar";
 import { RealtimeProvider } from "@/components/realtime/RealtimeProvider";
 import { CallProvider } from "@/components/inbox/CallProvider";
-import { currentUser } from "@/lib/auth/session";
+import { accessOf, currentUser } from "@/lib/auth/session";
 
 export const dynamic = "force-dynamic";
 
@@ -21,6 +21,8 @@ export default async function AppLayout({
    */
   const user = await currentUser();
   if (!user) redirect("/login?sessao=encerrada");
+  // Conta arquivada ou pedido de entrada esperando aprovação: nada do shell.
+  if ((await accessOf(user)) !== "ok") redirect("/acesso");
 
   /*
    * A conexão de tempo real envolve o shell inteiro, não só o Inbox: presença

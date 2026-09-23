@@ -1,4 +1,4 @@
-import { redirect } from "next/navigation";
+import { redirectWithoutScope } from "@/lib/auth/session";
 import { currentInboxSession } from "@/lib/inbox/viewer";
 import { listFlows } from "@/lib/flows/repository";
 import { listMembers } from "@/lib/inbox/repository";
@@ -13,7 +13,7 @@ export default async function FluxosPage({
   searchParams: Promise<{ fluxo?: string; etapa?: string }>;
 }) {
   const session = await currentInboxSession();
-  if (!session) redirect("/login");
+  if (!session) return redirectWithoutScope();
   const [flows, members, params] = await Promise.all([
     listFlows(session.scope),
     listMembers(session.scope),

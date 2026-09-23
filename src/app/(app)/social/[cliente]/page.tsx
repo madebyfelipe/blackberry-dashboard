@@ -1,4 +1,5 @@
 import { notFound, redirect } from "next/navigation";
+import { redirectWithoutScope } from "@/lib/auth/session";
 import { listBatches } from "@/lib/approval/repository";
 import {
   batchesOfClient,
@@ -19,7 +20,7 @@ export default async function ClientBatchesPage({
 }) {
   const { cliente } = await params;
   const scope = await currentAgencyScope();
-  if (!scope) redirect("/login?sessao=encerrada");
+  if (!scope) return redirectWithoutScope();
 
   const [all, registered] = await Promise.all([listBatches(scope), listClients(scope)]);
   // Cliente da lista de Clientes abre mesmo sem lote — é onde nasce o primeiro.

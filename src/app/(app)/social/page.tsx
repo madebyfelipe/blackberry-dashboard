@@ -1,4 +1,4 @@
-import { redirect } from "next/navigation";
+import { redirectWithoutScope } from "@/lib/auth/session";
 import { listBatches } from "@/lib/approval/repository";
 import { listClientSummaries } from "@/lib/approval/clients";
 import { listClients } from "@/lib/clients/repository";
@@ -11,7 +11,7 @@ export const dynamic = "force-dynamic";
 export default async function SocialPage() {
   // Só os lotes da agência da sessão chegam à tela.
   const scope = await currentAgencyScope();
-  if (!scope) redirect("/login?sessao=encerrada");
+  if (!scope) return redirectWithoutScope();
 
   // A lista é a de Clientes (cadastro único), com os lotes de cada um por cima.
   const [batches, clients] = await Promise.all([listBatches(scope), listClients(scope)]);

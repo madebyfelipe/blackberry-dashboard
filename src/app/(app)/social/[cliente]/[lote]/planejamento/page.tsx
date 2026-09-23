@@ -1,4 +1,5 @@
 import { notFound, redirect } from "next/navigation";
+import { redirectWithoutScope } from "@/lib/auth/session";
 import { getBatch } from "@/lib/approval/repository";
 import { slugify } from "@/lib/approval/clients";
 import { currentAgencyScope } from "@/lib/auth/session";
@@ -14,7 +15,7 @@ export default async function PlanejamentoPage({
 }) {
   const { cliente, lote } = await params;
   const scope = await currentAgencyScope();
-  if (!scope) redirect("/login?sessao=encerrada");
+  if (!scope) return redirectWithoutScope();
   const batch = await getBatch(scope, lote);
   if (!batch) notFound();
   const slug = slugify(batch.client);

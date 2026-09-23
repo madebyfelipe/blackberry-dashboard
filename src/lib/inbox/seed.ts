@@ -36,6 +36,7 @@ const TEAM: Omit<InboxMember, "agencyId">[] = TEAM_ROWS.map((row) => ({
   lastSeenAt: null,
   createdAt: "2026-09-01T09:00:00.000Z",
   invite: null,
+  joinRequest: false,
 }));
 
 /** Minutos atrás — para o que aconteceu "hoje", sem cair no futuro. */
@@ -214,5 +215,6 @@ export function seedInbox(): InboxData {
   return {
     members: TEAM.map((m) => ({ ...m, agencyId: LEGACY_AGENCY_ID })),
     conversations,
+    settings: {},
   };
 }

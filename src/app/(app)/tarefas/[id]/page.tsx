@@ -1,4 +1,5 @@
-import { notFound, redirect } from "next/navigation";
+import { notFound } from "next/navigation";
+import { redirectWithoutScope } from "@/lib/auth/session";
 import { getTask } from "@/lib/tasks/repository";
 import { currentAgencyScope } from "@/lib/auth/session";
 import { TaskDetail } from "@/components/tasks/TaskDetail";
@@ -11,7 +12,7 @@ type Ctx = { params: Promise<{ id: string }> };
 export default async function TarefaPage({ params }: Ctx) {
   // O layout já barra quem não tem sessão; sem escopo não há o que buscar.
   const scope = await currentAgencyScope();
-  if (!scope) redirect("/login?sessao=encerrada");
+  if (!scope) return redirectWithoutScope();
 
   const { id } = await params;
   /*

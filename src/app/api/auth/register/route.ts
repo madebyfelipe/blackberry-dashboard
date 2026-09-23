@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { AuthError, registerUser } from "@/lib/auth/repository";
 import { startSession } from "@/lib/auth/session";
-import { findInvite } from "@/lib/inbox/repository";
+import { agencyForEmail, findInvite, requestJoin } from "@/lib/inbox/repository";
+import { agencyNameOf } from "@/lib/auth/repository";
 
 export const dynamic = "force-dynamic";
 
@@ -40,6 +41,22 @@ export async function POST(req: Request) {
     joinAgency = { agencyId: invite.agencyId as never, agencyName: invite.agencyName };
   }
 
+  /*
+   * Sem convite, mas com e-mail do domínio de uma agência: convite
+   * automático. A conta nasce dentro da agência como pedido de entrada, e só
+   * enxerga alguma coisa depois que um Admin ou Gerente aprova (o produto não
+   * confirma e-mail — ver `lib/inbox/domain.ts`).
+   */
+  let domainJoin = false;
+  if (!joinAgency) {
+    const agency = await agencyForEmail(String(email ?? ""));
+    if (agency) {
+      const agencyName = (await agencyNameOf(agency.agencyId)) ?? agency.agencyName;
+      joinAgency = { agencyId: agency.agencyId as never, agencyName };
+      domainJoin = true;
+    }
+  }
+
   try {
     const user = await registerUser({
       name: String(name ?? ""),
@@ -49,9 +66,10 @@ export async function POST(req: Request) {
       role: role as never,
       joinAgency,
     });
+    if (domainJoin) await requestJoin(user.agencyId, { name: user.name, email: user.email });
     // Cadastro já entra logado — é o comportamento esperado do "Criar conta".
     await startSession(user.id);
-    return NextResponse.json({ user }, { status: 201 });
+    return NextResponse.json({ user, pending: domainJoin }, { status: 201 });
   } catch (err) {
     if (err instanceof AuthError) {
       return NextResponse.json({ error: err.message }, { status: 422 });

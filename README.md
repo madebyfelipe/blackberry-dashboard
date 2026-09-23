@@ -331,6 +331,20 @@ em `lib/inbox/users.ts` (testada em `tests/inbox-users.test.ts`).
   para convite; quem já trabalhou é arquivado, para o histórico não perder o
   nome.
 
+### Domínio da agência e quem pode entrar
+
+- **Convite automático pelo domínio** (Usuários → "⋯"): quem cria conta com
+  um e-mail `@dominio-da-agencia` entra na agência como **pedido de entrada**
+  e vê `/acesso` ("Quase lá") até um Admin ou Gerente aprovar. Não é entrada
+  direta porque o produto não confirma e-mail — com entrada direta, qualquer
+  um que digitasse `algo@dominio` leria os clientes. O domínio precisa ser o
+  do e-mail de quem configura, e e-mail pessoal (Gmail etc.) não vale
+  (`lib/inbox/domain.ts`, testado em `tests/inbox-domain.test.ts`).
+- **A trava mora em `requireAgency`/`currentAgencyScope`** (`memberAccess`):
+  arquivado perde o acesso na hora, e pedido esperando aprovação não recebe
+  escopo. As telas do shell usam `redirectWithoutScope()`, que manda quem tem
+  conta mas não pode entrar para `/acesso` em vez de apagar a sessão no login.
+
 ### O @ de cada pessoa
 
 Cada membro do time tem um `handle` único na agência (`lib/inbox/handle.ts`),

@@ -1,4 +1,4 @@
-import { redirect } from "next/navigation";
+import { redirectWithoutScope } from "@/lib/auth/session";
 import { listTasks } from "@/lib/tasks/repository";
 import { currentAgencyScope } from "@/lib/auth/session";
 import { TasksView } from "@/components/tasks/TasksView";
@@ -9,7 +9,7 @@ export default async function TarefasPage() {
   // A tela lê só as tarefas da agência da sessão. O layout já barra quem não
   // tem sessão; este redirect existe porque sem escopo não há o que listar.
   const scope = await currentAgencyScope();
-  if (!scope) redirect("/login?sessao=encerrada");
+  if (!scope) return redirectWithoutScope();
   const tasks = await listTasks(scope);
   return <TasksView initialTasks={tasks} />;
 }

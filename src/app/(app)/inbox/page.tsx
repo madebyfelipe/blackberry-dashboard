@@ -1,4 +1,4 @@
-import { redirect } from "next/navigation";
+import { redirectWithoutScope } from "@/lib/auth/session";
 import { InboxView } from "@/components/inbox/InboxView";
 import {
   getConversation,
@@ -23,7 +23,7 @@ export const dynamic = "force-dynamic";
  */
 export default async function InboxPage() {
   const session = await currentInboxSession();
-  if (!session) redirect("/login?sessao=encerrada");
+  if (!session) return redirectWithoutScope();
 
   const [members, conversations] = await Promise.all([
     listMembers(session.scope),

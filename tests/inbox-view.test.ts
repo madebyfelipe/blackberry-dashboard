@@ -39,6 +39,7 @@ const NO_TIME = {
   lastSeenAt: null,
   createdAt: "2026-09-01T09:00:00.000Z",
   invite: null,
+  joinRequest: false,
 } as const;
 
 const MEMBROS: InboxMember[] = [
