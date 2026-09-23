@@ -20,11 +20,12 @@ export async function POST(req: Request) {
   } catch {
     return NextResponse.json({ error: "JSON inválido." }, { status: 400 });
   }
-  const { name } = (body ?? {}) as Record<string, unknown>;
+  const { name, template } = (body ?? {}) as Record<string, unknown>;
   try {
     const flow = await createFlow(session.scope, {
       name: String(name ?? ""),
       by: session.user.name,
+      template: template === "social-media" ? "social-media" : undefined,
     });
     return NextResponse.json({ flow }, { status: 201 });
   } catch (err) {

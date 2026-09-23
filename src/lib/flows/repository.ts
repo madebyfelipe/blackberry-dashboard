@@ -1,5 +1,6 @@
 import { read, transaction, normalizeStep } from "./store";
 import { blankStep } from "./constants";
+import { socialMediaTemplate } from "./seed";
 import { isFlowStatus } from "./view";
 import type { AgencyScope } from "@/lib/agency/types";
 import type { Flow, FlowStatus, FlowStep } from "./types";
@@ -41,17 +42,19 @@ export async function flowForClient(
 
 export async function createFlow(
   scope: AgencyScope,
-  input: { name: string; by: string },
+  input: { name: string; by: string; template?: "social-media" },
 ): Promise<Flow> {
   const name = input.name.trim().slice(0, 60);
   if (!name) throw new ValidationError("O fluxo precisa de um nome.");
   const now = new Date().toISOString();
+  // O modelo nasce ligado: é a esteira pronta, para o primeiro criativo já cair nela.
+  const fromTemplate = input.template === "social-media";
   const flow: Flow = {
     id: makeId("f"),
     agencyId: scope.agencyId,
     name,
-    status: "inativo",
-    steps: [blankStep(makeId("s"))],
+    status: fromTemplate ? "ativo" : "inativo",
+    steps: fromTemplate ? socialMediaTemplate() : [blankStep(makeId("s"))],
     startStepId: null,
     updatedAt: now,
     updatedBy: input.by,

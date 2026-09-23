@@ -29,6 +29,22 @@ function step(row: Partial<FlowStep> & Pick<FlowStep, "id" | "name" | "icon" | "
   };
 }
 
+/**
+ * O modelo "Social Media - Padrão" para qualquer agência: as mesmas seis
+ * etapas do export, mas sem gente fixa — quem toca cada etapa é o squad do
+ * cliente (a Aprovação continua sendo do cliente). É o que "Usar o modelo"
+ * cria numa agência que ainda não tem fluxo.
+ */
+export function socialMediaTemplate(): Flow["steps"] {
+  const base = seedFlows()[0].steps;
+  return base.map((s) => ({
+    ...s,
+    assignee: s.assignee.kind === "cliente" ? s.assignee : { kind: "squad" as const },
+    backupId: null,
+    approvers: s.approvers.filter((a) => a.memberId === null),
+  }));
+}
+
 export function seedFlows(): Flow[] {
   const now = new Date();
   const twoDaysAgo = new Date(now.getTime() - 2 * 24 * 60 * 60 * 1000).toISOString();

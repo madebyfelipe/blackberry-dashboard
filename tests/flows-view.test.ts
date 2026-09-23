@@ -3,7 +3,7 @@ import test, { describe } from "node:test";
 
 import { AGENCIA_A } from "./helpers/agency";
 import { blankStep } from "../src/lib/flows/constants";
-import { seedFlows } from "../src/lib/flows/seed";
+import { seedFlows, socialMediaTemplate } from "../src/lib/flows/seed";
 import type { Flow, FlowStep } from "../src/lib/flows/types";
 import {
   addBusinessDays,
@@ -126,5 +126,18 @@ describe("addBusinessDays", () => {
     const d = addBusinessDays(new Date(2026, 8, 18, 10), 1);
     assert.equal(d.getDate(), 21);
     assert.equal(addBusinessDays(new Date(2026, 8, 18, 10), 0).getDate(), 18);
+  });
+});
+
+describe("modelo Social Media", () => {
+  test("mesmas etapas do padrão, sem ninguém fixo", () => {
+    const steps = socialMediaTemplate();
+    assert.deepEqual(
+      steps.map((s) => s.name),
+      ["Briefing", "Redação", "Design", "Revisão", "Aprovação", "Publicação"],
+    );
+    assert.ok(steps.every((s) => s.assignee.kind !== "membro"));
+    assert.equal(steps.find((s) => s.name === "Aprovação")?.assignee.kind, "cliente");
+    assert.ok(steps.every((s) => s.approvers.every((a) => a.memberId === null)));
   });
 });
