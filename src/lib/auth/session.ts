@@ -1,3 +1,4 @@
+import { cache } from "react";
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import { redirect } from "next/navigation";
@@ -43,13 +44,18 @@ export async function endSession(): Promise<void> {
  * Além da assinatura do token (conferida em `token.ts`), aqui se confere a
  * versão da senha contra a que está gravada no usuário — um token emitido
  * antes da última troca de senha não vale mais.
+ *
+ * `cache` guarda o resultado pelo resto da mesma requisição: layout e tela
+ * perguntam pela sessão cada um por si (a de Tarefas, três vezes), e cada
+ * pergunta era uma ida ao banco. Fora da renderização (rota de API) o React
+ * não guarda nada e a função roda toda vez, como antes.
  */
-export async function currentUser(): Promise<PublicUser | undefined> {
+export const currentUser = cache(async (): Promise<PublicUser | undefined> => {
   const store = await cookies();
   const claims = await readSession(store.get(SESSION_COOKIE)?.value);
   if (!claims) return undefined;
   return getUserForSession(claims.sub, claims.passwordVersion);
-}
+});
 
 /**
  * Para rotas de API que exigem login. Devolve o usuário ou `null` — quem
@@ -98,8 +104,12 @@ export async function currentAgencyScope(): Promise<AgencyScope | undefined> {
  * acima, para não devolver escopo a quem não pode.
  */
 export async function accessOf(user: PublicUser): Promise<"ok" | "aguardando" | "bloqueado"> {
-  return memberAccess(agencyScope(user).agencyId, user.email);
+  return accessFor(agencyScope(user).agencyId, user.email);
 }
+
+// Chave por valor, não pelo objeto `user`: o layout e a tela checam o acesso
+// da mesma pessoa, e isso vira uma leitura só por requisição.
+const accessFor = cache(memberAccess);
 
 /**
  * Para onde vai uma tela do shell que ficou sem escopo. Quem tem conta mas

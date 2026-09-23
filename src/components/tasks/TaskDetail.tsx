@@ -57,20 +57,37 @@ export function TaskDetail({ task: initial, flow }: { task: Task; flow: Flow | n
   const [commentDraft, setCommentDraft] = useState("");
   const commentRef = useRef<HTMLInputElement>(null);
 
+  /*
+   * Quantos PATCH ainda estão no caminho. Trocar prioridade e prazo em
+   * seguida dispara dois; a resposta (e o refresh) do primeiro não sabe do
+   * segundo e, aplicada, desfazia na tela a mudança mais nova até a dela
+   * chegar. Por isso só a resposta do PATCH enviado por último entra na tela
+   * (é a que já traz os anteriores), e o refresh do servidor espera a fila
+   * esvaziar — um só, não um por campo (cada refresh refaz a rota inteira).
+   */
+  const pending = useRef(0);
+  const lastSent = useRef(0);
+
   // Voltar do cache do roteador com dados novos: a tela acompanha.
-  useEffect(() => setTask(initial), [initial]);
+  useEffect(() => {
+    if (pending.current === 0) setTask(initial);
+  }, [initial]);
 
   async function patch(values: TaskPatch) {
     const before = task;
     setTask((t) => ({ ...t, ...values }) as Task);
+    pending.current += 1;
+    const sent = ++lastSent.current;
     try {
       const updated = await apiUpdateTask(task.id, values);
-      setTask(updated);
-      // A lista atrás desta tela precisa ver a mudança ao voltar.
-      router.refresh();
+      if (sent === lastSent.current) setTask(updated);
     } catch (e) {
       setTask(before);
       toast(errMsg(e), "error");
+    } finally {
+      pending.current -= 1;
+      // A lista atrás desta tela precisa ver a mudança ao voltar.
+      if (pending.current === 0) router.refresh();
     }
   }
 
