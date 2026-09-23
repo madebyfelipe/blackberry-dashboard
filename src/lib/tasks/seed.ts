@@ -35,6 +35,9 @@ export function seedTasks(): Task[] {
     agencyId: LEGACY_AGENCY_ID,
     description: description ?? "",
     comments: [],
+    flowId: null,
+    stepId: null,
+    source: null,
     dueDate:
       dueInDays === undefined
         ? null

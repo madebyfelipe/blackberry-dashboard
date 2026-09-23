@@ -161,6 +161,26 @@
   --color-presence-away: var(--color-client-renovacao-fg);
   --color-presence-off: var(--color-client-pausado-fg);
 
+  /*
+   * Fluxos e Processos (export "Fluxos e Processos"). O painel da lista e do
+   * editor é um degrau abaixo da superfície, e os "poços" (ícone da etapa,
+   * prazo, linhas de regra) um abaixo dele. As cores com significado são as
+   * duas da transição de status: âmbar = esperando (ao entrar na etapa) e
+   * verde = pronto (ao concluir, e o fluxo ativo).
+   */
+  --color-flow-panel: #0f0f0f;
+  --color-flow-well: #0d0d0d;
+  --color-flow-btn: #161616;
+  --color-flow-hint: #55556a; /* rótulo de 9-10px dentro dos cartões */
+  --color-flow-on: #65d06b;
+  --color-flow-on-fg: #8ee29a;
+  --color-flow-on-bg: #0f2116;
+  --color-flow-done-bg: #00160c;
+  --color-flow-wait: #e89830;
+  --color-flow-wait-fg: #f0b45f;
+  --color-flow-wait-bg: #1a1400;
+  --color-flow-danger: #e07070;
+
   /* Radii */
   --radius-field: 24px;
   --radius-pill: 999px;
@@ -174,6 +194,7 @@
   --radius-nav: 12px; /* item da navegação lateral e da barra de seleção */
   --radius-check: 5px; /* caixa de seleção da lista */
   --radius-chip: 8px; /* botão dentro da barra de seleção */
+  --radius-tag: 4px; /* número da etapa e selos pequenos dos Fluxos */
 
   /*
    * Medidas — alvo de toque dos botões redondos (RoundIconButton, "⋯"). 40px

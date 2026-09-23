@@ -25,6 +25,7 @@ import {
   TrashIcon,
   XIcon,
 } from "@/components/icons";
+import { MentionText, useMentionInput } from "@/components/team/Mentions";
 import { apiAddTaskComment, apiDeleteTask, apiUpdateTask } from "./api";
 import { cn } from "@/lib/cn";
 
@@ -231,7 +232,7 @@ export function TaskDetail({ task: initial }: { task: Task }) {
                         </span>
                       </div>
                       <p className="whitespace-pre-wrap break-words text-[13px] leading-[18px] text-fg">
-                        {c.text}
+                        <MentionText text={c.text} />
                       </p>
                     </div>
                   </article>
@@ -759,12 +760,14 @@ function CommentBox({
   value: string;
   onChange: (v: string) => void;
   onSubmit: (text: string) => Promise<void>;
-  inputRef?: React.Ref<HTMLInputElement>;
+  inputRef: React.RefObject<HTMLInputElement | null>;
 }) {
   const { toast } = useToast();
   const [sending, setSending] = useState(false);
   const text = value;
   const setText = onChange;
+  // @ no comentário: o time inteiro, e entra o @ de quem foi escolhido.
+  const mentions = useMentionInput({ value: text, onChange: setText, field: inputRef });
 
   async function send() {
     const value = text.trim();
@@ -792,7 +795,11 @@ function CommentBox({
         ref={inputRef}
         value={text}
         onChange={(e) => setText(e.target.value)}
-        placeholder="Deixe um comentário..."
+        {...mentions.inputProps}
+        onKeyDown={(e) => {
+          mentions.onKeyDown(e);
+        }}
+        placeholder="Deixe um comentário... (@ para marcar alguém)"
         aria-label="Novo comentário"
         className="min-w-0 flex-1 bg-transparent text-[13px] text-fg-soft placeholder:text-muted focus:outline-none"
       />
@@ -813,6 +820,7 @@ function CommentBox({
       >
         <ArrowUpIcon size={14} strokeWidth={2.5} />
       </button>
+      {mentions.menu()}
     </form>
   );
 }

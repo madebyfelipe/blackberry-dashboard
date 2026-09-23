@@ -44,6 +44,17 @@ const ROWS: SeedRow[] = [
   { id: "c16", name: "Vértice Contábil", segment: "Contabilidade", services: ["Site", "E-mail"], owner: "Marcos", billingDay: 30, status: "pausado" },
 ];
 
+/**
+ * O squad de cada cliente em ids do time do Inbox. O export de Clientes não
+ * desenha squad; o que existe no desenho é o grupo "Clínica Aurora" do Inbox
+ * (Ana, Marina e Felipe), e é ele que vira o squad da Aurora. Nos outros, o
+ * squad é o responsável da ficha quando ele é alguém do time (a Camila).
+ */
+const SQUADS: Record<string, string[]> = {
+  "Clínica Aurora": ["ana", "marina", "felipe"],
+};
+const TEAM_BY_NAME: Record<string, string> = { Camila: "camila" };
+
 export function seedClients(): Client[] {
   const base = new Date("2026-09-01T09:00:00.000Z").getTime();
   return ROWS.map((row, i) => ({
@@ -51,6 +62,8 @@ export function seedClients(): Client[] {
     city: row.city ?? "",
     email: row.email ?? "",
     phone: row.phone ?? "",
+    squad: SQUADS[row.name] ?? (TEAM_BY_NAME[row.owner] ? [TEAM_BY_NAME[row.owner]] : []),
+    flowId: null,
     // A demonstração é da agência semeada — a que abre o app na primeira vez.
     agencyId: LEGACY_AGENCY_ID,
     createdAt: new Date(base + i * 3_600_000).toISOString(),

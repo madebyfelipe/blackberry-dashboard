@@ -1,7 +1,9 @@
 import { NextResponse } from "next/server";
 import { addPiece, getBatch } from "@/lib/approval/repository";
 import { MediaError, saveMedia } from "@/lib/media/store";
-import { requireAgency } from "@/lib/auth/session";
+import { requireAgency, type AgencySession } from "@/lib/auth/session";
+import { taskForPiece } from "@/lib/flows/automation";
+import type { Piece } from "@/lib/approval/types";
 
 export const dynamic = "force-dynamic";
 
@@ -14,6 +16,23 @@ type Ctx = { params: Promise<{ id: string }> };
  * - multipart com um ou mais `files`: uma peça por arte enviada, já com nome,
  *   tamanho real e formato deduzidos do arquivo — é o "Subir artes".
  */
+/**
+ * Todo criativo vira tarefa, no fluxo do cliente (ver `lib/flows/automation`).
+ * Falhar aqui não desfaz a peça: ela já está no lote, e a tarefa é o aviso
+ * do trabalho — melhor peça sem tarefa no log do que upload perdido.
+ */
+async function tasksFor(session: AgencySession, batchId: string, pieces: Piece[]) {
+  const batch = await getBatch(session.scope, batchId);
+  if (!batch) return;
+  for (const piece of pieces) {
+    try {
+      await taskForPiece(session.scope, batch, piece, session.user.name);
+    } catch (err) {
+      console.error("[fluxos] tarefa do criativo falhou", piece.id, err);
+    }
+  }
+}
+
 export async function POST(req: Request, { params }: Ctx) {
   const session = await requireAgency();
   if (!session) {
@@ -30,6 +49,7 @@ export async function POST(req: Request, { params }: Ctx) {
       // Inclui o lote de outra agência: para esta sessão ele não existe.
       return NextResponse.json({ error: "Lote não encontrado." }, { status: 404 });
     }
+    await tasksFor(session, id, [piece]);
     return NextResponse.json({ piece }, { status: 201 });
   }
 
@@ -83,5 +103,6 @@ export async function POST(req: Request, { params }: Ctx) {
       { status: 422 },
     );
   }
+  await tasksFor(session, id, pieces);
   return NextResponse.json({ pieces, rejected }, { status: 201 });
 }

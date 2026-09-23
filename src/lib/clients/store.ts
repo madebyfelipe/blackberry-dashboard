@@ -25,6 +25,8 @@ function normalize(raw: Partial<Client> & { id: string }): Client {
     owner: raw.owner ?? "—",
     billingDay: typeof raw.billingDay === "number" ? raw.billingDay : null,
     status: isClientStatus(raw.status) ? raw.status : "ativo",
+    squad: Array.isArray(raw.squad) ? [...new Set(raw.squad.map(String).filter(Boolean))] : [],
+    flowId: raw.flowId ? String(raw.flowId) : null,
     createdAt: raw.createdAt ?? new Date().toISOString(),
   };
 }

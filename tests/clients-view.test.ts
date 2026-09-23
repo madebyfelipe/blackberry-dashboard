@@ -35,6 +35,8 @@ function cliente(over: Partial<Client> = {}): Client {
     owner: "Fernanda",
     billingDay: 5,
     status: "ativo",
+    squad: [],
+    flowId: null,
     createdAt: "2026-09-01T09:00:00.000Z",
     ...over,
   };

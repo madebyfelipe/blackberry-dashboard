@@ -18,14 +18,14 @@ import type { Conversation, InboxData, InboxMember, Message } from "./types";
  *    tela estática); no produto quem abre a tela é ele.
  */
 
-const TEAM: { id: string; name: string; email: string; presence: InboxMember["presence"] }[] = [
+const TEAM: Omit<InboxMember, "agencyId">[] = [
   // O e-mail é o que liga este membro à conta de demonstração (ver README).
-  { id: "felipe", name: "Felipe", email: "felipe@blackberry.app", presence: "disponivel" },
-  { id: "marina", name: "Marina", email: "", presence: "disponivel" },
-  { id: "ana", name: "Ana", email: "", presence: "ocupado" },
-  { id: "rodrigo", name: "Rodrigo Q.", email: "", presence: "ausente" },
-  { id: "camila", name: "Camila", email: "", presence: "offline" },
-  { id: "pedro", name: "Pedro E.", email: "", presence: "disponivel" },
+  { id: "felipe", name: "Felipe", email: "felipe@blackberry.app", handle: "felipe", presence: "disponivel" },
+  { id: "marina", name: "Marina", email: "", handle: "marina", presence: "disponivel" },
+  { id: "ana", name: "Ana", email: "", handle: "ana", presence: "ocupado" },
+  { id: "rodrigo", name: "Rodrigo Q.", email: "", handle: "rodrigo", presence: "ausente" },
+  { id: "camila", name: "Camila", email: "", handle: "camila", presence: "offline" },
+  { id: "pedro", name: "Pedro E.", email: "", handle: "pedro", presence: "disponivel" },
 ];
 
 /** Minutos atrás — para o que aconteceu "hoje", sem cair no futuro. */

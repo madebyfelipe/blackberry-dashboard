@@ -1,5 +1,6 @@
 "use client";
 
+import { MentionText, useMentionInput } from "@/components/team/Mentions";
 import { useEffect, useRef, useState } from "react";
 import { cn } from "@/lib/cn";
 import {
@@ -573,9 +574,10 @@ function Row({
 /** Marca o trecho buscado sem mexer no texto — o realce é do leitor, não do dado. */
 function Highlight({ text, query }: { text: string; query: string }) {
   const q = query.trim();
-  if (!q) return <>{text}</>;
+  // Sem busca, a mensagem mostra as menções do time em destaque.
+  if (!q) return <MentionText text={text} />;
   const at = text.toLowerCase().indexOf(q.toLowerCase());
-  if (at === -1) return <>{text}</>;
+  if (at === -1) return <MentionText text={text} />;
   return (
     <>
       {text.slice(0, at)}
@@ -602,6 +604,14 @@ function Composer({
 }) {
   const [draft, setDraft] = useState("");
   const ref = useRef<HTMLTextAreaElement>(null);
+  const mentions = useMentionInput({
+    value: draft,
+    onChange: (v) => {
+      setDraft(v);
+      requestAnimationFrame(grow);
+    },
+    field: ref,
+  });
 
   function grow() {
     const el = ref.current;
@@ -642,7 +652,10 @@ function Composer({
             setDraft(e.target.value);
             grow();
           }}
+          {...mentions.inputProps}
           onKeyDown={(e) => {
+            // Com o menu de @ aberto, Enter escolhe a pessoa — não envia.
+            if (mentions.onKeyDown(e)) return;
             // Enter manda; Shift+Enter quebra a linha, como em toda conversa.
             if (e.key === "Enter" && !e.shiftKey) {
               e.preventDefault();
@@ -680,6 +693,7 @@ function Composer({
         >
           <ArrowUpIcon size={14} />
         </button>
+        {mentions.menu()}
       </form>
     </div>
   );

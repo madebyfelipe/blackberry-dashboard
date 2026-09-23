@@ -75,7 +75,8 @@ Dá para criar outra conta em `/criar-conta` — o cadastro já entra logado.
 | `/social/[cliente]/[lote]` | Detalhe do lote — grade de peças + painel de decisão + link público |
 | `/social/[cliente]/[lote]/editor` | **Editor de lote** — peças, detalhes da peça (data, formato, canal, legenda, hashtags), preview do post e as ações do link (enviar, gerar, desativar) |
 | `/a/[token]` | **Aprovação pública** (cliente, sem login): tela de início + swipe para aprovar/pedir ajuste |
-| `/configuracoes` | Conta: perfil, troca de senha e sessão |
+| `/configuracoes` | Conta: perfil (com o seu @), troca de senha e sessão |
+| `/configuracoes/fluxos` | **Fluxos e Processos** — a esteira de trabalho: etapas, quem toca cada uma, prazo, próxima etapa, aprovadores e automações |
 | `/inbox` | **Inbox** — a conversa do time: grupos e diretas, histórico salvo e pesquisável, presença (disponível · ocupado · ausente · offline) e a chamada com registro no histórico |
 | `/notificacoes`, `/conversas`, `/relatorios`, `/equipe` | Placeholders prontos para desenhar |
 
@@ -288,6 +289,34 @@ Três decisões que vale saber antes de mexer:
   outro lado. Pela mesma razão, mensagem nova chega por releitura periódica da
   tela (12s, só com a aba à vista), não por push. Quando a camada entrar, ela
   substitui essas duas coisas — o resto da tela não muda.
+
+## Fluxos: o criativo vira tarefa e a tarefa anda sozinha
+
+Três peças, cada uma num lugar:
+
+- **O fluxo** (`lib/flows`, tela `/configuracoes/fluxos`): etapas em ordem, e
+  em cada uma quem toca — uma pessoa fixa, o **squad do cliente** ou o
+  próprio cliente (a aprovação pelo link) —, o prazo em dias úteis e a
+  próxima etapa. As regras ("qual vem depois", "quem recebe") são funções
+  puras em `view.ts`, testadas em `tests/flows-view.test.ts`.
+- **O squad** mora na ficha do cliente (`Client.squad`, ids do time). Etapa
+  marcada "squad do cliente" vai para o primeiro do squad que ainda está no
+  time — é assim que o mesmo fluxo serve todos os clientes.
+- **O motor** (`lib/flows/automation.ts`) costura lote, cliente, time e
+  tarefa: todo criativo novo no lote vira tarefa na primeira etapa do fluxo
+  do cliente; concluir a tarefa a entrega ao responsável da próxima etapa
+  (prazo novo, registro na conversa assinado "black berry"); a aprovação do
+  cliente pelo link avança a etapa do cliente, e o ajuste volta uma etapa com
+  o motivo. A etapa da tarefa só muda por aqui (`moveTaskToStep`), nunca por
+  PATCH.
+
+### O @ de cada pessoa
+
+Cada membro do time tem um `handle` único na agência (`lib/inbox/handle.ts`),
+sugerido pelo nome e editável em Configurações. O menu de @ do briefing, do
+comentário e do Inbox oferece o time inteiro e insere o @ — não o nome, que
+pode repetir. O responsável da tarefa aceita `@handle` e o repositório troca
+pelo nome de quem atende por ele (@ de ninguém é recusado).
 
 ## App de desktop
 

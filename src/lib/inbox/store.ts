@@ -1,6 +1,7 @@
 import { createStore } from "@/lib/store";
 import { agencyIdOrLegacy } from "@/lib/agency/id";
 import { isPresence } from "./constants";
+import { handleProblem, normalizeHandle, suggestHandle } from "./handle";
 import { seedInbox } from "./seed";
 import type { Conversation, InboxData, InboxMember, Message } from "./types";
 
@@ -22,7 +23,27 @@ function normalizeMember(raw: Partial<InboxMember> & { id: string }): InboxMembe
     name: String(raw.name ?? "").trim() || "—",
     email: String(raw.email ?? "").trim().toLowerCase(),
     presence: isPresence(raw.presence) ? raw.presence : "offline",
+    handle: normalizeHandle(String(raw.handle ?? "")),
   };
+}
+
+/**
+ * Todo mundo sai daqui com um @ válido e único na agência. Quem foi gravado
+ * antes do @ existir (ou com um repetido) ganha o sugerido pelo nome; quem
+ * chegou primeiro fica com o dele.
+ */
+function settleHandles(members: InboxMember[]): InboxMember[] {
+  const taken = new Map<string, Set<string>>();
+  return members.map((m) => {
+    const used = taken.get(m.agencyId) ?? new Set<string>();
+    taken.set(m.agencyId, used);
+    const handle =
+      !handleProblem(m.handle) && !used.has(m.handle)
+        ? m.handle
+        : suggestHandle(m.name, used);
+    used.add(handle);
+    return handle === m.handle ? m : { ...m, handle };
+  });
 }
 
 function normalizeMessage(raw: unknown): Message | null {
@@ -108,9 +129,11 @@ function normalizeConversation(
 function revive(raw: unknown): InboxData {
   const data = (raw ?? {}) as Partial<InboxData>;
   return {
-    members: (Array.isArray(data.members) ? data.members : [])
-      .filter((m): m is InboxMember => !!m && typeof m === "object" && !!m.id)
-      .map(normalizeMember),
+    members: settleHandles(
+      (Array.isArray(data.members) ? data.members : [])
+        .filter((m): m is InboxMember => !!m && typeof m === "object" && !!m.id)
+        .map(normalizeMember),
+    ),
     conversations: (Array.isArray(data.conversations) ? data.conversations : [])
       .filter((c): c is Conversation => !!c && typeof c === "object" && !!c.id)
       .map(normalizeConversation),

@@ -21,7 +21,7 @@ import {
   apiSendMessage,
   type InboxSnapshot,
 } from "./api";
-import { CallOverlay } from "./CallOverlay";
+import { useCall } from "./CallProvider";
 import { ChatPane } from "./ChatPane";
 import { ConversationList } from "./ConversationList";
 
@@ -80,7 +80,8 @@ export function InboxView({
   const [query, setQuery] = useState("");
   const [onlyUnread, setOnlyUnread] = useState(false);
   const [sending, setSending] = useState(false);
-  const [call, setCall] = useState<{ withScreen: boolean } | null>(null);
+  /** A chamada mora no shell (ver `CallProvider`): minimizada, ela segue em qualquer tela. */
+  const call = useCall();
 
   const openIdRef = useRef(openId);
   openIdRef.current = openId;
@@ -350,11 +351,16 @@ export function InboxView({
    * servidor devolve a conversa já com ela — por isso a tela aceita a
    * conversa de volta em vez de recarregar tudo às cegas.
    */
-  function closeCall(updated?: ConversationDetail) {
-    setCall(null);
-    if (updated) setDetail((d) => (d?.id === updated.id ? updated : d));
-    void refresh();
-  }
+  const refreshRef = useRef(refresh);
+  refreshRef.current = refresh;
+  useEffect(
+    () =>
+      call.onEnded((updated) => {
+        if (updated) setDetail((d) => (d?.id === updated.id ? updated : d));
+        void refreshRef.current();
+      }),
+    [call],
+  );
 
   async function toggleMuted() {
     if (!detail) return;
@@ -421,9 +427,15 @@ export function InboxView({
           detail={{ ...detail, ...aoVivo(detail) }}
           me={state.me}
           sending={sending}
-          emChamada={!!call}
+          emChamada={call.activeId === detail.id}
           onSend={send}
-          onStartCall={(withScreen) => setCall({ withScreen })}
+          onStartCall={(withScreen) => {
+            if (call.activeId && call.activeId !== detail.id) {
+              toast("Encerre a chamada em andamento antes de começar outra.", "info");
+              return;
+            }
+            call.start(detail, state.me, withScreen);
+          }}
           onToggleMuted={toggleMuted}
           onMarkUnread={markUnread}
           onBack={() => setShowChat(false)}
@@ -442,14 +454,6 @@ export function InboxView({
         </div>
       )}
 
-      {call && detail && (
-        <CallOverlay
-          detail={detail}
-          me={state.me}
-          withScreen={call.withScreen}
-          onClose={closeCall}
-        />
-      )}
     </section>
   );
 }
