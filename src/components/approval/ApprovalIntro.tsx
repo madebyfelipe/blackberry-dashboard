@@ -73,8 +73,8 @@ export function ApprovalIntro({
 
   return (
     <main className="flex min-h-screen flex-col bg-bg">
-      {/* Top bar */}
-      <header className="flex flex-wrap items-center justify-between gap-3 px-5 py-5 sm:px-8">
+      {/* Top bar — o export mobile ("Aprovação (Mobile)") não tem: no celular a tela abre direto no lote. */}
+      <header className="hidden flex-wrap items-center justify-between gap-3 px-5 py-5 sm:flex sm:px-8">
         <Logo className="h-7" />
         <span className="flex items-center gap-2 rounded-pill border border-border bg-surface-2 px-4 py-2 text-[13px] text-fg-2">
           <LockIcon size={14} className="text-fg-3" />
@@ -83,21 +83,21 @@ export function ApprovalIntro({
       </header>
 
       {/* Hero */}
-      <div className="flex flex-1 flex-col items-center justify-center gap-8 px-5 py-8">
-        <span className="flex items-center gap-2 rounded-pill border border-border bg-surface-2 px-4 py-2 text-[13px] text-fg-2">
-          <SparklesIcon size={14} className="text-fg-3" />
+      <div className="flex flex-1 flex-col items-center justify-center gap-6 px-5 py-4 sm:gap-8 sm:py-8">
+        <span className="flex items-center gap-2 rounded-pill border border-border bg-surface-2 px-3.5 py-1.5 text-[12px] text-fg-2 sm:px-4 sm:py-2 sm:text-[13px]">
+          <SparklesIcon size={12} className="text-fg-3" />
           {batch.label} · {pieces.length} {pieces.length === 1 ? "peça" : "peças"}
         </span>
 
-        <div className="flex flex-col items-center gap-3.5">
-          <h1 className="text-center text-[32px] font-semibold leading-tight text-fg-soft sm:text-[42px]">
+        <div className="flex flex-col items-center gap-3 sm:gap-3.5">
+          <h1 className="text-center text-[24px] font-semibold leading-[28px] text-fg-soft sm:text-[42px] sm:leading-tight">
             {month
               ? `Seus criativos de ${month} estão prontos ✨`
               : "Seus criativos estão prontos ✨"}
           </h1>
-          <p className="max-w-[560px] text-center text-[16px]/[24px] text-muted">
-            Revise cada peça em poucos segundos: aprove, comente ou peça ajustes. Sem
-            e-mail, sem bagunça — tudo em um só lugar.
+          <p className="max-w-[560px] text-center text-[14px]/[21px] text-muted sm:text-[16px]/[24px]">
+            Revise cada peça em poucos segundos: aprove, comente ou peça ajustes.
+            <span className="hidden sm:inline"> Sem e-mail, sem bagunça — tudo em um só lugar.</span>
           </p>
         </div>
 
@@ -106,7 +106,7 @@ export function ApprovalIntro({
         ) : (
           <>
             {/* Slider */}
-            <div className="flex items-center gap-4 sm:gap-6">
+            <div className="-mx-5 flex items-center justify-center gap-2 sm:mx-0 sm:gap-6">
               <SliderBtn
                 label="Peça anterior"
                 disabled={index === 0}
@@ -116,11 +116,11 @@ export function ApprovalIntro({
               </SliderBtn>
 
               {pieces[index - 1] && (
-                <PeekCard piece={pieces[index - 1]} className="hidden sm:flex" />
+                <PeekCard piece={pieces[index - 1]} />
               )}
               {pieces[index] && <MainCard piece={pieces[index]} />}
               {pieces[index + 1] && (
-                <PeekCard piece={pieces[index + 1]} className="hidden sm:flex" />
+                <PeekCard piece={pieces[index + 1]} />
               )}
 
               <SliderBtn
@@ -142,7 +142,7 @@ export function ApprovalIntro({
                   onClick={() => setIndex(i)}
                   className={cn(
                     "h-1.5 rounded-pill transition-all",
-                    i === index ? "w-6 bg-primary" : "w-1.5 bg-border hover:bg-border-strong",
+                    i === index ? "w-5 bg-primary sm:w-6" : "w-1.5 bg-border hover:bg-border-strong",
                   )}
                 />
               ))}
@@ -151,11 +151,11 @@ export function ApprovalIntro({
         )}
 
         {/* CTA */}
-        <div className="flex flex-wrap items-center justify-center gap-3">
+        <div className="flex w-full flex-col items-center justify-center gap-2.5 px-5 sm:w-auto sm:flex-row sm:flex-wrap sm:gap-3 sm:px-0">
           <button
             type="button"
             onClick={onStart}
-            className="flex items-center gap-2.5 rounded-pill bg-primary px-7 py-4 text-[15px] font-semibold text-on-primary transition-opacity hover:opacity-90"
+            className="flex w-full items-center justify-center gap-2.5 rounded-pill bg-primary px-6 py-3.5 text-[14px] font-semibold text-on-primary transition-opacity hover:opacity-90 sm:w-auto sm:px-7 sm:py-4 sm:text-[15px]"
           >
             {progress.decided > 0 ? "Continuar aprovação" : "Começar aprovação"}
             <ArrowRightIcon size={16} />
@@ -163,22 +163,22 @@ export function ApprovalIntro({
           <button
             type="button"
             onClick={() => setSummary((s) => !s)}
-            className="rounded-pill border border-border px-7 py-4 text-[15px] font-medium text-fg-soft transition-colors hover:bg-surface-2"
+            className="w-full rounded-pill border border-border px-6 py-3.5 text-[14px] font-medium text-fg-soft transition-colors hover:bg-surface-2 sm:w-auto sm:px-7 sm:py-4 sm:text-[15px]"
           >
             {summary ? "Ver as peças" : "Ver resumo do lote"}
           </button>
         </div>
 
-        <p className="text-center text-[12px] text-dim">
+        <p className="text-center text-[11px] text-dim sm:text-[12px]">
           Leva cerca de {Math.max(1, Math.round(pieces.length * 0.4))} minutos · Não
           precisa de senha
         </p>
       </div>
 
       {/* Footer */}
-      <footer className="flex flex-wrap items-center justify-between gap-2 px-5 py-5 sm:px-8">
-        <span className="text-[12px] text-dim">black berry · aprovação de criativos</span>
-        <span className="text-[12px] text-muted">
+      <footer className="flex flex-col items-center gap-1 px-5 py-4 sm:flex-row sm:flex-wrap sm:justify-between sm:gap-2 sm:py-5 sm:px-8">
+        <span className="text-[10px] text-dim sm:text-[12px]">black berry · aprovação de criativos</span>
+        <span className="text-[10px] text-muted sm:text-[12px]">
           Precisa de ajuda? Fale com a agência →
         </span>
       </footer>
@@ -188,7 +188,7 @@ export function ApprovalIntro({
 
 function MainCard({ piece }: { piece: Piece }) {
   return (
-    <article className="flex h-[310px] w-[250px] shrink-0 flex-col gap-2.5 rounded-card border-[1.5px] border-dim bg-surface-2 p-3.5">
+    <article className="flex h-[260px] w-[200px] shrink-0 flex-col gap-2.5 rounded-[20px] border-[1.5px] border-dim bg-surface-2 p-3 sm:h-[310px] sm:w-[250px] sm:rounded-card sm:p-3.5">
       <CardHead size="lg" />
       <PieceThumb
         size={piece.size}
@@ -223,7 +223,9 @@ function PeekCard({ piece, className }: { piece: Piece; className?: string }) {
   return (
     <article
       className={cn(
-        "flex h-[230px] w-[170px] shrink-0 flex-col gap-2.5 rounded-card border border-border bg-surface-2 p-3.5 opacity-40",
+        // No celular é só a borda da peça vizinha (35%, como no export mobile), estreita
+        // o bastante para as duas setas caberem numa tela de 375px.
+        "flex h-[200px] w-[32px] shrink-0 flex-col gap-2 overflow-hidden rounded-[20px] border border-border bg-surface-2 p-2.5 opacity-35 sm:h-[230px] sm:w-[170px] sm:gap-2.5 sm:rounded-card sm:p-3.5 sm:opacity-40",
         className,
       )}
     >
@@ -235,7 +237,7 @@ function PeekCard({ piece, className }: { piece: Piece; className?: string }) {
         showBadge={false}
         className="flex-1 rounded-panel"
       />
-      <div className="flex items-center justify-between gap-2">
+      <div className="hidden items-center justify-between gap-2 sm:flex">
         <span className="text-[11px] font-semibold text-fg-2">{piece.name}</span>
         <span className="text-[10px] text-dim">{formatPieceDate(piece.date)}</span>
       </div>
@@ -286,7 +288,7 @@ function SliderBtn({
       aria-label={label}
       disabled={disabled}
       onClick={onClick}
-      className="flex h-11 w-11 shrink-0 items-center justify-center rounded-pill border border-border bg-surface-2 text-fg-soft transition-colors hover:bg-surface disabled:opacity-30"
+      className="flex h-9 w-9 shrink-0 items-center justify-center rounded-pill border border-border bg-surface-2 text-fg-soft transition-colors hover:bg-surface disabled:opacity-30 sm:h-11 sm:w-11"
     >
       {children}
     </button>
