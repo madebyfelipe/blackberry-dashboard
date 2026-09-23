@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import {
   deleteTask,
+  getTask,
   updateTask,
   ValidationError,
 } from "@/lib/tasks/repository";
@@ -45,6 +46,9 @@ export async function PATCH(req: Request, { params }: Ctx) {
   }
   try {
     const patch = pickPatch(body);
+    // Só uma passagem de verdade para "concluído" anda a etapa: repetir o
+    // status (clique duplo, dois abertos) não pode pular etapa nem duplicar nota.
+    const before = patch.status === "concluido" ? await getTask(session.scope, id) : undefined;
     const task = await updateTask(session.scope, id, patch);
     if (!task) {
       /*
@@ -58,7 +62,7 @@ export async function PATCH(req: Request, { params }: Ctx) {
      * com quem toca essa etapa. A resposta já traz a tarefa como ficou, para
      * a tela não mostrar "concluída" algo que acabou de ir para outra pessoa.
      */
-    if (patch.status === "concluido") {
+    if (patch.status === "concluido" && before && before.status !== "concluido") {
       const advanced = await advanceTask(session.scope, id, session.user.name);
       if (advanced) return NextResponse.json({ task: advanced });
     }

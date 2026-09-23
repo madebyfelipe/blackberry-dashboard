@@ -35,6 +35,7 @@ import {
   Settings2Icon,
   SquareCheckIcon,
   TrashIcon,
+  UserIcon,
 } from "@/components/icons";
 import { useToast } from "@/components/ui/Toast";
 import { TaskTable } from "./TaskTable";
@@ -55,13 +56,14 @@ type OpenMenu = "filtros" | "visualizacao" | null;
 const VISIBLE_TAB_STATUSES = STATUSES.slice(0, 4);
 const HIDDEN_TAB_STATUSES = STATUSES.slice(4);
 
-export function TasksView({ initialTasks }: { initialTasks: Task[] }) {
+export function TasksView({ initialTasks, me }: { initialTasks: Task[]; me: string }) {
   const { toast } = useToast();
   const router = useRouter();
   const params = useSearchParams();
   const [tasks, setTasks] = useState<Task[]>(initialTasks);
   const [display, setDisplay] = useState<Display>(DEFAULT_DISPLAY);
   const [filters, setFilters] = useState<Filters>(EMPTY_FILTERS);
+  const mine = filters.assignee.length === 1 && filters.assignee[0] === me;
   const [menu, setMenu] = useState<OpenMenu>(null);
   const [tab, setTab] = useState<StatusTab>("todas");
   const [search, setSearch] = useState("");
@@ -162,7 +164,13 @@ export function TasksView({ initialTasks }: { initialTasks: Task[] }) {
     const prev = tasks;
     setTasks((ts) => ts.map((t) => (t.id === task.id ? { ...t, status } : t)));
     try {
-      await apiUpdateTask(task.id, { status });
+      // A resposta manda: tarefa de fluxo marcada como concluída anda para a
+      // próxima etapa (outro status, outro responsável) — a tela mostra isso.
+      const updated = await apiUpdateTask(task.id, { status });
+      setTasks((ts) => ts.map((t) => (t.id === updated.id ? updated : t)));
+      if (status === "concluido" && updated.status !== "concluido") {
+        toast(`Etapa concluída — a tarefa seguiu para ${updated.assignee !== "—" ? updated.assignee : "a próxima etapa"}.`);
+      }
     } catch (e) {
       setTasks(prev);
       toast(errMsg(e), "error");
@@ -384,6 +392,22 @@ export function TasksView({ initialTasks }: { initialTasks: Task[] }) {
           </Popover>
 
           <ToolbarDivider />
+
+          {/* Atalho: só o que está comigo — o filtro de responsável com o meu nome. */}
+          {me && (
+            <>
+              <ToolbarButton
+                icon={<UserIcon size={15} />}
+                label="Minhas"
+                active={mine}
+                aria-pressed={mine}
+                onClick={() =>
+                  setFilters((f) => ({ ...f, assignee: mine ? [] : [me] }))
+                }
+              />
+              <ToolbarDivider />
+            </>
+          )}
 
           <ToolbarSearch
             value={search}

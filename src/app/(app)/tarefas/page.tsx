@@ -1,6 +1,6 @@
 import { redirectWithoutScope } from "@/lib/auth/session";
 import { listTasks } from "@/lib/tasks/repository";
-import { currentAgencyScope } from "@/lib/auth/session";
+import { currentAgencyScope, currentUser } from "@/lib/auth/session";
 import { TasksView } from "@/components/tasks/TasksView";
 
 export const dynamic = "force-dynamic";
@@ -12,6 +12,6 @@ export default async function TarefasPage() {
   // tem sessão; este redirect existe porque sem escopo não há o que listar.
   const scope = await currentAgencyScope();
   if (!scope) return redirectWithoutScope();
-  const tasks = await listTasks(scope);
-  return <TasksView initialTasks={tasks} />;
+  const [tasks, user] = await Promise.all([listTasks(scope), currentUser()]);
+  return <TasksView initialTasks={tasks} me={user?.name ?? ""} />;
 }
