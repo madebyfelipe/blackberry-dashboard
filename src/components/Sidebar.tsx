@@ -14,7 +14,7 @@ import { PRESENCES } from "@/lib/inbox/constants";
 import type { Presence } from "@/lib/inbox/types";
 import {
   BellIcon,
-  ChartLineIcon,
+  GitBranchIcon,
   CheckIcon,
   ChevronsUpDownIcon,
   InboxIcon,
@@ -67,7 +67,9 @@ const SECTIONS: { title: string; items: NavItem[] }[] = [
       { href: "/tarefas", label: "Tarefas", Icon: SquareCheckIcon },
       { href: "/social", label: "Social media", Icon: PlayIcon },
       { href: "/clientes", label: "Clientes", Icon: PanelsIcon },
-      { href: "/relatorios", label: "Relatórios", Icon: ChartLineIcon },
+      // Fluxos e Processos ocupa o lugar de Relatórios (pedido do Felipe):
+      // é a esteira do trabalho, e mora ao lado das telas de trabalho.
+      { href: "/configuracoes/fluxos", label: "Fluxos e Processos", Icon: GitBranchIcon },
     ],
   },
   {
@@ -78,6 +80,8 @@ const SECTIONS: { title: string; items: NavItem[] }[] = [
     ],
   },
 ];
+
+const ALL_HREFS = [...INBOXES, ...SECTIONS.flatMap((s) => s.items)].map((i) => i.href);
 
 const ROLE_LABEL: Record<PublicUser["role"], string> = {
   coordenacao: "Coordenação",
@@ -473,7 +477,12 @@ function NavLink({
   index: number;
 }) {
   const { href, label, Icon } = item;
-  const active = pathname === href || pathname.startsWith(href + "/");
+  // Vale o item mais específico: em /configuracoes/fluxos acende "Fluxos e
+  // Processos", não "Configurações" junto.
+  const matches = (h: string) => pathname === h || pathname.startsWith(h + "/");
+  const active =
+    matches(href) &&
+    !ALL_HREFS.some((other) => other.length > href.length && other.startsWith(href) && matches(other));
   return (
     <Link
       href={href}
