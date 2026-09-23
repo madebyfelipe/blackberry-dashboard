@@ -103,7 +103,8 @@ export async function taskForPiece(
     creator,
     labels: ["criativo"],
     description: pieceTaskDescription(batch, piece),
-    dueDate: step ? dueFor(step) : null,
+    // O prazo do criativo é o dia planejado para ele, não o prazo da etapa.
+    dueDate: plannedDate(piece),
     flowId: flow && step ? flow.id : null,
     stepId: step?.id ?? null,
     source: { batchId: batch.id, pieceId: piece.id },
@@ -113,6 +114,12 @@ export async function taskForPiece(
   return (
     (await noteOnly(scope, task, `${onde} — com ${who(member, assignee)}.`)) ?? task
   );
+}
+
+/** O dia do criativo no Planejamento — é ele que vira o prazo da tarefa. */
+function plannedDate(piece: Piece): string | null {
+  const d = new Date(piece.date);
+  return Number.isNaN(d.getTime()) ? null : d.toISOString();
 }
 
 function pieceTaskTitle(batch: Batch, piece: Piece): string {
@@ -140,8 +147,9 @@ export async function syncPieceTask(scope: AgencyScope, batch: Batch, piece: Pie
   if (!task) return;
   const title = pieceTaskTitle(batch, piece);
   const description = pieceTaskDescription(batch, piece);
-  if (task.title === title && task.description === description) return;
-  await updateTask(scope, task.id, { title, description });
+  const dueDate = plannedDate(piece);
+  if (task.title === title && task.description === description && task.dueDate === dueDate) return;
+  await updateTask(scope, task.id, { title, description, dueDate });
 }
 
 /** Deixa um registro na conversa sem mexer na etapa. */
@@ -172,7 +180,8 @@ async function enter(
     stepId: step.id,
     status: "a-fazer",
     assignee: name ?? undefined,
-    dueDate: dueFor(step),
+    // Tarefa de criativo mantém o dia planejado; as outras ganham o prazo da etapa.
+    dueDate: task.source ? task.dueDate : dueFor(step),
     note: { author: SYSTEM, text: text(who(member, name)) },
   });
 }
