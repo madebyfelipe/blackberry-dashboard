@@ -35,10 +35,20 @@ export async function POST(_req: Request, { params }: Ctx) {
 
   const media = await livekitToken(session.scope, id, session.me);
 
+  // Só quem sozinho está na chamada acabou de começá-la: é o "está te ligando".
+  const started =
+    conversation.callMemberIds.length === 1 && conversation.callMemberIds[0] === session.me.id;
   await publishToConversation(session.scope, id, {
     tipo: "chamada",
     conversationId: id,
     memberIds: conversation.callMemberIds,
+    ...(started
+      ? {
+          started: true,
+          from: { id: session.me.id, name: session.me.name },
+          group: conversation.kind === "grupo" ? conversation.title : "",
+        }
+      : {}),
   });
 
   return NextResponse.json({ conversation, media: media ?? null });

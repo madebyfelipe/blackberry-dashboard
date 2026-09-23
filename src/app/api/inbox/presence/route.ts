@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { ValidationError, setPresence } from "@/lib/inbox/repository";
 import { currentInboxSession } from "@/lib/inbox/viewer";
-import { ablyEnabled, livekitEnabled } from "@/lib/realtime/server";
+import { ablyReady, livekitEnabled } from "@/lib/realtime/server";
 import { unauthorized } from "@/lib/auth/session";
 import type { Presence } from "@/lib/inbox/types";
 
@@ -13,7 +13,7 @@ export async function GET() {
   if (!session) return unauthorized();
   return NextResponse.json({
     me: session.me,
-    realtime: { eventos: ablyEnabled(), chamada: livekitEnabled() },
+    realtime: { eventos: await ablyReady(), chamada: livekitEnabled() },
   });
 }
 

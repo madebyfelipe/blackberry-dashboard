@@ -124,7 +124,14 @@ export function ChatPane({
               {detail.title}
             </h2>
             <div className="flex items-center gap-1.5">
-              {detail.kind === "direta" && detail.presence ? (
+              {detail.onlineCount < 0 ? (
+                // Presença ainda carregando (tempo real conectando): sem chute.
+                detail.kind === "grupo" && (
+                  <span className="truncate text-[12px] text-muted">
+                    {detail.memberCount} {detail.memberCount === 1 ? "membro" : "membros"}
+                  </span>
+                )
+              ) : detail.kind === "direta" && detail.presence ? (
                 <>
                   <PresenceDot presence={detail.presence} size={7} />
                   <span className="truncate text-[12px] text-muted">

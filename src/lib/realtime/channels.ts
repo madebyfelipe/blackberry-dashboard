@@ -81,8 +81,26 @@ export function capabilityFor(
 }
 
 /** Os eventos que o servidor publica no canal de uma conversa. */
+/**
+ * O que a notificação precisa para se escrever sozinha, sem outra ida ao
+ * servidor: quem, onde (o nome do grupo; vazio na direta) e um trecho. Só
+ * trafega no canal da conversa, que só os membros dela ouvem.
+ */
+export type NotifyInfo = {
+  from: { id: string; name: string };
+  /** Nome do grupo; "" na conversa direta. */
+  group: string;
+};
+
 export type RealtimeEvent =
-  | { tipo: "mensagem"; conversationId: string }
-  | { tipo: "chamada"; conversationId: string; memberIds: string[] }
+  | ({ tipo: "mensagem"; conversationId: string } & Partial<NotifyInfo> & { preview?: string })
+  | ({
+      tipo: "chamada";
+      conversationId: string;
+      memberIds: string[];
+    } & Partial<NotifyInfo> & {
+        /** Presente só quando esta entrada **começou** a chamada: é o "está te ligando". */
+        started?: boolean;
+      })
   /** No canal pessoal: a lista de conversas desta pessoa mudou. */
   | { tipo: "conversas"; conversationId: string };

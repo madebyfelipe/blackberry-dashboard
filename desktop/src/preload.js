@@ -15,6 +15,14 @@ contextBridge.exposeInMainWorld("blackberryDesktop", {
   setInCall(emChamada) {
     ipcRenderer.send("desktop:em-chamada", emChamada === true);
   },
+  /** Traz a janela para a frente — o clique numa notificação, com o app na bandeja. */
+  show() {
+    ipcRenderer.send("desktop:mostrar");
+  },
+  /** As não lidas do Inbox: dica da bandeja, contador e a barra piscando. */
+  setUnread(total) {
+    ipcRenderer.send("desktop:nao-lidas", Number(total) || 0);
+  },
   /** Atalho global de mudo apertado. Devolve a função que para de ouvir. */
   onToggleMute(callback) {
     if (typeof callback !== "function") return () => {};

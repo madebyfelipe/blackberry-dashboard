@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { Sidebar } from "@/components/Sidebar";
 import { RealtimeProvider } from "@/components/realtime/RealtimeProvider";
 import { CallProvider } from "@/components/inbox/CallProvider";
+import { InboxNotifier } from "@/components/inbox/InboxNotifier";
 import { accessOf, currentUser } from "@/lib/auth/session";
 
 export const dynamic = "force-dynamic";
@@ -33,6 +34,8 @@ export default async function AppLayout({
   return (
     <RealtimeProvider>
       <CallProvider>
+      {/* Mensagem e ligação avisam em qualquer tela (notificação do sistema). */}
+      <InboxNotifier />
       <div className="flex h-screen flex-col gap-3 bg-bg p-3 md:flex-row md:gap-4 md:p-4">
         <Sidebar user={user} />
         <main className="flex min-w-0 flex-1 flex-col overflow-hidden">

@@ -88,10 +88,12 @@ async function iniciar() {
     return;
   }
 
+  preferencias = lerPreferencias();
   protegerSessao(session.defaultSession);
   criarJanela();
   criarBandeja();
   ouvirChamada();
+  ouvirPagina();
 
   app.on("activate", mostrar); // clique no ícone do Dock
 }
@@ -131,6 +133,30 @@ function protegerSessao(sessao) {
     },
     { useSystemPicker: true },
   );
+}
+
+/* ---------------------------------------------------------- preferências -- */
+
+const ARQUIVO_PREFERENCIAS = () => path.join(app.getPath("userData"), "preferencias.json");
+
+/** Minimizar manda para a bandeja (em vez da barra de tarefas). Ligado por padrão. */
+function lerPreferencias() {
+  try {
+    const salvo = JSON.parse(fs.readFileSync(ARQUIVO_PREFERENCIAS(), "utf8"));
+    return { minimizarParaBandeja: salvo.minimizarParaBandeja !== false };
+  } catch {
+    return { minimizarParaBandeja: true };
+  }
+}
+
+let preferencias = { minimizarParaBandeja: true };
+
+function gravarPreferencias() {
+  try {
+    fs.writeFileSync(ARQUIVO_PREFERENCIAS(), JSON.stringify(preferencias));
+  } catch {
+    // Não gravar a preferência não impede nada: vale até fechar o app.
+  }
 }
 
 /* --------------------------------------------------------------- janela -- */
@@ -265,6 +291,18 @@ function criarJanela() {
       janela?.hide();
     }
   });
+  /*
+   * Minimizar vai para a bandeja, como o Discord: some da barra de tarefas e
+   * volta pelo ícone ao lado do relógio. Dá para desligar no menu da bandeja.
+   */
+  janela.on("minimize", () => {
+    if (FICA_NA_BANDEJA && preferencias.minimizarParaBandeja) {
+      gravarPosicao();
+      janela?.hide();
+    }
+  });
+  // Voltar para a janela para de piscar na barra de tarefas.
+  janela.on("focus", () => janela?.flashFrame(false));
   janela.on("closed", () => {
     janela = null;
     pagina = null;
@@ -283,14 +321,54 @@ function criarBandeja() {
   if (process.platform === "darwin") icone.setTemplateImage(true);
   bandeja = new Tray(icone);
   bandeja.setToolTip("black berry");
+  montarMenuBandeja();
+  bandeja.on("click", mostrar);
+}
+
+function montarMenuBandeja() {
+  if (!bandeja) return;
   bandeja.setContextMenu(
     Menu.buildFromTemplate([
       { label: "Abrir black berry", click: mostrar },
       { type: "separator" },
+      {
+        label: "Minimizar para a bandeja",
+        type: "checkbox",
+        checked: preferencias.minimizarParaBandeja,
+        click: (item) => {
+          preferencias.minimizarParaBandeja = item.checked;
+          gravarPreferencias();
+        },
+      },
+      { type: "separator" },
       { label: "Sair", click: sair },
     ]),
   );
-  bandeja.on("click", mostrar);
+}
+
+/* ------------------------------------------------------ avisos da página -- */
+
+let naoLidas = 0;
+
+/**
+ * O que a página conta para o app: as não lidas do Inbox (dica da bandeja,
+ * contador no Dock/Linux, e a barra de tarefas piscando quando chega coisa
+ * nova com a janela atrás de outras) e o pedido de trazer a janela — o
+ * clique numa notificação precisa abrir o app mesmo escondido na bandeja.
+ */
+function ouvirPagina() {
+  ipcMain.on("desktop:mostrar", (event) => {
+    if (!pagina || event.sender !== pagina) return;
+    mostrar();
+  });
+  ipcMain.on("desktop:nao-lidas", (event, total) => {
+    if (!pagina || event.sender !== pagina) return;
+    const n = Number.isFinite(total) ? Math.max(0, Math.floor(total)) : 0;
+    bandeja?.setToolTip(n > 0 ? `black berry — ${n} não ${n === 1 ? "lida" : "lidas"}` : "black berry");
+    app.setBadgeCount(n);
+    if (n > naoLidas && janela && !janela.isFocused()) janela.flashFrame(true);
+    naoLidas = n;
+  });
 }
 
 function sair() {

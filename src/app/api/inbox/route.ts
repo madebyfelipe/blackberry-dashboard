@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { listConversations, listMembers } from "@/lib/inbox/repository";
 import { currentInboxSession } from "@/lib/inbox/viewer";
-import { ablyEnabled, livekitEnabled } from "@/lib/realtime/server";
+import { ablyReady, livekitEnabled } from "@/lib/realtime/server";
 import { unauthorized } from "@/lib/auth/session";
 
 export const dynamic = "force-dynamic";
@@ -32,6 +32,6 @@ export async function GET() {
      * ouvir os eventos e reler de tempos em tempos — e para não prometer
      * chamada onde não há provedor de mídia.
      */
-    realtime: { eventos: ablyEnabled(), chamada: livekitEnabled() },
+    realtime: { eventos: await ablyReady(), chamada: livekitEnabled() },
   });
 }

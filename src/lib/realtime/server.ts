@@ -38,6 +38,52 @@ export function ablyEnabled(): boolean {
   return !!env("ABLY_API_KEY");
 }
 
+/*
+ * A chave existe, mas pode? Uma chave do Ably criada só com "Subscribe" (foi
+ * o caso em produção, 2026-09-23) deixava o app achando que o tempo real
+ * estava ligado: o servidor não conseguia publicar ("Unauthorized to
+ * publish", 40160), o navegador não entrava na presença, e o Inbox relaxava
+ * a releitura para 60s — mensagem demorando um minuto e o status de todo
+ * mundo sumindo um segundo depois de abrir a tela.
+ *
+ * Então, antes de dizer "tempo real ligado", o servidor pergunta ao Ably o
+ * que a chave concede: um crachá pedindo publish + presence + subscribe num
+ * canal de teste. Faltou alguma, o tempo real conta como desligado (o app
+ * volta à releitura de 12s e ao status gravado) e o log diz o que ligar.
+ * O resultado fica guardado 10 min por instância: consertar a chave no
+ * painel religa sozinho, sem deploy.
+ */
+let ablyCheck: { ok: boolean; at: number } | null = null;
+const ABLY_CHECK_MS = 10 * 60_000;
+
+export async function ablyReady(): Promise<boolean> {
+  const key = env("ABLY_API_KEY");
+  if (!key) return false;
+  if (ablyCheck && Date.now() - ablyCheck.at < ABLY_CHECK_MS) return ablyCheck.ok;
+  try {
+    const client = await rest(key);
+    const token = await client.auth.requestToken({
+      clientId: "bb-verificacao",
+      capability: { "bb:verificacao": ["publish", "presence", "subscribe"] },
+    });
+    const granted = JSON.parse(String(token.capability ?? "{}"))["bb:verificacao"] ?? [];
+    const ok = ["publish", "presence", "subscribe"].every((op) => granted.includes(op) || granted.includes("*"));
+    if (!ok) {
+      console.error(
+        "[realtime] ABLY_API_KEY sem permissão suficiente (concede: " +
+          JSON.stringify(granted) +
+          "). No painel do Ably, ligue Publish, Subscribe e Presence na chave. Até lá o app usa a releitura periódica.",
+      );
+    }
+    ablyCheck = { ok, at: Date.now() };
+    return ok;
+  } catch (err) {
+    console.error("[realtime] não deu para conferir a chave do Ably", err);
+    ablyCheck = { ok: false, at: Date.now() };
+    return false;
+  }
+}
+
 export function livekitEnabled(): boolean {
   return !!(env("LIVEKIT_URL") && env("LIVEKIT_API_KEY") && env("LIVEKIT_API_SECRET"));
 }

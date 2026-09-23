@@ -48,6 +48,10 @@ export async function POST(req: Request, { params }: Ctx) {
     await publishToConversation(session.scope, id, {
       tipo: "mensagem",
       conversationId: id,
+      // O bastante para a notificação de quem não está com a conversa aberta.
+      from: { id: session.me.id, name: session.me.name },
+      group: conversation.kind === "grupo" ? conversation.title : "",
+      preview: String(text ?? "").trim().slice(0, 140),
     });
     return NextResponse.json({ conversation }, { status: 201 });
   } catch (err) {

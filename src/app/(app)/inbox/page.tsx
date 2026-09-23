@@ -1,5 +1,6 @@
 import { redirectWithoutScope } from "@/lib/auth/session";
 import { InboxView } from "@/components/inbox/InboxView";
+import { ablyReady } from "@/lib/realtime/server";
 import {
   getConversation,
   listConversations,
@@ -23,7 +24,11 @@ export const metadata = { title: "Inbox" };
  * é ele que define quais conversas existem (as da agência dele em que ele
  * está dentro).
  */
-export default async function InboxPage() {
+export default async function InboxPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ conversa?: string }>;
+}) {
   const session = await currentInboxSession();
   if (!session) return redirectWithoutScope();
 
@@ -32,7 +37,10 @@ export default async function InboxPage() {
     listConversations(session.scope, session.me.id),
   ]);
 
-  const first = sortSummaries(conversations)[0];
+  // `?conversa=` é o clique numa notificação: abre aquela conversa.
+  const { conversa } = await searchParams;
+  const wanted = conversa ? conversations.find((c) => c.id === conversa) : undefined;
+  const first = wanted ?? sortSummaries(conversations)[0];
   const initial = first
     ? await getConversation(session.scope, session.me.id, first.id)
     : undefined;
@@ -41,6 +49,7 @@ export default async function InboxPage() {
     <InboxView
       snapshot={{ me: session.me, members, conversations }}
       initialConversation={initial ?? null}
+      live={await ablyReady()}
     />
   );
 }
