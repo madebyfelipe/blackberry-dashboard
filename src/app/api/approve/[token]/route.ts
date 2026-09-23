@@ -65,7 +65,9 @@ export async function POST(
   } catch (err) {
     console.error("[fluxos] decisão do cliente não chegou na tarefa", pieceId, err);
   }
-  return NextResponse.json({ piece });
+  // O briefing do designer é interno da agência — não volta para o cliente.
+  const { briefing: _briefing, ...publicPiece } = piece;
+  return NextResponse.json({ piece: publicPiece });
 }
 
 function clientIp(req: Request): string | undefined {

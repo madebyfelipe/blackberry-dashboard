@@ -17,6 +17,8 @@ import {
 import { MediaDropzone } from "./MediaDropzone";
 import { PieceThumb } from "./PieceThumb";
 import { RoundIconButton } from "./RoundIconButton";
+import { ShareBatchModal } from "./ShareBatchModal";
+import { BatchViewToggle } from "./BatchViewToggle";
 import { cn } from "@/lib/cn";
 import {
   AtSignIcon,
@@ -102,7 +104,10 @@ export function CreativeComposer({
     initialPiece ? pieceFormat(initialPiece) : "carrossel",
   );
   const [caption, setCaption] = useState(initialPiece?.caption ?? "");
+  const [briefing, setBriefing] = useState(initialPiece?.briefing ?? "");
   const [saving, setSaving] = useState(false);
+  /** O lote salvo pelo botão do topo: abre o modal com o QR e o link. */
+  const [sharing, setSharing] = useState(false);
   const [uploading, setUploading] = useState(false);
 
   const [query, setQuery] = useState("");
@@ -127,6 +132,7 @@ export function CreativeComposer({
     setName("");
     setFormat("carrossel");
     setCaption("");
+    setBriefing("");
   }
 
   function applyResult(data: { batch: Batch; piece: Piece }) {
@@ -159,8 +165,9 @@ export function CreativeComposer({
     }
   }
 
-  async function saveDraft(): Promise<void> {
-    if (!name.trim() && !caption.trim() && !composerId) return;
+  /** Grava o criativo aberto. Devolve se havia algo para gravar e deu certo. */
+  async function saveDraft(): Promise<boolean> {
+    if (!name.trim() && !caption.trim() && !briefing.trim() && !composerId) return false;
     setSaving(true);
     try {
       const defaultName = composerPiece
@@ -174,13 +181,44 @@ export function CreativeComposer({
           name: name.trim() || defaultName,
           format,
           caption,
+          briefing,
         }),
       });
       if (!res.ok) throw new Error((await res.json()).error ?? "Falha ao salvar.");
       applyResult((await res.json()) as { batch: Batch; piece: Piece });
-      toast("Criativo salvo.");
+      return true;
     } catch (e) {
       toast(e instanceof Error ? e.message : "Falha ao salvar.", "error");
+      return false;
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  /** "Salvar criativo": grava e já abre um espaço novo para o próximo. */
+  async function saveCreative() {
+    if (await saveDraft()) {
+      toast("Criativo salvo — pode montar o próximo.");
+      reset();
+    }
+  }
+
+  /**
+   * O salvar do topo: grava o criativo aberto, fecha o rascunho (o lote passa
+   * a valer para o cliente) e abre o modal com o QR code e o link.
+   */
+  async function saveBatch() {
+    if (saving) return;
+    await saveDraft();
+    setSaving(true);
+    try {
+      const res = await fetch(`/api/batches/${batch.id}/send`, { method: "POST" });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data?.error ?? "Falha ao salvar o lote.");
+      setBatch((b) => ({ ...b, stage: data.batch.stage, draftSavedAt: data.batch.draftSavedAt }));
+      setSharing(true);
+    } catch (e) {
+      toast(e instanceof Error ? e.message : "Falha ao salvar o lote.", "error");
     } finally {
       setSaving(false);
     }
@@ -198,6 +236,7 @@ export function CreativeComposer({
     setName(p.name);
     setFormat(pieceFormat(p));
     setCaption(p.caption ?? "");
+    setBriefing(p.briefing ?? "");
   }
 
   /**
@@ -295,6 +334,7 @@ export function CreativeComposer({
         />
 
         <div className="flex items-center gap-2.5">
+          <BatchViewToggle clientSlug={clientSlug} batchId={batch.id} active="criativos" />
           <div className="relative shrink-0">
             {showSearch && (
               <input
@@ -334,10 +374,10 @@ export function CreativeComposer({
             <Settings2Icon size={18} />
           </RoundIconButton>
           <RoundIconButton
-            label="Salvar alterações"
+            label="Salvar lote e gerar link"
             tone="primary"
             disabled={saving}
-            onClick={() => void saveDraft()}
+            onClick={() => void saveBatch()}
           >
             {saving ? <Spinner size={16} /> : <SaveIcon size={18} />}
           </RoundIconButton>
@@ -495,10 +535,24 @@ export function CreativeComposer({
             </div>
           </div>
 
+          <div className="flex flex-col gap-2">
+            <label htmlFor="creative-briefing" className="text-[12px] font-semibold text-muted">
+              Briefing para o designer
+            </label>
+            <textarea
+              id="creative-briefing"
+              value={briefing}
+              maxLength={4000}
+              onChange={(e) => setBriefing(e.target.value)}
+              placeholder="Referências, texto da arte, o que não pode faltar… (só a agência vê)"
+              className="min-h-[88px] w-full resize-y rounded-panel border border-border bg-surface px-3.5 py-3 text-[13px]/[19px] text-fg-soft placeholder:text-muted focus:border-border-strong focus:outline-none"
+            />
+          </div>
+
           <div className="flex shrink-0 gap-2.5">
             <button
               type="button"
-              onClick={() => void saveDraft()}
+              onClick={() => void saveCreative()}
               disabled={saving}
               className="tap flex h-11 flex-1 items-center justify-center gap-2 rounded-panel border border-border-strong text-[13px] font-semibold text-fg-soft transition-colors hover:bg-surface disabled:opacity-60"
             >
@@ -610,6 +664,10 @@ export function CreativeComposer({
           )}
         </section>
       </div>
+
+      {sharing && (
+        <ShareBatchModal batch={batch} clientSlug={clientSlug} onClose={() => setSharing(false)} />
+      )}
     </div>
   );
 }

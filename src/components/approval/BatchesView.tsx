@@ -64,7 +64,7 @@ export function BatchesView({
        * Um lote nasce vazio, e a única coisa a fazer com ele é colocar as
        * peças — o editor é o passo seguinte, não a grade vazia.
        */
-      router.push(`/social/${slug}/${batch.id}/editor`);
+      router.push(`/social/${slug}/${batch.id}/planejamento`);
     } catch {
       toast("Não foi possível criar o lote.", "error");
     } finally {

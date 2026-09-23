@@ -20,7 +20,15 @@ export default async function ApprovalLinkPage({
   const batch = await getBatchByToken(token);
   if (!batch) notFound();
   if (!isBatchLinkActive(batch)) return <ExpiredLink client={batch.client} />;
-  return <ApprovalFlow batch={batch} />;
+  /*
+   * O briefing do designer é da agência: sai daqui antes de a peça virar
+   * props de um componente de cliente (e, portanto, HTML na tela dele).
+   */
+  const publicBatch = {
+    ...batch,
+    pieces: batch.pieces.map(({ briefing: _briefing, ...piece }) => piece),
+  };
+  return <ApprovalFlow batch={publicBatch} />;
 }
 
 function ExpiredLink({ client }: { client: string }) {
