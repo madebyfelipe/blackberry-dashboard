@@ -7,7 +7,8 @@ import { Breadcrumb } from "@/components/ui/Breadcrumb";
 import { Input } from "@/components/ui/Input";
 import { Spinner } from "@/components/ui/Spinner";
 import { useToast } from "@/components/ui/Toast";
-import { LockIcon, UserCircleIcon } from "@/components/icons";
+import Link from "next/link";
+import { ChevronRightIcon, GitBranchIcon, LockIcon, UserCircleIcon } from "@/components/icons";
 import { cn } from "@/lib/cn";
 
 /*
@@ -40,6 +41,7 @@ export function SettingsView({ user, handle }: { user: PublicUser; handle: strin
 
       <div className="flex max-w-[760px] flex-col gap-4">
         <ProfileCard user={user} handle={handle} />
+        <FlowsLink />
         <PasswordCard />
         <SessionCard user={user} />
       </div>
@@ -126,6 +128,28 @@ function SaveButton({
         children
       )}
     </button>
+  );
+}
+
+/** A porta para "Fluxos e Processos" — a esteira que as tarefas seguem. */
+function FlowsLink() {
+  return (
+    <Link
+      href="/configuracoes/fluxos"
+      style={{ ["--d" as string]: 1 }}
+      className="stagger-item tap flex items-center gap-3 rounded-card border border-border bg-surface-2 p-6 transition-colors hover:bg-row-raised"
+    >
+      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-border text-fg-3">
+        <GitBranchIcon size={18} />
+      </span>
+      <span className="flex min-w-0 flex-1 flex-col gap-1">
+        <span className="text-[15px] font-semibold text-fg-soft">Fluxos e Processos</span>
+        <span className="text-[12px] text-muted">
+          A sequência de trabalho: quem toca cada etapa e para quem a tarefa vai depois.
+        </span>
+      </span>
+      <ChevronRightIcon size={16} className="text-muted" />
+    </Link>
   );
 }
 

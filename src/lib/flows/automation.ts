@@ -106,7 +106,7 @@ export async function taskForPiece(
     source: { batchId: batch.id, pieceId: piece.id },
   });
 
-  const onde = flow && step ? `Entrou no fluxo **${flow.name}**, etapa **${step.name}**` : "Sem fluxo ativo na agência";
+  const onde = flow && step ? `Entrou no fluxo ${flow.name}, etapa ${step.name}` : "Sem fluxo ativo na agência";
   return (
     (await noteOnly(scope, task, `${onde} — com ${who(member, assignee)}.`)) ?? task
   );
@@ -165,14 +165,14 @@ export async function advanceTask(
 
   const next = nextStep(flow, current.id);
   if (!next) {
-    return noteOnly(scope, task, `**${current.name}** concluída por ${by} — fim do fluxo **${flow.name}**.`);
+    return noteOnly(scope, task, `${current.name} concluída por ${by} — fim do fluxo ${flow.name}.`);
   }
   return enter(
     scope,
     task,
     flow,
     next,
-    (quem) => `**${current.name}** concluída por ${by} → encaminhada para **${next.name}**, com ${quem}.`,
+    (quem) => `${current.name} concluída por ${by} → encaminhada para ${next.name}, com ${quem}.`,
   );
 }
 
@@ -213,11 +213,11 @@ export async function onClientDecision(
         stepId: current.id,
         status: "concluido",
         dueDate: null,
-        note: { author: SYSTEM, text: `Aprovada pelo cliente — fim do fluxo **${flow.name}**.` },
+        note: { author: SYSTEM, text: `Aprovada pelo cliente — fim do fluxo ${flow.name}.` },
       });
       return;
     }
-    await enter(scope, task, flow, next, (quem) => `Aprovada pelo cliente → encaminhada para **${next.name}**, com ${quem}.`);
+    await enter(scope, task, flow, next, (quem) => `Aprovada pelo cliente → encaminhada para ${next.name}, com ${quem}.`);
     return;
   }
 
@@ -225,7 +225,7 @@ export async function onClientDecision(
     const back = current.assignee.kind === "cliente" ? previousStep(flow, current.id) : current;
     if (!back) return;
     const motivo = reason?.trim() ? `: "${reason.trim()}"` : "";
-    await enter(scope, task, flow, back, (quem) => `O cliente pediu ajuste${motivo} → de volta para **${back.name}**, com ${quem}.`);
+    await enter(scope, task, flow, back, (quem) => `O cliente pediu ajuste${motivo} → de volta para ${back.name}, com ${quem}.`);
   }
 }
 

@@ -1034,3 +1034,181 @@ export function Minimize2Icon(p: IconProps) {
     </Svg>
   );
 }
+
+/* ------------------------------------------------ Fluxos e Processos */
+
+export function GripVerticalIcon(p: IconProps) {
+  return (
+    <Svg {...p}>
+      <circle cx="9" cy="12" r="1" />
+      <circle cx="9" cy="5" r="1" />
+      <circle cx="9" cy="19" r="1" />
+      <circle cx="15" cy="12" r="1" />
+      <circle cx="15" cy="5" r="1" />
+      <circle cx="15" cy="19" r="1" />
+    </Svg>
+  );
+}
+
+export function Clock3Icon(p: IconProps) {
+  return (
+    <Svg {...p}>
+      <circle cx="12" cy="12" r="10" />
+      <polyline points="12 6 12 12 16.5 12" />
+    </Svg>
+  );
+}
+
+export function UserRoundIcon(p: IconProps) {
+  return (
+    <Svg {...p}>
+      <circle cx="12" cy="8" r="5" />
+      <path d="M20 21a8 8 0 0 0-16 0" />
+    </Svg>
+  );
+}
+
+export function ArrowRightToLineIcon(p: IconProps) {
+  return (
+    <Svg {...p}>
+      <path d="M17 12H3" />
+      <path d="m11 18 6-6-6-6" />
+      <path d="M21 5v14" />
+    </Svg>
+  );
+}
+
+export function ArrowLeftRightIcon(p: IconProps) {
+  return (
+    <Svg {...p}>
+      <path d="M8 3 4 7l4 4" />
+      <path d="M4 7h16" />
+      <path d="m16 21 4-4-4-4" />
+      <path d="M20 17H4" />
+    </Svg>
+  );
+}
+
+export function ShieldCheckIcon(p: IconProps) {
+  return (
+    <Svg {...p}>
+      <path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z" />
+      <path d="m9 12 2 2 4-4" />
+    </Svg>
+  );
+}
+
+export function FileCheckIcon(p: IconProps) {
+  return (
+    <Svg {...p}>
+      <path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z" />
+      <path d="M14 2v4a2 2 0 0 0 2 2h4" />
+      <path d="m9 15 2 2 4-4" />
+    </Svg>
+  );
+}
+
+export function CalendarClockIcon(p: IconProps) {
+  return (
+    <Svg {...p}>
+      <path d="M21 7.5V6a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h3.5" />
+      <path d="M16 2v4" />
+      <path d="M8 2v4" />
+      <path d="M3 10h5" />
+      <path d="M17.5 17.5 16 16.3V14" />
+      <circle cx="16" cy="16" r="6" />
+    </Svg>
+  );
+}
+
+export function KanbanIcon(p: IconProps) {
+  return (
+    <Svg {...p}>
+      <path d="M6 5v11" />
+      <path d="M12 5v6" />
+      <path d="M18 5v14" />
+    </Svg>
+  );
+}
+
+export function GitBranchIcon(p: IconProps) {
+  return (
+    <Svg {...p}>
+      <line x1="6" x2="6" y1="3" y2="15" />
+      <circle cx="18" cy="6" r="3" />
+      <circle cx="6" cy="18" r="3" />
+      <path d="M18 9a9 9 0 0 1-9 9" />
+    </Svg>
+  );
+}
+
+export function PaletteIcon(p: IconProps) {
+  return (
+    <Svg {...p}>
+      <circle cx="13.5" cy="6.5" r=".5" fill="currentColor" />
+      <circle cx="17.5" cy="10.5" r=".5" fill="currentColor" />
+      <circle cx="8.5" cy="7.5" r=".5" fill="currentColor" />
+      <circle cx="6.5" cy="12.5" r=".5" fill="currentColor" />
+      <path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.926 0 1.648-.746 1.648-1.688 0-.437-.18-.835-.437-1.125-.29-.289-.438-.652-.438-1.125a1.64 1.64 0 0 1 1.668-1.668h1.996c3.051 0 5.555-2.503 5.555-5.554C21.965 6.012 17.461 2 12 2z" />
+    </Svg>
+  );
+}
+
+export function PenLineIcon(p: IconProps) {
+  return (
+    <Svg {...p}>
+      <path d="M12 20h9" />
+      <path d="M16.376 3.622a1 1 0 0 1 3.002 3.002L7.368 18.635a2 2 0 0 1-.855.506l-2.872.838a.5.5 0 0 1-.62-.62l.838-2.872a2 2 0 0 1 .506-.854z" />
+    </Svg>
+  );
+}
+
+export function ScanEyeIcon(p: IconProps) {
+  return (
+    <Svg {...p}>
+      <path d="M3 7V5a2 2 0 0 1 2-2h2" />
+      <path d="M17 3h2a2 2 0 0 1 2 2v2" />
+      <path d="M21 17v2a2 2 0 0 1-2 2h-2" />
+      <path d="M7 21H5a2 2 0 0 1-2-2v-2" />
+      <circle cx="12" cy="12" r="1" />
+      <path d="M18.944 12.33a1 1 0 0 0 0-.66 7.5 7.5 0 0 0-13.888 0 1 1 0 0 0 0 .66 7.5 7.5 0 0 0 13.888 0" />
+    </Svg>
+  );
+}
+
+export function CheckCheckIcon(p: IconProps) {
+  return (
+    <Svg {...p}>
+      <path d="M18 6 7 17l-5-5" />
+      <path d="m22 10-7.5 7.5L13 16" />
+    </Svg>
+  );
+}
+
+export function PowerIcon(p: IconProps) {
+  return (
+    <Svg {...p}>
+      <path d="M12 2v10" />
+      <path d="M18.4 6.6a9 9 0 1 1-12.77.04" />
+    </Svg>
+  );
+}
+
+export function SquareArrowOutUpRightIcon(p: IconProps) {
+  return (
+    <Svg {...p}>
+      <path d="M21 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h6" />
+      <path d="m21 3-9 9" />
+      <path d="M15 3h6v6" />
+    </Svg>
+  );
+}
+
+export function MegaphoneIcon(p: IconProps) {
+  return (
+    <Svg {...p}>
+      <path d="m3 11 18-5v12L3 14v-3z" />
+      <path d="M11.6 16.8a3 3 0 1 1-5.8-1.6" />
+    </Svg>
+  );
+}

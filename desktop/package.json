@@ -1,7 +1,7 @@
 {
   "name": "blackberry-desktop",
   "productName": "black berry",
-  "version": "0.0.2",
+  "version": "0.0.3",
   "private": true,
   "description": "App de desktop do black berry — uma janela Electron que abre o black berry publicado.",
   "main": "src/main.js",
