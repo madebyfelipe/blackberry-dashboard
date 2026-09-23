@@ -55,9 +55,16 @@ const POLL_MS_COM_EVENTOS = 60_000;
 export function InboxView({
   snapshot,
   initialConversation,
+  live = false,
 }: {
   snapshot: InboxSnapshot;
   initialConversation: ConversationDetail | null;
+  /**
+   * O tempo real está configurado. Aí a presença gravada não aparece nem por
+   * um instante: ela era o status do seed ("Marina disponível"), que piscava
+   * na tela até a lista ao vivo chegar e apagar quem não está conectado.
+   */
+  live?: boolean;
 }) {
   const { toast } = useToast();
   const { eventos, conectado, presencaPronta, online, assinar, renovar } = useRealtime();
@@ -85,6 +92,20 @@ export function InboxView({
 
   const openIdRef = useRef(openId);
   openIdRef.current = openId;
+
+  /*
+   * Clique numa notificação com o Inbox já aberto: a página chega com outra
+   * conversa em `?conversa=`, mas este componente continua montado — então
+   * ele troca para ela aqui (e, no celular, já abre o chat).
+   */
+  const initialId = initialConversation?.id ?? null;
+  useEffect(() => {
+    if (!initialConversation || initialConversation.id === openIdRef.current) return;
+    setDetail(initialConversation);
+    setOpenId(initialConversation.id);
+    setShowChat(true);
+    // Só quando a conversa pedida muda — não a cada releitura da página.
+  }, [initialId]); // eslint-disable-line react-hooks/exhaustive-deps
   const sendingRef = useRef(sending);
   sendingRef.current = sending;
 
@@ -103,7 +124,8 @@ export function InboxView({
    */
   const aoVivo = useCallback(
     (item: ConversationSummary): ConversationSummary => {
-      if (!aoVivoOk) return item;
+      // Esperando a lista ao vivo: presença desconhecida (-1), não a gravada.
+      if (!aoVivoOk) return live ? { ...item, presence: null, onlineCount: -1 } : item;
       const outro = item.memberIds.find((id) => id !== state.me.id);
       return {
         ...item,
@@ -112,7 +134,7 @@ export function InboxView({
         onlineCount: item.memberIds.filter((id) => !!online[id]).length,
       };
     },
-    [aoVivoOk, online, state.me.id],
+    [aoVivoOk, live, online, state.me.id],
   );
 
   /** A equipe com a presença de agora — é dela que sai o "adicionar alguém". */

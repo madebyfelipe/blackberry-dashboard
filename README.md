@@ -364,6 +364,23 @@ pelo nome de quem atende por ele (@ de ninguém é recusado).
 - **Lateral**: não lidas do Inbox ao lado do item (sem as silenciadas).
 - **Abas do navegador** com o nome de cada tela.
 
+## Notificações e a chave do Ably
+
+- **Mensagem e ligação avisam em qualquer tela** (`components/inbox/InboxNotifier`,
+  no shell): notificação do sistema — nativa no app de desktop, a do navegador
+  no site. Não avisa mensagem sua, de conversa silenciada, nem com o Inbox à
+  vista. Ligação fica na tela até o clique; clicar abre a conversa
+  (`/inbox?conversa=<id>`) e, no desktop, traz a janela da bandeja.
+- **Com tempo real**, o aviso chega pelo evento do Ably (que agora leva autor,
+  grupo e um trecho). **Sem tempo real**, por releitura a cada 20s — chega,
+  com atraso.
+- **A chave do Ably precisa de Publish, Subscribe e Presence.** Uma chave só
+  com Subscribe (o caso em 2026-09-23) fazia o servidor falhar ao publicar e o
+  navegador falhar ao entrar na presença — o status de todo mundo sumia um
+  segundo depois de abrir o Inbox. `ablyReady()` (`lib/realtime/server.ts`)
+  confere o que a chave concede (a cada 10 min por instância); faltando
+  permissão, o app trata o tempo real como desligado e o log diz o que ligar.
+
 ## App de desktop
 
 A pasta `desktop/` é o black berry para Windows, macOS e Linux: uma janela

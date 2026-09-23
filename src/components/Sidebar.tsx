@@ -10,6 +10,8 @@ import { Logo } from "@/components/brand/Logo";
 import { apiSetPresence } from "@/components/inbox/api";
 import { PresenceDot } from "@/components/inbox/PresenceDot";
 import { useRealtime } from "@/components/realtime/RealtimeProvider";
+import { INBOX_CHANGED } from "@/components/inbox/InboxNotifier";
+import { desktopBridge } from "@/lib/desktop";
 import { PRESENCES } from "@/lib/inbox/constants";
 import type { Presence } from "@/lib/inbox/types";
 import {
@@ -89,20 +91,31 @@ function useInboxUnread(pathname: string): number {
   const [total, setTotal] = useState(0);
   useEffect(() => {
     let vivo = true;
-    const load = () => {
-      if (document.visibilityState !== "visible") return;
+    const load = (force = false) => {
+      // Aba escondida não gasta rede — a não ser que chegou mensagem (evento).
+      if (!force && document.visibilityState !== "visible") return;
       fetch("/api/inbox/nao-lidas", { cache: "no-store" })
         .then((r) => (r.ok ? r.json() : null))
-        .then((d) => vivo && d && setTotal(Number(d.total) || 0))
+        .then((d) => {
+          if (!vivo || !d) return;
+          const n = Number(d.total) || 0;
+          setTotal(n);
+          // No app de desktop: dica da bandeja e a barra de tarefas piscando.
+          desktopBridge()?.setUnread?.(n);
+        })
         .catch(() => undefined);
     };
+    const onVisible = () => load();
+    const onChanged = () => load(true);
     load();
     const id = setInterval(load, 30_000);
-    document.addEventListener("visibilitychange", load);
+    document.addEventListener("visibilitychange", onVisible);
+    window.addEventListener(INBOX_CHANGED, onChanged);
     return () => {
       vivo = false;
       clearInterval(id);
-      document.removeEventListener("visibilitychange", load);
+      document.removeEventListener("visibilitychange", onVisible);
+      window.removeEventListener(INBOX_CHANGED, onChanged);
     };
   }, [pathname]);
   return total;
