@@ -3,6 +3,7 @@ import { isTaskStatus } from "./constants";
 import { isTaskPriority } from "./priority";
 import type { AgencyScope } from "@/lib/agency/types";
 import { memberByHandle } from "@/lib/inbox/repository";
+import { resolveClientId } from "@/lib/clients/repository";
 import type { NewTask, Task, TaskComment, TaskPatch } from "./types";
 
 /*
@@ -29,6 +30,14 @@ export async function listTasks(scope: AgencyScope): Promise<Task[]> {
     .filter((t) => t.agencyId === scope.agencyId)
     // Newest first by creation date.
     .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+}
+
+/** As tarefas ligadas a um cliente cadastrado — para a ficha e o Health Score. */
+export async function listTasksForClient(
+  scope: AgencyScope,
+  clientId: string,
+): Promise<Task[]> {
+  return (await listTasks(scope)).filter((t) => t.clientId === clientId);
 }
 
 export async function getTask(
@@ -92,6 +101,7 @@ export async function createTask(
   const title = input.title?.trim();
   if (!title) throw new ValidationError("Título é obrigatório.");
   const client = (input.client ?? "").trim();
+  const clientId = await resolveClientId(scope, client);
   const status = isTaskStatus(input.status) ? input.status : "a-fazer";
   const assignee = ((await resolveAssignee(scope, input.assignee)) ?? "").trim() || "—";
   const priority = isTaskPriority(input.priority) ? input.priority : "sem";
@@ -103,6 +113,7 @@ export async function createTask(
     agencyId: scope.agencyId,
     title,
     client,
+    clientId,
     status,
     assignee,
     createdAt: new Date().toISOString(),
@@ -140,6 +151,12 @@ export async function updateTask(
   // Valida o prazo antes de abrir a transação.
   const dueDate =
     patch.dueDate === undefined ? undefined : cleanDueDate(patch.dueDate);
+  // Resolvido fora da transação, como o assignee: precisa de outra leitura
+  // (a lista de clientes), e a transação só pode mexer no que já tem em mãos.
+  const clientId =
+    patch.client === undefined
+      ? undefined
+      : await resolveClientId(scope, patch.client.trim());
 
   return transaction((tasks) => {
     const t = tasks.find(
@@ -148,6 +165,7 @@ export async function updateTask(
     if (!t) return undefined;
     if (patch.title !== undefined) t.title = patch.title.trim();
     if (patch.client !== undefined) t.client = patch.client.trim();
+    if (clientId !== undefined) t.clientId = clientId;
     if (patch.status !== undefined) t.status = patch.status;
     if (assignee !== undefined) t.assignee = assignee || "—";
     if (patch.description !== undefined) t.description = patch.description.trim();

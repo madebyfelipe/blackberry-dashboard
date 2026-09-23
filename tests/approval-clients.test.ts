@@ -28,6 +28,7 @@ function lote(over: Partial<Batch> = {}): Batch {
     id: "monte-bar-set",
     agencyId: AGENCIA_A.agencyId,
     client: "Montê bar",
+    clientId: null,
     label: "Lote setembro · 01-30 set",
     token: "Mn7bQrLZ2kTv0aX",
     pieces: [],

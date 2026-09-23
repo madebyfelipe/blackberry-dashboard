@@ -15,6 +15,9 @@ function normalize(raw: Partial<Batch> & { id: string }): Batch {
   return {
     ...(raw as Batch),
     agencyId: agencyIdOrLegacy(raw.agencyId),
+    // Lote gravado antes do vínculo com `Client.id` fica sem par — a criação
+    // de lote novo é o único caminho de escrita hoje (`createBatch` resolve).
+    clientId: raw.clientId ? String(raw.clientId) : null,
   };
 }
 

@@ -25,6 +25,9 @@ function normalize(raw: Partial<Task> & { id: string }): Task {
     agencyId: agencyIdOrLegacy(raw.agencyId),
     title: raw.title ?? "",
     client: raw.client ?? "",
+    // Tarefa gravada antes do vínculo com `Client.id` não tem par — fica sem
+    // vínculo até ser salva de novo (`updateTask` resolve na hora).
+    clientId: raw.clientId ? String(raw.clientId) : null,
     status: raw.status ?? "a-fazer",
     assignee: raw.assignee ?? "—",
     createdAt: raw.createdAt ?? new Date().toISOString(),

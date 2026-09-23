@@ -1,12 +1,16 @@
 import assert from "node:assert/strict";
 import test, { describe } from "node:test";
 
-import { AGENCIA_A } from "./helpers/agency";
+import { AGENCIA_A, AGENCIA_B } from "./helpers/agency";
 import { escreverData, usarDataDirTemporario } from "./helpers/data-dir";
 
 // Antes de qualquer import do store: diretório de dados só deste teste, vazio.
 usarDataDirTemporario("tasks");
 escreverData("tasks.json", []);
+// Vazio, não ausente: um `clients.json` ausente faria o store dos clientes
+// semear a demonstração, e o teste de `clientId` quer controlar exatamente
+// quem existe.
+escreverData("clients.json", []);
 
 const {
   ValidationError,
@@ -15,8 +19,10 @@ const {
   deleteTask,
   getTask,
   listTasks,
+  listTasksForClient,
   updateTask,
 } = await import("../src/lib/tasks/repository");
+const { createClient } = await import("../src/lib/clients/repository");
 
 /*
  * Um único tenant neste arquivo: aqui se testa a régua de validação e
@@ -268,5 +274,62 @@ describe("addTaskComment", () => {
       createdAt: new Date().toISOString(),
     });
     assert.equal((await getTask(AGENCIA_A, t.id))?.comments.length, 1);
+  });
+});
+
+describe("clientId — o vínculo com a ficha do cliente", () => {
+  test("texto do cliente batendo com uma ficha resolve o id, sem caixa nem acento", async () => {
+    const cliente = await createClient(AGENCIA_A, { name: "Estúdio Norte" });
+    const t = await criar({ client: "  estudio norte  " });
+    assert.equal(t.clientId, cliente.id);
+  });
+
+  test("sem ficha correspondente, fica null — a tarefa não deixa de existir", async () => {
+    const t = await criar({ client: "Cliente sem cadastro" });
+    assert.equal(t.clientId, null);
+  });
+
+  test("cliente vazio não busca nada e fica null", async () => {
+    const t = await criar({ client: "" });
+    assert.equal(t.clientId, null);
+  });
+
+  test("renomear o campo de cliente na tarefa reresolve o vínculo", async () => {
+    const a = await createClient(AGENCIA_A, { name: "Cliente A" });
+    const b = await createClient(AGENCIA_A, { name: "Cliente B" });
+    const t = await criar({ client: "Cliente A" });
+    assert.equal(t.clientId, a.id);
+
+    const trocado = await updateTask(AGENCIA_A, t.id, { client: "Cliente B" });
+    assert.equal(trocado?.clientId, b.id);
+
+    const desligado = await updateTask(AGENCIA_A, t.id, { client: "Ninguém cadastrado" });
+    assert.equal(desligado?.clientId, null);
+  });
+
+  test("não mexer no client no PATCH não mexe no clientId", async () => {
+    const cliente = await createClient(AGENCIA_A, { name: "Cliente Estável" });
+    const t = await criar({ client: "Cliente Estável" });
+    const up = await updateTask(AGENCIA_A, t.id, { title: "Outro título" });
+    assert.equal(up?.clientId, cliente.id);
+  });
+
+  test("ficha de outra agência não vincula — mesmo nome, tenant diferente", async () => {
+    await createClient(AGENCIA_B, { name: "Cliente Compartilhado" });
+    const t = await criar({ client: "Cliente Compartilhado" });
+    assert.equal(t.clientId, null);
+  });
+
+  test("listTasksForClient devolve só as tarefas ligadas àquele cliente", async () => {
+    const a = await createClient(AGENCIA_A, { name: "Ligada" });
+    const ligada1 = await criar({ client: "Ligada" });
+    const ligada2 = await criar({ client: "Ligada" });
+    await criar({ client: "Outra" });
+
+    const das = await listTasksForClient(AGENCIA_A, a.id);
+    assert.deepEqual(
+      das.map((x) => x.id).sort(),
+      [ligada1.id, ligada2.id].sort(),
+    );
   });
 });
