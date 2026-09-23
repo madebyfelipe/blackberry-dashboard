@@ -50,6 +50,12 @@ function cleanServices(input: unknown): string[] {
   return out;
 }
 
+/** Squad: ids do time, sem repetição, no máximo 12. Quem existe é conferido na tela. */
+function cleanSquad(input: unknown): string[] {
+  if (!Array.isArray(input)) return [];
+  return [...new Set(input.map((v) => String(v).trim()).filter(Boolean))].slice(0, 12);
+}
+
 /** Contato: texto curto e limpo. Campo vazio continua vazio. */
 function cleanContact(value: unknown, max = 80): string {
   return value === undefined || value === null
@@ -103,6 +109,8 @@ export async function createClient(
     owner: (input.owner ?? "").trim() || "—",
     billingDay,
     status: isClientStatus(input.status) ? input.status : "novo",
+    squad: cleanSquad(input.squad),
+    flowId: input.flowId ? String(input.flowId) : null,
     createdAt: new Date().toISOString(),
   };
 
@@ -142,8 +150,33 @@ export async function updateClient(
     if (patch.owner !== undefined) c.owner = patch.owner.trim() || "—";
     if (patch.status !== undefined) c.status = patch.status;
     if (billingDay !== undefined) c.billingDay = billingDay;
-    return { ...c, services: [...c.services] };
+    if (patch.squad !== undefined) c.squad = cleanSquad(patch.squad);
+    if (patch.flowId !== undefined) c.flowId = patch.flowId ? String(patch.flowId) : null;
+    return { ...c, services: [...c.services], squad: [...c.squad] };
   });
+}
+
+/**
+ * A ficha do cliente pelo nome — a tarefa e o lote ainda guardam o cliente
+ * como texto. Compara sem acento e sem caixa, como o agrupamento do Social
+ * media faz ("Montê bar" e "montê bar" são o mesmo cliente).
+ */
+export async function findClientByName(
+  scope: AgencyScope,
+  name: string,
+): Promise<Client | undefined> {
+  const key = foldName(name);
+  if (!key) return undefined;
+  return (await listClients(scope)).find((c) => foldName(c.name) === key);
+}
+
+function foldName(s: string): string {
+  return s
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
 }
 
 export async function deleteClient(

@@ -34,6 +34,12 @@ function normalize(raw: Partial<Task> & { id: string }): Task {
     creator: raw.creator ?? "—",
     dueDate: raw.dueDate ?? null,
     comments: normalizeComments(raw.comments),
+    flowId: raw.flowId ? String(raw.flowId) : null,
+    stepId: raw.stepId ? String(raw.stepId) : null,
+    source:
+      raw.source && raw.source.batchId && raw.source.pieceId
+        ? { batchId: String(raw.source.batchId), pieceId: String(raw.source.pieceId) }
+        : null,
   };
 }
 

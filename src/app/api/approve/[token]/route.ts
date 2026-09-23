@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { decidePiece } from "@/lib/approval/repository";
+import { decidePiece, getBatchByToken } from "@/lib/approval/repository";
+import { onClientDecision, scopeOfBatch } from "@/lib/flows/automation";
 import type { PieceStatus } from "@/lib/approval/types";
 
 export const dynamic = "force-dynamic";
@@ -52,6 +53,17 @@ export async function POST(
       { error: "Lote ou peça não encontrados." },
       { status: 404 },
     );
+  }
+  /*
+   * A decisão anda com a tarefa do criativo: aprovado segue o fluxo, ajuste
+   * volta uma etapa. O cliente já decidiu — um tropeço aqui vai para o log,
+   * não para a tela dele.
+   */
+  try {
+    const batch = await getBatchByToken(token);
+    if (batch) await onClientDecision(scopeOfBatch(batch), pieceId, decision, reason);
+  } catch (err) {
+    console.error("[fluxos] decisão do cliente não chegou na tarefa", pieceId, err);
   }
   return NextResponse.json({ piece });
 }

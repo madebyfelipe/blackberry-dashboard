@@ -46,6 +46,14 @@ export type Client = {
   /** Dia do mês do faturamento (1–31). `null` = ainda não definido. */
   billingDay: number | null;
   status: ClientStatus;
+  /**
+   * O squad do cliente: ids dos membros do time que cuidam dele, o primeiro
+   * na frente. É para eles que vão as tarefas das etapas marcadas "squad do
+   * cliente" num fluxo (ver `lib/flows`).
+   */
+  squad: string[];
+  /** Fluxo que as tarefas deste cliente seguem; `null` = o padrão da agência. */
+  flowId: string | null;
   /** ISO date */
   createdAt: string;
 };
@@ -60,6 +68,8 @@ export type NewClient = {
   owner?: string;
   billingDay?: number | null;
   status?: ClientStatus;
+  squad?: string[];
+  flowId?: string | null;
 };
 
 /** A agência fica de fora: cliente não muda de dono por um PATCH. */

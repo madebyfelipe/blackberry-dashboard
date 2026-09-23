@@ -54,6 +54,14 @@ export type Task = {
   dueDate: string | null;
   /** Conversa da tarefa, do mais antigo para o mais novo. */
   comments: TaskComment[];
+  /**
+   * O fluxo e a etapa em que a tarefa está (ver `lib/flows`). Concluir a
+   * etapa entrega a tarefa ao responsável da próxima. `null` = tarefa solta.
+   */
+  flowId: string | null;
+  stepId: string | null;
+  /** O criativo que gerou a tarefa, quando ela nasceu de um lote. */
+  source: { batchId: string; pieceId: string } | null;
 };
 
 export type NewTask = {
@@ -66,6 +74,9 @@ export type NewTask = {
   labels?: string[];
   creator?: string;
   dueDate?: string | null;
+  flowId?: string | null;
+  stepId?: string | null;
+  source?: { batchId: string; pieceId: string } | null;
 };
 
 /**
@@ -74,5 +85,5 @@ export type NewTask = {
  * da sessão, e um PATCH que pudesse reescrever a conversa seria outra coisa.
  */
 export type TaskPatch = Partial<
-  Omit<Task, "id" | "createdAt" | "agencyId" | "comments">
+  Omit<Task, "id" | "createdAt" | "agencyId" | "comments" | "flowId" | "stepId" | "source">
 >;

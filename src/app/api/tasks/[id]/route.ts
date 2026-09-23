@@ -6,6 +6,7 @@ import {
 } from "@/lib/tasks/repository";
 import type { TaskPatch } from "@/lib/tasks/types";
 import { requireAgency, unauthorized } from "@/lib/auth/session";
+import { advanceTask } from "@/lib/flows/automation";
 
 export const dynamic = "force-dynamic";
 
@@ -43,13 +44,23 @@ export async function PATCH(req: Request, { params }: Ctx) {
     return NextResponse.json({ error: "JSON inválido." }, { status: 400 });
   }
   try {
-    const task = await updateTask(session.scope, id, pickPatch(body));
+    const patch = pickPatch(body);
+    const task = await updateTask(session.scope, id, patch);
     if (!task) {
       /*
        * Mesma resposta para "não existe" e "é de outra agência": um 403 aqui
        * confirmaria que o id existe em algum lugar.
        */
       return NextResponse.json({ error: "Tarefa não encontrada." }, { status: 404 });
+    }
+    /*
+     * Concluir uma tarefa de fluxo é concluir a etapa: ela vai para a próxima,
+     * com quem toca essa etapa. A resposta já traz a tarefa como ficou, para
+     * a tela não mostrar "concluída" algo que acabou de ir para outra pessoa.
+     */
+    if (patch.status === "concluido") {
+      const advanced = await advanceTask(session.scope, id, session.user.name);
+      if (advanced) return NextResponse.json({ task: advanced });
     }
     return NextResponse.json({ task });
   } catch (err) {

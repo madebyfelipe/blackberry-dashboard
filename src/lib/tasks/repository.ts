@@ -112,6 +112,9 @@ export async function createTask(
     creator: (input.creator ?? "").trim() || "—",
     dueDate: cleanDueDate(input.dueDate),
     comments: [],
+    flowId: input.flowId ?? null,
+    stepId: input.stepId ?? null,
+    source: input.source ?? null,
   };
   return transaction((tasks) => {
     tasks.unshift(task);
@@ -186,6 +189,51 @@ export async function addTaskComment(
     t.comments.push(comment);
     return { ...t, labels: [...t.labels], comments: [...t.comments] };
   });
+}
+
+/**
+ * Leva a tarefa para uma etapa do fluxo — quem chama é o motor dos fluxos
+ * (`lib/flows/automation.ts`), nunca um PATCH: a etapa só muda porque uma
+ * etapa foi concluída, e é o fluxo que diz qual vem depois e de quem ela é.
+ */
+export async function moveTaskToStep(
+  scope: AgencyScope,
+  id: string,
+  move: {
+    flowId: string;
+    stepId: string;
+    status: Task["status"];
+    assignee?: string;
+    dueDate: string | null;
+    note: { author: string; text: string };
+  },
+): Promise<Task | undefined> {
+  return transaction((tasks) => {
+    const t = tasks.find((x) => x.id === id && x.agencyId === scope.agencyId);
+    if (!t) return undefined;
+    t.flowId = move.flowId;
+    t.stepId = move.stepId;
+    t.status = move.status;
+    if (move.assignee) t.assignee = move.assignee;
+    t.dueDate = move.dueDate;
+    t.comments.push({
+      id: "c" + Math.random().toString(36).slice(2, 9),
+      author: move.note.author,
+      text: move.note.text.slice(0, COMMENT_MAX),
+      createdAt: new Date().toISOString(),
+    });
+    return { ...t, labels: [...t.labels], comments: [...t.comments] };
+  });
+}
+
+/** A tarefa que nasceu de um criativo — para a decisão do cliente chegar nela. */
+export async function findTaskBySource(
+  scope: AgencyScope,
+  pieceId: string,
+): Promise<Task | undefined> {
+  return (await read()).find(
+    (t) => t.agencyId === scope.agencyId && t.source?.pieceId === pieceId,
+  );
 }
 
 export async function deleteTask(
