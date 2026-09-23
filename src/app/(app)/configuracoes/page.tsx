@@ -1,11 +1,11 @@
 import { redirect } from "next/navigation";
-import { currentUser } from "@/lib/auth/session";
+import { currentInboxSession } from "@/lib/inbox/viewer";
 import { SettingsView } from "@/components/settings/SettingsView";
 
 export const dynamic = "force-dynamic";
 
 export default async function ConfiguracoesPage() {
-  const user = await currentUser();
-  if (!user) redirect("/login");
-  return <SettingsView user={user} />;
+  const session = await currentInboxSession();
+  if (!session) redirect("/login");
+  return <SettingsView user={session.user} handle={session.me.handle} />;
 }

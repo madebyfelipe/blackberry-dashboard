@@ -24,7 +24,7 @@ const ROLE_LABEL: Record<PublicUser["role"], string> = {
   designer: "Designer",
 };
 
-export function SettingsView({ user }: { user: PublicUser }) {
+export function SettingsView({ user, handle }: { user: PublicUser; handle: string }) {
   return (
     <div className="flex h-full min-h-0 flex-col gap-5 overflow-y-auto px-1 py-5 md:py-6 md:pl-2 md:pr-6">
       <Breadcrumb
@@ -39,7 +39,7 @@ export function SettingsView({ user }: { user: PublicUser }) {
       </header>
 
       <div className="flex max-w-[760px] flex-col gap-4">
-        <ProfileCard user={user} />
+        <ProfileCard user={user} handle={handle} />
         <PasswordCard />
         <SessionCard user={user} />
       </div>
@@ -129,26 +129,40 @@ function SaveButton({
   );
 }
 
-function ProfileCard({ user }: { user: PublicUser }) {
+function ProfileCard({ user, handle: savedHandle }: { user: PublicUser; handle: string }) {
   const { toast } = useToast();
   const router = useRouter();
   const [name, setName] = useState(user.name);
   const [agency, setAgency] = useState(user.agency);
+  const [handle, setHandle] = useState(savedHandle);
   const [saving, setSaving] = useState(false);
 
-  const dirty = name !== user.name || agency !== user.agency;
+  const handleDirty = handle.replace(/^@+/, "") !== savedHandle;
+  const dirty = name !== user.name || agency !== user.agency || handleDirty;
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     setSaving(true);
     try {
-      const res = await fetch("/api/auth/perfil", {
-        method: "PATCH",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ name, agency }),
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data?.error ?? "Não foi possível salvar.");
+      if (name !== user.name || agency !== user.agency) {
+        const res = await fetch("/api/auth/perfil", {
+          method: "PATCH",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ name, agency }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data?.error ?? "Não foi possível salvar.");
+      }
+      if (handleDirty) {
+        const res = await fetch("/api/inbox/handle", {
+          method: "PATCH",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ handle }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data?.error ?? "Não foi possível salvar o @.");
+        setHandle(data.me.handle);
+      }
       toast("Perfil atualizado.");
       // A sidebar é renderizada no servidor com o usuário da sessão.
       router.refresh();
@@ -185,6 +199,26 @@ function ProfileCard({ user }: { user: PublicUser }) {
             />
           </Field>
         </div>
+        <Field
+          label="Seu @"
+          htmlFor="handle"
+          hint="É por ele que o time te menciona e te atribui tarefas. Único na agência."
+        >
+          <div className="relative">
+            <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[14px] text-muted">
+              @
+            </span>
+            <Input
+              id="handle"
+              value={handle}
+              required
+              autoComplete="off"
+              spellCheck={false}
+              onChange={(e) => setHandle(e.target.value.replace(/^@+/, "").toLowerCase())}
+              className="pl-7"
+            />
+          </div>
+        </Field>
         <div className="flex flex-wrap gap-4">
           <Field label="E-mail" htmlFor="email" hint="O e-mail de acesso não muda por aqui.">
             <Input id="email" value={user.email} readOnly disabled />

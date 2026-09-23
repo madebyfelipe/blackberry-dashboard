@@ -25,6 +25,8 @@ import {
 import { CommandMenu, type Command } from "./CommandMenu";
 import { FormatToolbar } from "./FormatToolbar";
 import { MarkdownText } from "./MarkdownText";
+import { peopleFor } from "@/components/team/Mentions";
+import { useTeam } from "@/components/team/useTeam";
 
 /*
  * O campo de texto do briefing: o `textarea` de sempre, com os três menus do
@@ -70,7 +72,10 @@ export function RichTextArea({
   /** Avisa quando o texto se firma: no blur e no "salvar agora" do menu. */
   onCommit: (v: string) => void;
   className?: string;
-  /** Nomes que o menu de menção oferece — quem já aparece nesta tarefa. */
+  /**
+   * Quem já aparece nesta tarefa. O menu de menção oferece o time inteiro,
+   * com estes na frente.
+   */
   people?: string[];
   /**
    * Fora da edição, mostra o markdown formatado em vez do texto cru. É o que
@@ -95,6 +100,7 @@ export function RichTextArea({
   const [lineH, setLineH] = useState(21);
   /** Seleção a devolver ao DOM depois de um comando reescrever o texto. */
   const pending = useRef<Selection | null>(null);
+  const team = useTeam();
 
   useEffect(() => setDraft(value), [value]);
 
@@ -161,14 +167,18 @@ export function RichTextArea({
 
   const commandGroups: Command[][] = (() => {
     if (trigger?.kind === "mencao") {
-      const rows = people
-        .filter((p) => p && p !== "—" && matchesQuery(p, trigger.query))
+      // O que entra é o @ — único na agência —, não o nome.
+      const perto = (name: string) => (people.includes(name) ? 0 : 1);
+      const rows = [...team]
+        .sort((a, b) => perto(a.name) - perto(b.name))
+        .filter((p) => peopleFor([p], trigger.query).length > 0)
         .slice(0, 8)
         .map((p) => ({
-          id: `mencao-${p}`,
-          label: p,
+          id: `mencao-${p.id}`,
+          label: p.name,
+          shortcut: `@${p.handle}`,
           run: () =>
-            apply(applyTrigger(draft, trigger, sel.start, `@${p} `)),
+            apply(applyTrigger(draft, trigger, sel.start, `@${p.handle} `)),
         }));
       return [rows];
     }

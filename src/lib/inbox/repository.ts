@@ -1,5 +1,6 @@
 import type { AgencyScope } from "@/lib/agency/types";
 import { MESSAGE_MAX, isPresence } from "./constants";
+import { handleProblem, normalizeHandle, suggestHandle } from "./handle";
 import { read, transaction } from "./store";
 import type {
   Conversation,
@@ -116,11 +117,45 @@ export async function ensureMember(
       agencyId: scope.agencyId,
       name,
       email,
+      handle: suggestHandle(name, members.map((m) => m.handle)),
       presence: "disponivel",
     };
     data.members.push(created);
     return { ...created };
   });
+}
+
+/**
+ * Troca o seu @. Só o seu — quem muda vem da sessão —, e ele continua único
+ * na agência: um @ repetido faria a menção cair na pessoa errada.
+ */
+export async function setHandle(
+  scope: AgencyScope,
+  viewerId: string,
+  raw: string,
+): Promise<InboxMember | undefined> {
+  const handle = normalizeHandle(String(raw ?? ""));
+  const problem = handleProblem(handle);
+  if (problem) throw new ValidationError(problem);
+  return transaction((data) => {
+    const members = membersOf(data, scope);
+    const me = members.find((m) => m.id === viewerId);
+    if (!me) return undefined;
+    if (members.some((m) => m.id !== viewerId && m.handle === handle)) {
+      throw new ValidationError(`@${handle} já é de outra pessoa do time.`);
+    }
+    me.handle = handle;
+    return { ...me };
+  });
+}
+
+/** Quem do time atende por este @ — `undefined` quando ninguém. */
+export async function memberByHandle(
+  scope: AgencyScope,
+  raw: string,
+): Promise<InboxMember | undefined> {
+  const handle = normalizeHandle(raw);
+  return membersOf(await read(), scope).find((m) => m.handle === handle);
 }
 
 export async function listMembers(scope: AgencyScope): Promise<InboxMember[]> {

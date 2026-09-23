@@ -1,6 +1,7 @@
 "use client";
 
 import { cn } from "@/lib/cn";
+import { MentionText } from "@/components/team/Mentions";
 import { parseMarkdown, type Inline } from "@/lib/editor/markdown";
 
 /*
@@ -101,7 +102,8 @@ function Spans({ spans }: { spans: Inline[] }) {
         );
         return (
           <span key={i} className={className || undefined}>
-            {span.text}
+            {/* Código é literal: um @ dentro dele não é menção. */}
+            {span.code ? span.text : <MentionText text={span.text} />}
           </span>
         );
       })}

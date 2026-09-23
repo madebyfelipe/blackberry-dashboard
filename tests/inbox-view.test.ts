@@ -33,9 +33,9 @@ import type {
  */
 
 const MEMBROS: InboxMember[] = [
-  { id: "felipe", agencyId: AGENCIA_A.agencyId, name: "Felipe", email: "f@bb.app", presence: "disponivel" },
-  { id: "marina", agencyId: AGENCIA_A.agencyId, name: "Marina", email: "", presence: "ocupado" },
-  { id: "ana", agencyId: AGENCIA_A.agencyId, name: "Ana", email: "", presence: "offline" },
+  { id: "felipe", agencyId: AGENCIA_A.agencyId, name: "Felipe", email: "f@bb.app", handle: "felipe", presence: "disponivel" },
+  { id: "marina", agencyId: AGENCIA_A.agencyId, name: "Marina", email: "", handle: "marina", presence: "ocupado" },
+  { id: "ana", agencyId: AGENCIA_A.agencyId, name: "Ana", email: "", handle: "ana", presence: "offline" },
 ];
 
 function msg(over: Partial<Message> & { id: string }): Message {
@@ -334,7 +334,7 @@ describe("chamada longa e grupo sem nome", () => {
   });
 
   test("grupo sem nome se chama por quem está nele", () => {
-    const m = (name: string) => ({ id: name, agencyId: AGENCIA_A.agencyId, name, email: "", presence: "disponivel" as const });
+    const m = (name: string) => ({ id: name, agencyId: AGENCIA_A.agencyId, name, email: "", handle: name.toLowerCase(), presence: "disponivel" as const });
     assert.equal(groupFallbackTitle([m("Marina"), m("Ana")]), "Marina e Ana");
     assert.equal(groupFallbackTitle([m("Marina"), m("Ana"), m("Pedro")]), "Marina, Ana e Pedro");
     assert.equal(

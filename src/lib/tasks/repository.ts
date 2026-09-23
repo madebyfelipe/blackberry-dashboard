@@ -2,6 +2,7 @@ import { read, transaction } from "./store";
 import { isTaskStatus } from "./constants";
 import { isTaskPriority } from "./priority";
 import type { AgencyScope } from "@/lib/agency/types";
+import { memberByHandle } from "@/lib/inbox/repository";
 import type { NewTask, Task, TaskComment, TaskPatch } from "./types";
 
 /*
@@ -59,6 +60,23 @@ function cleanLabels(input: unknown): string[] {
   return out;
 }
 
+/**
+ * O responsável pode vir pelo @ (`@marina`): vira o nome de quem atende por
+ * ele na agência. @ de ninguém é erro — atribuir a um @ inexistente deixaria a
+ * tarefa sem dono sem ninguém perceber. Sem @, segue texto livre como sempre.
+ */
+async function resolveAssignee(
+  scope: AgencyScope,
+  raw: string | undefined,
+): Promise<string | undefined> {
+  if (raw === undefined) return undefined;
+  const value = raw.trim();
+  if (!value.startsWith("@")) return value;
+  const member = await memberByHandle(scope, value);
+  if (!member) throw new ValidationError(`Ninguém do time atende por ${value}.`);
+  return member.name;
+}
+
 /** Prazo: ISO válido ou `null`. Data inválida é erro, não silêncio. */
 function cleanDueDate(value: unknown): string | null {
   if (value === null || value === undefined || value === "") return null;
@@ -75,7 +93,7 @@ export async function createTask(
   if (!title) throw new ValidationError("Título é obrigatório.");
   const client = (input.client ?? "").trim();
   const status = isTaskStatus(input.status) ? input.status : "a-fazer";
-  const assignee = (input.assignee ?? "").trim() || "—";
+  const assignee = ((await resolveAssignee(scope, input.assignee)) ?? "").trim() || "—";
   const priority = isTaskPriority(input.priority) ? input.priority : "sem";
 
   const task: Task = {
@@ -115,6 +133,7 @@ export async function updateTask(
   if (patch.title !== undefined && !patch.title.trim()) {
     throw new ValidationError("Título não pode ficar vazio.");
   }
+  const assignee = await resolveAssignee(scope, patch.assignee);
   // Valida o prazo antes de abrir a transação.
   const dueDate =
     patch.dueDate === undefined ? undefined : cleanDueDate(patch.dueDate);
@@ -127,7 +146,7 @@ export async function updateTask(
     if (patch.title !== undefined) t.title = patch.title.trim();
     if (patch.client !== undefined) t.client = patch.client.trim();
     if (patch.status !== undefined) t.status = patch.status;
-    if (patch.assignee !== undefined) t.assignee = patch.assignee.trim() || "—";
+    if (assignee !== undefined) t.assignee = assignee || "—";
     if (patch.description !== undefined) t.description = patch.description.trim();
     if (patch.priority !== undefined) t.priority = patch.priority;
     if (patch.labels !== undefined) t.labels = cleanLabels(patch.labels);

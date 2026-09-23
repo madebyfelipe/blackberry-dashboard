@@ -35,6 +35,12 @@ export type InboxMember = {
   name: string;
   /** E-mail da conta. Vazio em quem veio do seed e nunca logou. */
   email: string;
+  /**
+   * O @ da pessoa, sem o "@" (`felipe`). Único dentro da agência — é por ele
+   * que se menciona e atribui no Inbox, nas tarefas e nos comentários (ver
+   * `handle.ts`).
+   */
+  handle: string;
   presence: Presence;
 };
 
