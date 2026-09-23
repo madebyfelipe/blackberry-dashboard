@@ -7,6 +7,8 @@ import { ClientsView } from "@/components/approval/ClientsView";
 
 export const dynamic = "force-dynamic";
 
+export const metadata = { title: "Social media" };
+
 /** Social media, passo 1: de quem são os lotes (export "Clínica Aurora - Clientes"). */
 export default async function SocialPage() {
   // Só os lotes da agência da sessão chegam à tela.

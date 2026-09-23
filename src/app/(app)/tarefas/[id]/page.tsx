@@ -7,6 +7,8 @@ import { getFlow } from "@/lib/flows/repository";
 
 export const dynamic = "force-dynamic";
 
+export const metadata = { title: "Tarefa" };
+
 type Ctx = { params: Promise<{ id: string }> };
 
 export default async function TarefaPage({ params }: Ctx) {

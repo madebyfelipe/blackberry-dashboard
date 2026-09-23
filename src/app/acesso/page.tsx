@@ -5,6 +5,8 @@ import { SignOutButton } from "./SignOutButton";
 
 export const dynamic = "force-dynamic";
 
+export const metadata = { title: "Acesso" };
+
 /*
  * Para quem tem conta mas não pode usar a agência agora:
  * - chegou pelo convite automático do domínio e espera aprovação;
