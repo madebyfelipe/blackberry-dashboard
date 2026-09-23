@@ -4,6 +4,7 @@ import type { Batch, Piece } from "@/lib/approval/types";
 import { findClientByName } from "@/lib/clients/repository";
 import { listMembers } from "@/lib/inbox/repository";
 import type { InboxMember } from "@/lib/inbox/types";
+import { isWorking } from "@/lib/inbox/users";
 import {
   addTaskComment,
   createTask,
@@ -44,7 +45,8 @@ async function contextFor(scope: AgencyScope, clientName: string): Promise<Ctx &
     listMembers(scope),
   ]);
   return {
-    team,
+    // Inativo e arquivado continuam no squad gravado, mas não recebem tarefa.
+    team: team.filter(isWorking),
     squad: client?.squad ?? [],
     owner: client && client.owner !== "—" ? client.owner : null,
     flowId: client?.flowId ?? null,

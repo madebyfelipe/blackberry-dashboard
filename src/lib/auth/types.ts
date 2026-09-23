@@ -37,4 +37,10 @@ export type NewUser = Credentials & {
   name: string;
   role?: Role;
   agency?: string;
+  /**
+   * Cadastro por convite: a conta nasce **dentro** da agência que convidou,
+   * em vez de abrir um tenant novo. Quem resolve o convite (e confere o
+   * e-mail) é a rota de cadastro, a partir do token — nunca o corpo.
+   */
+  joinAgency?: { agencyId: import("@/lib/agency/types").AgencyId; agencyName: string };
 };

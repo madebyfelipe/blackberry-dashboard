@@ -78,7 +78,8 @@ Dá para criar outra conta em `/criar-conta` — o cadastro já entra logado.
 | `/configuracoes` | Conta: perfil (com o seu @), troca de senha e sessão |
 | `/configuracoes/fluxos` | **Fluxos e Processos** — a esteira de trabalho: etapas, quem toca cada uma, prazo, próxima etapa, aprovadores e automações |
 | `/inbox` | **Inbox** — a conversa do time: grupos e diretas, histórico salvo e pesquisável, presença (disponível · ocupado · ausente · offline) e a chamada com registro no histórico |
-| `/notificacoes`, `/conversas`, `/relatorios`, `/equipe` | Placeholders prontos para desenhar |
+| `/equipe` | **Usuários** (export "Usuários · Painel (Lista)") — o time: função, status, último acesso; "Adicionar usuário" cria convite com link de cadastro que entra **nesta** agência |
+| `/notificacoes`, `/conversas`, `/relatorios` | Placeholders prontos para desenhar (Relatórios saiu da lateral — o lugar é de Fluxos e Processos) |
 
 ## Design
 
@@ -309,6 +310,26 @@ Três peças, cada uma num lugar:
   cliente pelo link avança a etapa do cliente, e o ajuste volta uma etapa com
   o motivo. A etapa da tarefa só muda por aqui (`moveTaskToStep`), nunca por
   PATCH.
+
+### Usuários, convite e quem administra
+
+O time é o mesmo registro do Inbox (`InboxMember`), agora com função
+(Admin, Gerente, Editor, Visualizador, Financeiro), status (ativo, convite
+pendente, inativo, arquivado), último acesso e data de entrada. A régua mora
+em `lib/inbox/users.ts` (testada em `tests/inbox-users.test.ts`).
+
+- **Só Admin e Gerente mexem no time** — a trava é do repositório
+  (`ForbiddenError`), não da tela. Ninguém arquiva a si mesmo nem tira de si
+  a administração. Na migração, agência sem Admin promove quem tem conta.
+- **Convite**: "Adicionar usuário" grava a pessoa como convite pendente com um
+  token; o link `/criar-conta?convite=…` cria a conta **dentro** da agência
+  (o cadastro normal sempre abre agência nova) e exige o e-mail convidado. A
+  primeira entrada vira o convite em ativo. Não há disparo de e-mail — o link
+  é copiado por quem convidou.
+- **Só quem está ativo trabalha**: convidado, inativo e arquivado saem do menu
+  de @, das conversas novas e não recebem tarefa de fluxo. Excluir só vale
+  para convite; quem já trabalhou é arquivado, para o histórico não perder o
+  nome.
 
 ### O @ de cada pessoa
 
