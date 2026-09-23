@@ -11,6 +11,7 @@ import { useToast } from "@/components/ui/Toast";
 import Link from "next/link";
 import { ChevronRightIcon, GitBranchIcon, LockIcon, UserCircleIcon } from "@/components/icons";
 import { cn } from "@/lib/cn";
+import { forgetTeam } from "@/components/team/useTeam";
 
 /*
  * Configurações — conta e acesso.
@@ -189,6 +190,8 @@ function ProfileCard({ user, handle: savedHandle }: { user: PublicUser; handle: 
         const data = await res.json().catch(() => ({}));
         if (!res.ok) throw new Error(data?.error ?? "Não foi possível salvar o @.");
         setHandle(data.me.handle);
+        // Os menus de @ guardam o time da aba: sem isto mostrariam o @ antigo.
+        forgetTeam();
       }
       toast("Perfil atualizado.");
       // A sidebar é renderizada no servidor com o usuário da sessão.

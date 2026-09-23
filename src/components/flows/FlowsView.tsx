@@ -167,12 +167,14 @@ export function FlowsView({
     saveSteps(flow.steps.map((s) => (s.id === id ? { ...s, ...patch } : s)));
   }
 
-  async function createFlow() {
+  async function createFlow(template?: "social-media") {
     try {
       const res = await fetch("/api/flows", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ name: "Novo fluxo" }),
+        body: JSON.stringify(
+          template ? { name: "Social Media - Padrão", template } : { name: "Novo fluxo" },
+        ),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data?.error);
@@ -180,7 +182,8 @@ export function FlowsView({
       setTab("todos");
       setFlowId(data.flow.id);
       setStepId(data.flow.steps[0]?.id ?? null);
-      setRenaming(true);
+      if (template) toast("Modelo criado e ligado — cada etapa vai para o squad do cliente.");
+      else setRenaming(true);
     } catch {
       toast("Não foi possível criar o fluxo.", "error");
     }
@@ -291,7 +294,7 @@ export function FlowsView({
           <>
             <button
               type="button"
-              onClick={createFlow}
+              onClick={() => void createFlow()}
               className="tap flex items-center gap-2 rounded-mark bg-primary px-5 py-2.5 text-[13px] font-semibold text-on-primary transition-colors hover:bg-white"
             >
               <PlusIcon size={14} strokeWidth={2.5} />
@@ -482,10 +485,20 @@ export function FlowsView({
           </section>
         ) : (
           <div className="flex flex-1 items-center justify-center rounded-card bg-flow-panel p-8">
-            <p className="max-w-[280px] text-center text-[13px] leading-[19px] text-muted">
-              Nenhum fluxo ainda. Crie o primeiro em “Novo fluxo” — é ele que diz por onde as
-              tarefas passam e com quem.
-            </p>
+            <div className="flex max-w-[320px] flex-col items-center gap-4 text-center">
+              <p className="text-[13px] leading-[19px] text-muted">
+                Nenhum fluxo ainda. É ele que diz por onde as tarefas passam e com quem — comece
+                pelo modelo (Briefing → Redação → Design → Revisão → Aprovação → Publicação, tudo
+                com o squad do cliente) ou monte um do zero.
+              </p>
+              <button
+                type="button"
+                onClick={() => void createFlow("social-media")}
+                className="tap rounded-mark bg-primary px-4 py-2.5 text-[13px] font-semibold text-on-primary hover:bg-white"
+              >
+                Usar o modelo Social Media
+              </button>
+            </div>
           </div>
         )}
       </div>
