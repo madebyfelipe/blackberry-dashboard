@@ -6,6 +6,7 @@ import {
   slugify,
 } from "@/lib/approval/clients";
 import { currentAgencyScope } from "@/lib/auth/session";
+import { listClients } from "@/lib/clients/repository";
 import { BatchesView } from "@/components/approval/BatchesView";
 
 export const dynamic = "force-dynamic";
@@ -20,8 +21,9 @@ export default async function ClientBatchesPage({
   const scope = await currentAgencyScope();
   if (!scope) redirect("/login?sessao=encerrada");
 
-  const all = await listBatches(scope);
-  const client = clientNameFromSlug(all, cliente);
+  const [all, registered] = await Promise.all([listBatches(scope), listClients(scope)]);
+  // Cliente da lista de Clientes abre mesmo sem lote — é onde nasce o primeiro.
+  const client = clientNameFromSlug(all, cliente, registered.map((c) => c.name));
 
   if (!client) {
     /*

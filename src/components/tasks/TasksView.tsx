@@ -28,6 +28,7 @@ import { SelectionBar } from "@/components/ui/SelectionBar";
 import {
   ArchiveIcon,
   EllipsisIcon,
+  GitBranchIcon,
   PlusIcon,
   ShareIcon,
   SlidersIcon,
@@ -251,6 +252,8 @@ export function TasksView({ initialTasks }: { initialTasks: Task[] }) {
     count: counts.get(s.id) ?? 0,
   }));
 
+  const [moreOpen, setMoreOpen] = useState(false);
+
   const soon = (what: string) =>
     toast(`"${what}" chega junto com o recurso no produto.`, "info");
 
@@ -266,12 +269,38 @@ export function TasksView({ initialTasks }: { initialTasks: Task[] }) {
             <ScreenAction onClick={() => setDrawer({ mode: "create" })}>
               Nova tarefa
             </ScreenAction>
-            <ScreenIconAction
-              label="Mais ações"
-              onClick={() => soon("Mais ações")}
+            {/* Os "3 pontinhos": por ora, a porta para a esteira das tarefas. */}
+            <Popover
+              open={moreOpen}
+              onClose={() => setMoreOpen(false)}
+              trigger={
+                <ScreenIconAction
+                  label="Mais ações"
+                  onClick={() => setMoreOpen((o) => !o)}
+                >
+                  <EllipsisIcon size={16} />
+                </ScreenIconAction>
+              }
             >
-              <EllipsisIcon size={16} />
-            </ScreenIconAction>
+              <div
+                role="menu"
+                className="w-[220px] animate-pop-in rounded-menu border border-border bg-surface p-1 shadow-[0_8px_24px_rgba(0,0,0,0.5)]"
+              >
+                <button
+                  type="button"
+                  role="menuitem"
+                  autoFocus
+                  onClick={() => {
+                    setMoreOpen(false);
+                    router.push("/configuracoes/fluxos");
+                  }}
+                  className="flex w-full items-center gap-2.5 rounded-mark px-2.5 py-2 text-left text-[13px] text-fg-soft transition-colors hover:bg-row-raised focus-visible:bg-row-raised focus-visible:outline-none"
+                >
+                  <GitBranchIcon size={15} className="text-fg-3" />
+                  Fluxos e Processos
+                </button>
+              </div>
+            </Popover>
           </>
         }
       >

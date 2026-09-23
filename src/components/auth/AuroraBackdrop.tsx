@@ -15,6 +15,10 @@
  * As medidas foram calibradas em 1440×900 e convertidas para unidades de
  * viewport, então o arco acompanha a tela sem reposicionamento manual.
  *
+ * Desempenho: ver `scaledArc` — as camadas desfocadas são desenhadas
+ * pequenas e ampliadas, e todo o fundo fica contido (`contain: strict`) para
+ * a animação nunca pedir layout ou pintura do resto da página.
+ *
  * Movimento: cada camada mora num invólucro `inset-0` só para receber a
  * animação (`.iris-sweep`, `.iris-fan`, `.iris-rays`, `.iris-core` em
  * globals.css) — os `transform: translate(-50%, -50%)` das camadas internas
@@ -103,24 +107,46 @@ const arc = {
   WebkitMaskComposite: "source-in",
 } as const;
 
+/*
+ * Desempenho: as camadas desfocadas são desenhadas pequenas e ampliadas.
+ *
+ * Um desfoque de 85px sobre um disco de 87vw é o pedaço mais caro da tela —
+ * o custo cresce com a área *e* com o raio, e a textura resultante fica na
+ * memória da GPU enquanto a animação roda. Como desfoque é só baixa
+ * frequência, desenhar o disco em 1/4 do tamanho com 1/4 do raio e ampliar
+ * 4× (`scale`) dá o mesmo desenho com ~1/16 do trabalho e da memória. O fator
+ * cai para 2 no traço nítido do leque (26px), e as estrias ficam em tamanho
+ * real: elas são detalhe fino, e reduzir apagaria os raios.
+ *
+ * O filtro é aplicado antes do `transform`, então `blur(r/k)` ampliado `k`
+ * vezes é o `blur(r)` original.
+ */
+function scaledArc(size: string, k: number, blurPx: number, extra: string) {
+  return {
+    ...arc,
+    width: `calc(${size} / ${k})`,
+    height: `calc(${size} / ${k})`,
+    transform: `translate(-50%, -50%) scale(${k})`,
+    filter: `blur(${blurPx / k}px) ${extra}`.trim(),
+  };
+}
+
 export function AuroraBackdrop() {
   return (
     <div
       aria-hidden
       className="pointer-events-none fixed inset-0 z-0 overflow-hidden bg-bg"
+      style={{ contain: "strict" }}
     >
       {/* Varredura azul, ao fundo de tudo. */}
       <div className="iris-sweep absolute inset-0">
         <div
           className="absolute"
           style={{
-            ...arc,
-            width: SWEEP_SIZE,
-            height: SWEEP_SIZE,
+            ...scaledArc(SWEEP_SIZE, 4, 64, "saturate(1.15)"),
             backgroundImage: SWEEP_GRADIENT,
             maskImage: SWEEP_MASK,
             WebkitMaskImage: SWEEP_MASK,
-            filter: "blur(64px) saturate(1.15)",
             opacity: 0.92,
           }}
         />
@@ -132,13 +158,10 @@ export function AuroraBackdrop() {
         <div
           className="absolute"
           style={{
-            ...arc,
-            width: FAN_SIZE,
-            height: FAN_SIZE,
+            ...scaledArc(FAN_SIZE, 4, 85, "saturate(1.1)"),
             backgroundImage: FAN_GRADIENT,
             maskImage: FAN_MASK,
             WebkitMaskImage: FAN_MASK,
-            filter: "blur(85px) saturate(1.1)",
             opacity: 0.55,
           }}
         />
@@ -147,13 +170,10 @@ export function AuroraBackdrop() {
         <div
           className="absolute"
           style={{
-            ...arc,
-            width: FAN_SIZE,
-            height: FAN_SIZE,
+            ...scaledArc(FAN_SIZE, 2, 26, "saturate(1.25)"),
             backgroundImage: FAN_GRADIENT,
             maskImage: FAN_MASK,
             WebkitMaskImage: FAN_MASK,
-            filter: "blur(26px) saturate(1.25)",
             opacity: 0.85,
           }}
         />
@@ -181,9 +201,10 @@ export function AuroraBackdrop() {
       <div
         className="iris-core absolute inset-0"
         style={{
+          // Sem `filter`: um desfoque sobre a tela inteira custava caro, e o
+          // degradê já se desfaz sozinho — a queda mais longa faz o papel dele.
           backgroundImage:
-            "radial-gradient(clamp(180px, 16vw, 280px) clamp(240px, 37vh, 380px) at 66% 38%, rgba(255,248,235,0.45), rgba(255,225,180,0.10) 44%, transparent 74%)",
-          filter: "blur(28px)",
+            "radial-gradient(clamp(200px, 18vw, 310px) clamp(265px, 41vh, 420px) at 66% 38%, rgba(255,248,235,0.42), rgba(255,225,180,0.12) 40%, rgba(255,225,180,0.03) 62%, transparent 80%)",
         }}
       />
 

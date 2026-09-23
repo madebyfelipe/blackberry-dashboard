@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { listBatches } from "@/lib/approval/repository";
 import { listClientSummaries } from "@/lib/approval/clients";
+import { listClients } from "@/lib/clients/repository";
 import { currentAgencyScope } from "@/lib/auth/session";
 import { ClientsView } from "@/components/approval/ClientsView";
 
@@ -12,5 +13,14 @@ export default async function SocialPage() {
   const scope = await currentAgencyScope();
   if (!scope) redirect("/login?sessao=encerrada");
 
-  return <ClientsView clients={listClientSummaries(await listBatches(scope))} />;
+  // A lista é a de Clientes (cadastro único), com os lotes de cada um por cima.
+  const [batches, clients] = await Promise.all([listBatches(scope), listClients(scope)]);
+  return (
+    <ClientsView
+      clients={listClientSummaries(
+        batches,
+        clients.map((c) => c.name),
+      )}
+    />
+  );
 }
