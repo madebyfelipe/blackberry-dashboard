@@ -1,7 +1,6 @@
 import { notFound } from "next/navigation";
-import { redirectWithoutScope } from "@/lib/auth/session";
+import { currentAgencyScope, redirectWithoutScope } from "@/lib/auth/session";
 import { getTask } from "@/lib/tasks/repository";
-import { currentAgencyScope } from "@/lib/auth/session";
 import { TaskDetail } from "@/components/tasks/TaskDetail";
 import { getFlow } from "@/lib/flows/repository";
 

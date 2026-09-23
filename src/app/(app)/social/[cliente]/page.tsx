@@ -1,12 +1,11 @@
 import { notFound, redirect } from "next/navigation";
-import { redirectWithoutScope } from "@/lib/auth/session";
+import { currentAgencyScope, redirectWithoutScope } from "@/lib/auth/session";
 import { listBatches } from "@/lib/approval/repository";
 import {
   batchesOfClient,
   clientNameFromSlug,
   slugify,
 } from "@/lib/approval/clients";
-import { currentAgencyScope } from "@/lib/auth/session";
 import { listClients } from "@/lib/clients/repository";
 import { BatchesView } from "@/components/approval/BatchesView";
 
