@@ -1,4 +1,5 @@
 import type {
+  Attachment,
   ConversationDetail,
   ConversationSummary,
   InboxMember,
@@ -38,17 +39,103 @@ export async function apiConversation(id: string): Promise<ConversationDetail> {
   return data.conversation as ConversationDetail;
 }
 
+/** O que acompanha o texto: anexos já subidos, o GIF escolhido e a resposta. */
+export type OutgoingExtra = {
+  attachments?: Attachment[];
+  gif?: GifResult | null;
+  replyToId?: string | null;
+};
+
 export async function apiSendMessage(
   id: string,
   text: string,
+  extra: OutgoingExtra = {},
 ): Promise<ConversationDetail> {
   const data = await parse(
     await fetch(`/api/inbox/conversations/${id}/messages`, {
       method: "POST",
+      ...json({
+        text,
+        attachmentIds: (extra.attachments ?? []).map((a) => a.id),
+        gif: extra.gif
+          ? { url: extra.gif.url, width: extra.gif.width, height: extra.gif.height, title: extra.gif.title }
+          : undefined,
+        replyToId: extra.replyToId ?? undefined,
+      }),
+    }),
+  );
+  return data.conversation as ConversationDetail;
+}
+
+export async function apiEditMessage(
+  id: string,
+  messageId: string,
+  text: string,
+): Promise<ConversationDetail> {
+  const data = await parse(
+    await fetch(`/api/inbox/conversations/${id}/messages/${messageId}`, {
+      method: "PATCH",
       ...json({ text }),
     }),
   );
   return data.conversation as ConversationDetail;
+}
+
+export async function apiDeleteMessage(id: string, messageId: string): Promise<ConversationDetail> {
+  const data = await parse(
+    await fetch(`/api/inbox/conversations/${id}/messages/${messageId}`, { method: "DELETE" }),
+  );
+  return data.conversation as ConversationDetail;
+}
+
+/**
+ * Sobe um anexo e devolve o que a mensagem vai levar. Com Blob configurado
+ * (produção) o arquivo vai direto do navegador para o store — é o que deixa
+ * passar arquivo acima de 4,5 MB, o corte da Vercel no corpo da requisição.
+ * Sem Blob (dev local), multipart pela rota.
+ */
+export async function apiUploadAttachment(
+  id: string,
+  file: File,
+  blobUploads: boolean,
+): Promise<Attachment> {
+  const endpoint = `/api/inbox/conversations/${id}/anexos`;
+  let res: Response;
+  if (blobUploads) {
+    const [{ upload }, { blobPathnameFor, BLOB_ATTACHMENT_PREFIX, BLOB_MULTIPART_THRESHOLD, baseMime }] =
+      await Promise.all([import("@vercel/blob/client"), import("@/lib/media/constants")]);
+    const type = baseMime(file.type);
+    const blob = await upload(blobPathnameFor(file.name, type, BLOB_ATTACHMENT_PREFIX), file, {
+      access: "public",
+      contentType: type,
+      handleUploadUrl: `${endpoint}/token`,
+      multipart: file.size > BLOB_MULTIPART_THRESHOLD,
+    });
+    res = await fetch(endpoint, { method: "POST", ...json({ pathname: blob.pathname, name: file.name }) });
+  } else {
+    const form = new FormData();
+    form.append("file", file);
+    res = await fetch(endpoint, { method: "POST", body: form });
+  }
+  const data = await parse(res);
+  return data.attachment as Attachment;
+}
+
+/** Um GIF da biblioteca, como a busca devolve. */
+export type GifResult = {
+  id: string;
+  url: string;
+  preview: string;
+  width: number;
+  height: number;
+  title: string;
+};
+
+export async function apiSearchGifs(q: string): Promise<GifResult[]> {
+  const data = await parse(
+    await fetch(`/api/inbox/gifs?q=${encodeURIComponent(q)}`, { cache: "no-store" }),
+  );
+  return (data.results ?? []) as GifResult[];
 }
 
 /** O que o navegador precisa para entrar na sala da chamada. */

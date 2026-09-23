@@ -1,4 +1,4 @@
-export type MediaKind = "image" | "video";
+export type MediaKind = "image" | "video" | "audio" | "file";
 
 /** Arte enviada pela agência e anexada a uma peça do lote. */
 export type MediaAsset = {
@@ -23,4 +23,16 @@ export type MediaAsset = {
    * curta duração — a `blobUrl` sozinha não abre mais o arquivo.
    */
   blobPathname?: string;
+  /**
+   * De quem é o arquivo, quando ele é anexo de conversa. A arte do lote não
+   * tem dono aqui (ela mora na peça). O anexo tem: é isso que impede alguém
+   * de pôr o id de uma arte alheia numa mensagem e apagá-la junto com ela.
+   */
+  owner?: {
+    agencyId: string;
+    uploaderId: string;
+    conversationId: string;
+    /** O id da mensagem que levou o anexo — um anexo vai numa mensagem só. */
+    messageId: string | null;
+  };
 };

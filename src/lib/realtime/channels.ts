@@ -103,4 +103,20 @@ export type RealtimeEvent =
         started?: boolean;
       })
   /** No canal pessoal: a lista de conversas desta pessoa mudou. */
-  | { tipo: "conversas"; conversationId: string };
+  | { tipo: "conversas"; conversationId: string }
+  /**
+   * No canal pessoal: uma notificação nova (ou a de mensagens que somou). Leva
+   * o bastante para o aviso do sistema se escrever sem outra ida ao servidor.
+   */
+  | {
+      tipo: "notificacao";
+      notification: {
+        id: string;
+        kind: "mencao" | "atribuicao" | "comentario" | "mensagem";
+        title: string;
+        body: string;
+        href: string;
+        ref: string;
+        actor: string;
+      };
+    };

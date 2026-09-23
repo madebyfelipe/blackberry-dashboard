@@ -1,34 +1,25 @@
 "use client";
 
-import { MentionText, useMentionInput } from "@/components/team/Mentions";
 import { useEffect, useRef, useState } from "react";
 import { cn } from "@/lib/cn";
 import {
   ArrowLeftIcon,
-  ArrowUpIcon,
   BellOffIcon,
   EllipsisIcon,
-  PaperclipIcon,
   PhoneIcon,
   PinIcon,
   ScreenShareIcon,
   SearchIcon,
-  SmileIcon,
-  StickerIcon,
   UserPlusIcon,
   XIcon,
 } from "@/components/icons";
 import { PRESENCE_BY_ID } from "@/lib/inbox/constants";
 import type { ConversationDetail, InboxMember, Message } from "@/lib/inbox/types";
-import {
-  groupByDay,
-  initialsOf,
-  memberName,
-  messageTime,
-  searchMessages,
-  startsBlock,
-} from "@/lib/inbox/view";
+import { groupByDay, initialsOf, memberName, searchMessages } from "@/lib/inbox/view";
+import type { OutgoingExtra } from "./api";
+import { Composer } from "./Composer";
 import { MemberMenuPanel } from "./MemberMenu";
+import { MessageRow } from "./MessageRow";
 import { PresenceBadge, PresenceDot } from "./PresenceDot";
 
 /*
@@ -46,7 +37,11 @@ export function ChatPane({
   me,
   sending,
   emChamada,
+  blobUploads,
   onSend,
+  onEditMessage,
+  onDeleteMessage,
+  onError,
   onStartCall,
   onToggleMuted,
   onMarkUnread,
@@ -61,7 +56,12 @@ export function ChatPane({
   sending: boolean;
   /** Você já está na chamada — então não se oferece "entrar" de novo. */
   emChamada: boolean;
-  onSend: (text: string) => void;
+  /** O Blob está configurado: anexo sobe direto do navegador (acima de 4,5 MB). */
+  blobUploads: boolean;
+  onSend: (text: string, extra: OutgoingExtra) => void;
+  onEditMessage: (message: Message, text: string) => Promise<void>;
+  onDeleteMessage: (message: Message) => void;
+  onError: (message: string) => void;
   onStartCall: (withScreen: boolean) => void;
   onToggleMuted: () => void;
   onMarkUnread: () => void;
@@ -77,6 +77,8 @@ export function ChatPane({
   const [query, setQuery] = useState("");
   const [adding, setAdding] = useState(false);
   const [searching, setSearching] = useState(false);
+  /** A mensagem sendo respondida — a faixa "Respondendo a…" do campo. */
+  const [replyTo, setReplyTo] = useState<Message | null>(null);
   const searchRef = useRef<HTMLInputElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const last = detail.messages[detail.messages.length - 1];
@@ -90,6 +92,9 @@ export function ChatPane({
     if (searching) searchRef.current?.focus();
     else setQuery("");
   }, [searching]);
+
+  // Outra conversa, outra resposta.
+  useEffect(() => setReplyTo(null), [detail.id]);
 
   const shown = searchMessages(detail.messages, query);
   const days = groupByDay(shown);
@@ -239,25 +244,13 @@ export function ChatPane({
        * Chamada acontecendo agora. Não estava no export — é o que faz a
        * chamada existir para quem não estava com a tela aberta no segundo
        * em que ela começou, e some sozinha quando o último sai.
+       *
+       * Diz **quem está dentro** (os avatares acesos, com o selo "ao vivo")
+       * e, no grupo, quem ainda está fora — "chamada em andamento" sozinho
+       * não respondia se valia a pena entrar.
        */}
-      {detail.callMemberIds.length > 0 && !emChamada && (
-        <div className="flex shrink-0 items-center gap-3 border-b border-panel-ring bg-surface-2/60 px-4 py-2.5 md:px-5">
-          <PhoneIcon size={14} className="shrink-0 text-fg-3" />
-          <p className="min-w-0 flex-1 truncate text-[12px] text-fg-3">
-            Chamada em andamento ·{" "}
-            {detail.callMemberIds
-              .map((id) => (id === me.id ? "Você" : memberName(detail.members, id)))
-              .join(", ")}
-          </p>
-          <button
-            type="button"
-            onClick={() => onStartCall(false)}
-            className="tap shrink-0 rounded-chip bg-primary px-3 py-1 text-[12px] font-medium text-on-primary transition-colors hover:bg-white"
-          >
-            {/* Você já está nela, em outra aba ou aparelho: entrar daqui a traz para cá. */}
-            {detail.callMemberIds.includes(me.id) ? "Trazer para esta aba" : "Entrar"}
-          </button>
-        </div>
+      {detail.callMemberIds.length > 0 && (
+        <CallBanner detail={detail} me={me} emChamada={emChamada} onJoin={() => onStartCall(false)} />
       )}
 
       <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-4 py-5 md:px-6">
@@ -280,13 +273,20 @@ export function ChatPane({
             </div>
 
             {day.messages.map((message, i) => (
-              <Row
+              <MessageRow
                 key={message.id}
                 message={message}
                 previous={day.messages[i - 1]}
+                messages={detail.messages}
                 members={detail.members}
                 me={me}
                 query={query}
+                onReply={setReplyTo}
+                onEdit={onEditMessage}
+                onDelete={(m) => {
+                  if (replyTo?.id === m.id) setReplyTo(null);
+                  onDeleteMessage(m);
+                }}
               />
             ))}
           </div>
@@ -295,11 +295,18 @@ export function ChatPane({
       </div>
 
       <Composer
-        title={detail.title}
-        kind={detail.kind}
+        detail={detail}
+        meId={me.id}
         sending={sending}
-        onSend={onSend}
+        blobUploads={blobUploads}
+        replyTo={replyTo}
+        onCancelReply={() => setReplyTo(null)}
+        onSend={(text, extra) => {
+          setReplyTo(null);
+          onSend(text, extra);
+        }}
         onUndesigned={onUndesigned}
+        onError={onError}
       />
     </div>
   );
@@ -516,214 +523,67 @@ function MenuItem({
   );
 }
 
-function Row({
-  message,
-  previous,
-  members,
+/**
+ * A faixa da chamada em curso, embaixo do cabeçalho: selo "ao vivo", quem
+ * está dentro (avatares acesos) e, no grupo, quantos ainda estão fora. Quem
+ * não está nela vê "Entrar"; quem está em outra aba, "Trazer para esta aba";
+ * quem já está nela aqui, só a confirmação.
+ */
+function CallBanner({
+  detail,
   me,
-  query,
+  emChamada,
+  onJoin,
 }: {
-  message: Message;
-  previous?: Message;
-  members: InboxMember[];
+  detail: ConversationDetail;
   me: InboxMember;
-  /** Enquanto a busca está aberta, todo bloco abre: o vizinho pode ter sumido. */
-  query: string;
+  emChamada: boolean;
+  onJoin: () => void;
 }) {
-  // Linha de sistema: ícone e frase em cinza, alinhados com o texto das falas.
-  if (message.kind !== "texto") {
-    return (
-      <div className="flex items-center gap-3 py-0.5 pl-0 md:pl-[46px]">
-        {message.kind === "chamada" ? (
-          <PhoneIcon size={13} className="shrink-0 text-muted" />
-        ) : (
-          <PinIcon size={13} className="shrink-0 text-muted" />
-        )}
-        <p className="text-[12px] text-muted">{message.text}</p>
-      </div>
-    );
-  }
-
-  const author = message.authorId === me.id ? "Você" : memberName(members, message.authorId);
-  const opens = !!query || startsBlock(message, previous);
-
-  if (!opens) {
-    return (
-      <p className="-mt-3 pl-[46px] text-[13px] leading-[18px] text-fg-soft [overflow-wrap:anywhere] whitespace-pre-wrap">
-        <Highlight text={message.text} query={query} />
-      </p>
-    );
-  }
-
+  const inside = detail.callMemberIds;
+  const names = inside.map((id) => (id === me.id ? "Você" : memberName(detail.members, id)));
+  const outside = detail.members.filter((m) => !inside.includes(m.id));
+  const meInside = inside.includes(me.id);
   return (
-    <div className="flex w-full items-start gap-3">
-      <span
-        className="flex h-[34px] w-[34px] shrink-0 items-center justify-center rounded-pill bg-border text-[12px] font-semibold text-fg-3"
-        aria-hidden="true"
-      >
-        {initialsOf(author === "Você" ? me.name : author)}
+    <div className="flex shrink-0 items-center gap-3 border-b border-panel-ring bg-surface-2/60 px-4 py-2.5 md:px-5">
+      <span className="flex shrink-0 items-center gap-1.5 rounded-pill bg-border px-2 py-0.5 text-[10px] font-semibold tracking-[0.4px] text-fg-soft">
+        <span className="relative flex h-1.5 w-1.5">
+          <span className="absolute inset-0 animate-ping rounded-full bg-presence-on opacity-60 motion-reduce:hidden" />
+          <span className="relative h-1.5 w-1.5 rounded-full bg-presence-on" />
+        </span>
+        AO VIVO
       </span>
-      <div className="flex min-w-0 flex-1 flex-col gap-1">
-        <div className="flex items-center gap-2">
-          <span className="text-[13px] font-semibold text-fg">{author}</span>
-          <span className="text-[11px] text-muted">
-            {messageTime(message.createdAt)}
+      <span className="flex shrink-0 -space-x-1.5" aria-hidden="true">
+        {inside.slice(0, 4).map((id) => (
+          <span
+            key={id}
+            className="flex h-6 w-6 items-center justify-center rounded-pill bg-border-strong text-[9px] font-semibold text-fg outline-2 outline-surface-2"
+          >
+            {initialsOf(id === me.id ? me.name : memberName(detail.members, id))}
           </span>
-        </div>
-        <p className="text-[13px] leading-[18px] text-fg-soft [overflow-wrap:anywhere] whitespace-pre-wrap">
-          <Highlight text={message.text} query={query} />
-        </p>
-      </div>
-    </div>
-  );
-}
-
-/** Marca o trecho buscado sem mexer no texto — o realce é do leitor, não do dado. */
-function Highlight({ text, query }: { text: string; query: string }) {
-  const q = query.trim();
-  // Sem busca, a mensagem mostra as menções do time em destaque.
-  if (!q) return <MentionText text={text} />;
-  const at = text.toLowerCase().indexOf(q.toLowerCase());
-  if (at === -1) return <MentionText text={text} />;
-  return (
-    <>
-      {text.slice(0, at)}
-      <mark className="rounded-[3px] bg-border px-0.5 text-fg">
-        {text.slice(at, at + q.length)}
-      </mark>
-      {text.slice(at + q.length)}
-    </>
-  );
-}
-
-function Composer({
-  title,
-  kind,
-  sending,
-  onSend,
-  onUndesigned,
-}: {
-  title: string;
-  kind: ConversationDetail["kind"];
-  sending: boolean;
-  onSend: (text: string) => void;
-  onUndesigned: (what: string) => void;
-}) {
-  const [draft, setDraft] = useState("");
-  const ref = useRef<HTMLTextAreaElement>(null);
-  const mentions = useMentionInput({
-    value: draft,
-    onChange: (v) => {
-      setDraft(v);
-      requestAnimationFrame(grow);
-    },
-    field: ref,
-  });
-
-  function grow() {
-    const el = ref.current;
-    if (!el) return;
-    el.style.height = "auto";
-    el.style.height = `${Math.min(el.scrollHeight, 120)}px`;
-  }
-
-  function submit() {
-    const text = draft.trim();
-    if (!text || sending) return;
-    onSend(text);
-    setDraft("");
-    requestAnimationFrame(grow);
-  }
-
-  return (
-    <div className="shrink-0 px-4 pb-4 pt-3 md:px-5 md:pb-5">
-      <form
-        onSubmit={(e) => {
-          e.preventDefault();
-          submit();
-        }}
-        className="flex items-end gap-2.5 rounded-nav border border-panel-ring bg-surface-2 px-3 py-2.5"
-      >
-        <ComposerIcon
-          label="Anexar arquivo"
-          onClick={() => onUndesigned("Anexo na conversa")}
-        >
-          <PaperclipIcon size={16} />
-        </ComposerIcon>
-
-        <textarea
-          ref={ref}
-          rows={1}
-          value={draft}
-          onChange={(e) => {
-            setDraft(e.target.value);
-            grow();
-          }}
-          {...mentions.inputProps}
-          onKeyDown={(e) => {
-            // Com o menu de @ aberto, Enter escolhe a pessoa — não envia.
-            if (mentions.onKeyDown(e)) return;
-            // Enter manda; Shift+Enter quebra a linha, como em toda conversa.
-            if (e.key === "Enter" && !e.shiftKey) {
-              e.preventDefault();
-              submit();
-            }
-          }}
-          placeholder={`Mensagem em ${kind === "grupo" ? "#" : ""}${title}`}
-          aria-label={`Mensagem em ${title}`}
-          className="max-h-[120px] min-h-[20px] flex-1 resize-none bg-transparent py-[3px] text-[13px] leading-[18px] text-fg-soft outline-none placeholder:text-muted"
-        />
-
-        <ComposerIcon
-          label="Emoji"
-          onClick={() => onUndesigned("Seletor de emoji")}
-        >
-          <SmileIcon size={16} />
-        </ComposerIcon>
-        <ComposerIcon
-          label="GIF"
-          onClick={() => onUndesigned("Biblioteca de GIFs")}
-        >
-          <StickerIcon size={16} />
-        </ComposerIcon>
-
+        ))}
+      </span>
+      <p className="min-w-0 flex-1 truncate text-[12px] text-fg-3">
+        <span className="font-medium text-fg-soft">
+          {inside.length === 1 ? "Na chamada: " : `${inside.length} na chamada: `}
+        </span>
+        {names.join(", ")}
+        {detail.kind === "grupo" && outside.length > 0 && (
+          <span className="text-muted"> · {outside.length} fora</span>
+        )}
+      </p>
+      {emChamada ? (
+        <span className="shrink-0 text-[12px] text-muted">Você está nela</span>
+      ) : (
         <button
-          type="submit"
-          disabled={!draft.trim() || sending}
-          aria-label="Enviar mensagem"
-          title="Enviar mensagem"
-          className={cn(
-            "tap flex h-7 w-7 shrink-0 items-center justify-center rounded-chip bg-primary text-on-primary transition-opacity",
-            "focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-fg-3",
-            (!draft.trim() || sending) && "opacity-40",
-          )}
+          type="button"
+          onClick={onJoin}
+          className="tap shrink-0 rounded-chip bg-primary px-3 py-1 text-[12px] font-medium text-on-primary transition-colors hover:bg-white"
         >
-          <ArrowUpIcon size={14} />
+          {/* Você já está nela, em outra aba ou aparelho: entrar daqui a traz para cá. */}
+          {meInside ? "Trazer para esta aba" : "Entrar"}
         </button>
-        {mentions.menu()}
-      </form>
+      )}
     </div>
-  );
-}
-
-function ComposerIcon({
-  label,
-  onClick,
-  children,
-}: {
-  label: string;
-  onClick: () => void;
-  children: React.ReactNode;
-}) {
-  return (
-    <button
-      type="button"
-      aria-label={label}
-      title={label}
-      onClick={onClick}
-      className="tap flex h-7 w-7 shrink-0 items-center justify-center rounded-chip text-fg-3 transition-colors hover:bg-border hover:text-fg-soft"
-    >
-      {children}
-    </button>
   );
 }

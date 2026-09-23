@@ -7,6 +7,8 @@ import {
 } from "@/lib/tasks/repository";
 import type { TaskPatch } from "@/lib/tasks/types";
 import { requireAgency, unauthorized } from "@/lib/auth/session";
+import { currentInboxSession } from "@/lib/inbox/viewer";
+import { notifyTaskChange } from "@/lib/notifications/dispatch";
 import { advanceTask } from "@/lib/flows/automation";
 
 export const dynamic = "force-dynamic";
@@ -35,7 +37,7 @@ function pickPatch(body: unknown): TaskPatch {
 }
 
 export async function PATCH(req: Request, { params }: Ctx) {
-  const session = await requireAgency();
+  const session = await currentInboxSession();
   if (!session) return unauthorized();
   const { id } = await params;
   let body: unknown;
@@ -48,7 +50,7 @@ export async function PATCH(req: Request, { params }: Ctx) {
     const patch = pickPatch(body);
     // Só uma passagem de verdade para "concluído" anda a etapa: repetir o
     // status (clique duplo, dois abertos) não pode pular etapa nem duplicar nota.
-    const before = patch.status === "concluido" ? await getTask(session.scope, id) : undefined;
+    const before = await getTask(session.scope, id);
     const task = await updateTask(session.scope, id, patch);
     if (!task) {
       /*
@@ -63,9 +65,12 @@ export async function PATCH(req: Request, { params }: Ctx) {
      * a tela não mostrar "concluída" algo que acabou de ir para outra pessoa.
      */
     if (patch.status === "concluido" && before && before.status !== "concluido") {
+      // Quem recebe a próxima etapa é avisado pelo próprio motor do fluxo.
       const advanced = await advanceTask(session.scope, id, session.user.name);
       if (advanced) return NextResponse.json({ task: advanced });
     }
+    // Responsável novo e quem foi marcado agora no briefing.
+    await notifyTaskChange(session.scope, { id: session.me.id, name: session.me.name }, before, task);
     return NextResponse.json({ task });
   } catch (err) {
     if (err instanceof ValidationError) {

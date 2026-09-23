@@ -52,6 +52,8 @@ import {
   ZapIcon,
 } from "@/components/icons";
 import { StepGlyph } from "./StepGlyph";
+import { FlowClients, type FlowClient } from "./FlowClients";
+import { apiUpdateClient } from "@/components/clients/api";
 
 /*
  * Fluxos e Processos — export "Fluxos e Processos" (Configurações).
@@ -94,17 +96,35 @@ function relative(iso: string): string {
 
 export function FlowsView({
   initialFlows,
+  initialClients,
   team,
   initialFlowId,
   initialStepId,
 }: {
   initialFlows: Flow[];
+  /** A carteira — para o "Clientes do fluxo". */
+  initialClients: FlowClient[];
   team: TeamPerson[];
   initialFlowId: string | null;
   initialStepId: string | null;
 }) {
   const { toast } = useToast();
   const [flows, setFlows] = useState(initialFlows);
+  const [clients, setClients] = useState(initialClients);
+
+  /** Atribui (ou tira) o cliente do fluxo — o campo "Fluxo" da ficha dele. */
+  async function assignClient(clientId: string, to: string | null) {
+    const before = clients;
+    const name = clients.find((c) => c.id === clientId)?.name ?? "O cliente";
+    setClients((list) => list.map((c) => (c.id === clientId ? { ...c, flowId: to } : c)));
+    try {
+      await apiUpdateClient(clientId, { flowId: to });
+      toast(to ? `${name} agora usa este fluxo.` : `${name} saiu do fluxo.`);
+    } catch (err) {
+      setClients(before);
+      toast(err instanceof Error ? err.message : "Não deu para atribuir o cliente.", "error");
+    }
+  }
   const [tab, setTab] = useState<Tab>("todos");
   const [query, setQuery] = useState("");
   const [flowId, setFlowId] = useState<string | null>(
@@ -245,6 +265,29 @@ export function FlowsView({
   const [menu, setMenu] = useState<{ stepId: string; x: number; y: number } | null>(null);
   const [hover, setHover] = useState<{ stepId: string; rect: DOMRect } | null>(null);
   const hoverTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  /*
+   * O cartão de hover abre 8px abaixo da etapa. Fechar no instante em que o
+   * mouse sai da etapa fazia o cartão sumir no caminho até ele — não dava
+   * para clicar em nada lá dentro. Agora sair da etapa (ou do cartão) só
+   * agenda o fechamento; entrar no cartão (ou voltar à etapa) cancela.
+   */
+  const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const keepHover = () => {
+    if (closeTimer.current) clearTimeout(closeTimer.current);
+    closeTimer.current = null;
+  };
+  const leaveHover = () => {
+    if (hoverTimer.current) clearTimeout(hoverTimer.current);
+    keepHover();
+    closeTimer.current = setTimeout(() => setHover(null), 300);
+  };
+  useEffect(
+    () => () => {
+      if (hoverTimer.current) clearTimeout(hoverTimer.current);
+      if (closeTimer.current) clearTimeout(closeTimer.current);
+    },
+    [],
+  );
   const [renaming, setRenaming] = useState(false);
   const [dragging, setDragging] = useState<string | null>(null);
 
@@ -397,6 +440,8 @@ export function FlowsView({
               }}
             />
 
+            <FlowClients flow={flow} flows={flows} clients={clients} onAssign={(id, to) => void assignClient(id, to)} />
+
             {/* Pipeline */}
             <div className="flex flex-col gap-3.5 px-4 pb-4 pt-3.5">
               <div className="flex items-center justify-between gap-3">
@@ -446,9 +491,15 @@ export function FlowsView({
                         setMenu({ stepId: s.id, x, y });
                       }}
                       onHover={(rect) => {
+                        if (!rect) return leaveHover();
+                        keepHover();
                         if (hoverTimer.current) clearTimeout(hoverTimer.current);
-                        if (!rect) return setHover(null);
-                        hoverTimer.current = setTimeout(() => setHover({ stepId: s.id, rect }), 450);
+                        // Já aberto nesta etapa: fica. Em outra: troca sem esperar.
+                        if (hover?.stepId === s.id) return;
+                        hoverTimer.current = setTimeout(
+                          () => setHover({ stepId: s.id, rect }),
+                          hover ? 120 : 450,
+                        );
                       }}
                       onDragStart={() => setDragging(s.id)}
                       onDragEnd={() => setDragging(null)}
@@ -538,7 +589,8 @@ export function FlowsView({
             setMenu({ stepId: hover.stepId, x, y });
             setHover(null);
           }}
-          onLeave={() => setHover(null)}
+          onEnter={keepHover}
+          onLeave={leaveHover}
         />
       )}
     </Screen>
@@ -1556,6 +1608,7 @@ function StepPopover({
   team,
   onOpen,
   onMenu,
+  onEnter,
   onLeave,
 }: {
   flow: Flow;
@@ -1564,6 +1617,7 @@ function StepPopover({
   team: TeamPerson[];
   onOpen: () => void;
   onMenu: (x: number, y: number) => void;
+  onEnter: () => void;
   onLeave: () => void;
 }) {
   if (!step || typeof document === "undefined") return null;
@@ -1583,6 +1637,7 @@ function StepPopover({
       role="dialog"
       aria-label={`Etapa ${step.name}`}
       style={{ left, top, width }}
+      onMouseEnter={onEnter}
       onMouseLeave={onLeave}
       className="fixed z-[55] flex animate-pop-in flex-col gap-3 rounded-nav border border-border bg-surface p-3.5 shadow-[0_12px_32px_rgba(0,0,0,0.6)]"
     >

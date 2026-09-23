@@ -5,7 +5,7 @@ import { handleProblem, normalizeHandle, suggestHandle } from "./handle";
 import { isMemberRole, isMemberStatus } from "./users";
 import { normalizeDomain } from "./domain";
 import { seedInbox } from "./seed";
-import type { Conversation, InboxData, InboxMember, Message } from "./types";
+import type { Attachment, Conversation, InboxData, InboxMember, Message } from "./types";
 
 /*
  * Armazenamento do Inbox. Mesma cadeia das outras áreas: a tela fala com
@@ -63,18 +63,46 @@ function settleHandles(members: InboxMember[]): InboxMember[] {
   });
 }
 
+const ATTACHMENT_KINDS = new Set(["imagem", "video", "audio", "arquivo", "gif"]);
+
+function normalizeAttachment(raw: unknown): Attachment | null {
+  if (!raw || typeof raw !== "object") return null;
+  const a = raw as Partial<Attachment>;
+  const url = String(a.url ?? "");
+  if (!a.id || !url || !ATTACHMENT_KINDS.has(String(a.kind))) return null;
+  return {
+    id: String(a.id),
+    kind: a.kind as Attachment["kind"],
+    url,
+    name: String(a.name ?? ""),
+    mime: String(a.mime ?? ""),
+    size: Number.isFinite(a.size) ? Number(a.size) : 0,
+    ...(Number.isFinite(a.width) ? { width: Number(a.width) } : {}),
+    ...(Number.isFinite(a.height) ? { height: Number(a.height) } : {}),
+  };
+}
+
 function normalizeMessage(raw: unknown): Message | null {
   if (!raw || typeof raw !== "object") return null;
   const m = raw as Partial<Message>;
   const id = String(m.id ?? "");
   const text = String(m.text ?? "");
-  if (!id || !text) return null;
+  const attachments = (Array.isArray(m.attachments) ? m.attachments : [])
+    .map(normalizeAttachment)
+    .filter((a): a is Attachment => !!a);
+  const deletedAt = typeof m.deletedAt === "string" && m.deletedAt ? m.deletedAt : null;
+  // Mensagem sem texto só existe com anexo — ou apagada, que fica como marca.
+  if (!id || (!text && attachments.length === 0 && !deletedAt)) return null;
   return {
     id,
     authorId: String(m.authorId ?? ""),
-    text,
+    text: deletedAt ? "" : text,
     createdAt: String(m.createdAt ?? new Date().toISOString()),
     kind: m.kind === "chamada" || m.kind === "aviso" ? m.kind : "texto",
+    attachments: deletedAt ? [] : attachments,
+    replyToId: typeof m.replyToId === "string" && m.replyToId ? m.replyToId : null,
+    editedAt: typeof m.editedAt === "string" && m.editedAt ? m.editedAt : null,
+    deletedAt,
   };
 }
 

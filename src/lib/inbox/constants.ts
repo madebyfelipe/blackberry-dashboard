@@ -40,3 +40,55 @@ export function isOnline(presence: Presence): boolean {
 
 /** O que cabe numa mensagem. O composer corta antes; a API recusa depois. */
 export const MESSAGE_MAX = 4000;
+
+/**
+ * Até quando quem escreveu pode editar ou apagar a mensagem. Depois disso ela
+ * é registro: alguém já pode ter lido e agido em cima dela.
+ */
+export const MESSAGE_EDIT_WINDOW_MS = 10 * 60_000;
+
+/** Quantos anexos cabem numa mensagem. */
+export const ATTACHMENTS_MAX = 10;
+
+/** A mensagem ainda pode ser editada/apagada por quem a escreveu? */
+export function canChangeMessage(
+  message: { authorId: string; kind: string; createdAt: string; deletedAt: string | null },
+  viewerId: string,
+  now = Date.now(),
+): boolean {
+  if (message.kind !== "texto" || message.deletedAt || message.authorId !== viewerId) return false;
+  const at = Date.parse(message.createdAt);
+  return !Number.isNaN(at) && now - at <= MESSAGE_EDIT_WINDOW_MS;
+}
+
+/**
+ * Os endereços de GIF aceitos: só o CDN do Giphy e o do Tenor, em https. É o
+ * único anexo que aponta para fora — e é exatamente por isso que a lista é
+ * fechada, em vez de aceitar qualquer URL que o navegador mandar.
+ */
+export function isGifUrl(raw: string): boolean {
+  try {
+    const url = new URL(raw);
+    if (url.protocol !== "https:") return false;
+    const host = url.hostname.toLowerCase();
+    return (
+      /^(media\d*|i)\.giphy\.com$/.test(host) ||
+      host === "media.tenor.com" ||
+      /^c\.tenor\.com$/.test(host)
+    );
+  } catch {
+    return false;
+  }
+}
+
+/** O que a prévia e a notificação dizem de uma mensagem só com anexo. */
+export function attachmentsLabel(attachments: { kind: string; name: string }[]): string {
+  if (attachments.length === 0) return "";
+  const first = attachments[0];
+  const more = attachments.length > 1 ? ` (+${attachments.length - 1})` : "";
+  if (first.kind === "audio") return `Mensagem de voz${more}`;
+  if (first.kind === "gif") return `GIF${more}`;
+  if (first.kind === "imagem") return `Imagem${more}`;
+  if (first.kind === "video") return `Vídeo${more}`;
+  return `Arquivo: ${first.name}${more}`;
+}

@@ -16,6 +16,53 @@ export const ACCEPTED_MIME: Record<string, { ext: string; kind: MediaKind }> = {
   "video/quicktime": { ext: "mov", kind: "video" },
 };
 
+/**
+ * Os anexos da conversa do Inbox: as artes de sempre, mais áudio (o gravado
+ * no próprio campo é `audio/webm` ou `audio/mp4`, conforme o navegador) e os
+ * documentos do dia a dia de agência. **Nada que o navegador execute** —
+ * HTML, SVG, JS ficam de fora, porque o arquivo é servido pelo próprio app.
+ */
+export const ATTACHMENT_MIME: Record<string, { ext: string; kind: MediaKind }> = {
+  ...ACCEPTED_MIME,
+  "video/webm": { ext: "webm", kind: "video" },
+  "audio/webm": { ext: "weba", kind: "audio" },
+  "audio/ogg": { ext: "ogg", kind: "audio" },
+  "audio/mpeg": { ext: "mp3", kind: "audio" },
+  "audio/mp4": { ext: "m4a", kind: "audio" },
+  "audio/x-m4a": { ext: "m4a", kind: "audio" },
+  "audio/wav": { ext: "wav", kind: "audio" },
+  "application/pdf": { ext: "pdf", kind: "file" },
+  "application/zip": { ext: "zip", kind: "file" },
+  "application/x-zip-compressed": { ext: "zip", kind: "file" },
+  "text/plain": { ext: "txt", kind: "file" },
+  "text/csv": { ext: "csv", kind: "file" },
+  "application/msword": { ext: "doc", kind: "file" },
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document": { ext: "docx", kind: "file" },
+  "application/vnd.ms-excel": { ext: "xls", kind: "file" },
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": { ext: "xlsx", kind: "file" },
+  "application/vnd.ms-powerpoint": { ext: "ppt", kind: "file" },
+  "application/vnd.openxmlformats-officedocument.presentationml.presentation": { ext: "pptx", kind: "file" },
+};
+
+/** 20 MB — o teto de um anexo na conversa. */
+export const ATTACHMENT_MAX_BYTES = 20 * 1024 * 1024;
+
+/** Pasta dos anexos dentro do store do Blob (as artes ficam em `media/`). */
+export const BLOB_ATTACHMENT_PREFIX = "anexos/";
+
+/**
+ * O tipo como o navegador manda, sem parâmetros: o gravador diz
+ * `audio/webm;codecs=opus`, e o que importa é `audio/webm`.
+ */
+export function baseMime(mime: string): string {
+  return String(mime ?? "").split(";")[0].trim().toLowerCase();
+}
+
+/** Todo tipo que o app sabe guardar — é daqui que o store tira a extensão. */
+export const ALL_MIME: Record<string, { ext: string; kind: MediaKind }> = {
+  ...ATTACHMENT_MIME,
+};
+
 /** Valor do atributo `accept` do <input type="file">. */
 export const ACCEPT_ATTR = Object.keys(ACCEPTED_MIME).join(",");
 
@@ -54,8 +101,12 @@ export const BLOB_MULTIPART_THRESHOLD = 8 * 1024 * 1024;
  * `addRandomSuffix` que o servidor impõe ao emitir o token, e o id da arte
  * (esse sim aleatório) nasce no servidor, no registro.
  */
-export function blobPathnameFor(name: string, mime: string): string {
-  const { ext } = ACCEPTED_MIME[mime] ?? { ext: "bin" };
+export function blobPathnameFor(
+  name: string,
+  mime: string,
+  prefix: string = BLOB_MEDIA_PREFIX,
+): string {
+  const { ext } = ALL_MIME[baseMime(mime)] ?? { ext: "bin" };
   const base = name
     .replace(/\.[^.]*$/, "")
     .normalize("NFD")
@@ -64,14 +115,47 @@ export function blobPathnameFor(name: string, mime: string): string {
     .replace(/^-+|-+$/g, "")
     .slice(0, 60)
     .toLowerCase();
-  return `${BLOB_MEDIA_PREFIX}${base || "arte"}.${ext}`;
+  return `${prefix}${base || "arte"}.${ext}`;
 }
 
 /** O servidor só aceita registrar (e só emite token para) este formato. */
-export function isMediaBlobPathname(pathname: string): boolean {
-  if (!pathname.startsWith(BLOB_MEDIA_PREFIX)) return false;
-  const rest = pathname.slice(BLOB_MEDIA_PREFIX.length);
+export function isMediaBlobPathname(
+  pathname: string,
+  prefix: string = BLOB_MEDIA_PREFIX,
+): boolean {
+  if (!pathname.startsWith(prefix)) return false;
+  const rest = pathname.slice(prefix.length);
   // Uma pasta só, sem subir nível e sem nome escondido. O sufixo aleatório
   // que o Blob acrescenta ao pathname pode trazer maiúscula.
   return /^[A-Za-z0-9][A-Za-z0-9-]*\.[a-z0-9]{2,4}$/.test(rest);
 }
+
+/**
+ * O que cada porta de upload aceita. As artes do lote e os anexos do Inbox
+ * passam pelo mesmo armazenamento (`media/store.ts`); o que muda é a lista
+ * de tipos, o teto e a pasta no Blob.
+ */
+export type MediaPolicy = {
+  accepted: Record<string, { ext: string; kind: MediaKind }>;
+  maxBytes: number;
+  prefix: string;
+  notAccepted: string;
+  tooBig: string;
+};
+
+export const ART_POLICY: MediaPolicy = {
+  accepted: ACCEPTED_MIME,
+  maxBytes: MAX_UPLOAD_BYTES,
+  prefix: BLOB_MEDIA_PREFIX,
+  notAccepted: "Formato não aceito. Envie PNG, JPG, WebP, GIF, MP4 ou MOV.",
+  tooBig: "Arquivo acima de 50 MB.",
+};
+
+export const ATTACHMENT_POLICY: MediaPolicy = {
+  accepted: ATTACHMENT_MIME,
+  maxBytes: ATTACHMENT_MAX_BYTES,
+  prefix: BLOB_ATTACHMENT_PREFIX,
+  notAccepted:
+    "Esse tipo de arquivo não vai na conversa. Mande imagem, vídeo, áudio, PDF, documento, planilha, apresentação, texto ou ZIP.",
+  tooBig: "Anexo acima de 20 MB.",
+};

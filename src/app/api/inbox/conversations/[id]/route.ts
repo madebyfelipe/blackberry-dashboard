@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getConversation, setMuted, setRead } from "@/lib/inbox/repository";
 import { currentInboxSession } from "@/lib/inbox/viewer";
 import { unauthorized } from "@/lib/auth/session";
+import { markNotifications } from "@/lib/notifications/repository";
 
 export const dynamic = "force-dynamic";
 
@@ -53,6 +54,8 @@ export async function PATCH(req: Request, { params }: Ctx) {
   if (typeof read === "boolean") {
     summary = await setRead(session.scope, session.me.id, id, read);
     if (!summary) return NextResponse.json(NOT_FOUND, { status: 404 });
+    // Ler a conversa é ler os avisos dela (mensagens e menções).
+    if (read) await markNotifications(session.scope, session.me.id, { ref: `conversa:${id}` });
   }
   if (!summary) {
     return NextResponse.json(

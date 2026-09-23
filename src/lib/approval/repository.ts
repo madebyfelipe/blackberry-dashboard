@@ -115,7 +115,7 @@ export async function addPiece(
     const n = batch.pieces.length + 1;
     const format =
       media?.width && media?.height
-        ? formatFromDimensions(media.width, media.height, media.kind)
+        ? formatFromDimensions(media.width, media.height, media.kind === "video" ? "video" : "image")
         : "feed";
     const meta = PIECE_FORMATS.find((f) => f.id === format) ?? PIECE_FORMATS[0];
     const piece: Piece = {
@@ -184,7 +184,7 @@ export async function addPieceMedia(
 
     if (wasEmpty && media.width && media.height) {
       piece.size = sizeFromDimensions(media.width, media.height);
-      const format = formatFromDimensions(media.width, media.height, media.kind);
+      const format = formatFromDimensions(media.width, media.height, media.kind === "video" ? "video" : "image");
       piece.format = format;
       const meta = PIECE_FORMATS.find((f) => f.id === format);
       if (meta) piece.kind = meta.label;

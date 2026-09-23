@@ -15,14 +15,18 @@ import {
   apiAddMember,
   apiConversation,
   apiCreateGroup,
+  apiDeleteMessage,
+  apiEditMessage,
   apiInbox,
   apiOpenDirect,
   apiPatchConversation,
   apiSendMessage,
   type InboxSnapshot,
+  type OutgoingExtra,
 } from "./api";
 import { useCall } from "./CallProvider";
 import { ChatPane } from "./ChatPane";
+import { setOpenConversation } from "./InboxNotifier";
 import { ConversationList } from "./ConversationList";
 
 /*
@@ -56,9 +60,12 @@ export function InboxView({
   snapshot,
   initialConversation,
   live = false,
+  blobUploads = false,
 }: {
   snapshot: InboxSnapshot;
   initialConversation: ConversationDetail | null;
+  /** O Blob está configurado: anexos sobem direto do navegador para o store. */
+  blobUploads?: boolean;
   /**
    * O tempo real está configurado. Aí a presença gravada não aparece nem por
    * um instante: ela era o status do seed ("Marina disponível"), que piscava
@@ -92,6 +99,12 @@ export function InboxView({
 
   const openIdRef = useRef(openId);
   openIdRef.current = openId;
+
+  // O notificador do shell não avisa a conversa que está aberta aqui (com a janela em foco).
+  useEffect(() => {
+    setOpenConversation(openId);
+    return () => setOpenConversation(null);
+  }, [openId]);
 
   /*
    * Clique numa notificação com o Inbox já aberto: a página chega com outra
@@ -175,7 +188,11 @@ export function InboxView({
          * lida — deixar o badge subir enquanto a pessoa lê seria contar
          * mensagem que ela está vendo.
          */
-        if (updated.unread > 0) {
+        /*
+         * Só com a janela em foco: minimizada (ou na bandeja do desktop),
+         * ninguém está lendo — e dar por lida apagaria o aviso e o número.
+         */
+        if (updated.unread > 0 && document.hasFocus()) {
           await apiPatchConversation(id, { read: true });
           setState((s) => ({
             ...s,
@@ -336,7 +353,7 @@ export function InboxView({
     }
   }
 
-  async function send(text: string) {
+  async function send(text: string, extra: OutgoingExtra = {}) {
     const id = detail?.id;
     if (!id) return;
 
@@ -351,11 +368,31 @@ export function InboxView({
       text,
       createdAt: new Date().toISOString(),
       kind: "texto",
+      attachments: [
+        ...(extra.attachments ?? []),
+        ...(extra.gif
+          ? [
+              {
+                id: `gif-${extra.gif.id}`,
+                kind: "gif" as const,
+                url: extra.gif.url,
+                name: extra.gif.title,
+                mime: "image/gif",
+                size: 0,
+                width: extra.gif.width,
+                height: extra.gif.height,
+              },
+            ]
+          : []),
+      ],
+      replyToId: extra.replyToId ?? null,
+      editedAt: null,
+      deletedAt: null,
     };
     setDetail((d) => (d ? { ...d, messages: [...d.messages, pending] } : d));
     setSending(true);
     try {
-      const updated = await apiSendMessage(id, text);
+      const updated = await apiSendMessage(id, text, extra);
       setDetail((d) => (d?.id === updated.id ? updated : d));
       void refresh();
     } catch (err) {
@@ -365,6 +402,47 @@ export function InboxView({
       fail(err);
     } finally {
       setSending(false);
+    }
+  }
+
+  /** Edita a própria mensagem (até 10 min). Erro volta para quem chamou manter a edição aberta. */
+  async function editMessage(message: Message, text: string) {
+    const id = detail?.id;
+    if (!id) return;
+    try {
+      const updated = await apiEditMessage(id, message.id, text);
+      setDetail((d) => (d?.id === updated.id ? updated : d));
+      void refresh();
+    } catch (err) {
+      fail(err);
+      throw err;
+    }
+  }
+
+  /** Apaga a própria mensagem (até 10 min): some da tela na hora, volta se o servidor recusar. */
+  async function deleteMessage(message: Message) {
+    const id = detail?.id;
+    if (!id) return;
+    const before = detail;
+    setDetail((d) =>
+      d
+        ? {
+            ...d,
+            messages: d.messages.map((m) =>
+              m.id === message.id
+                ? { ...m, text: "", attachments: [], deletedAt: new Date().toISOString() }
+                : m,
+            ),
+          }
+        : d,
+    );
+    try {
+      const updated = await apiDeleteMessage(id, message.id);
+      setDetail((d) => (d?.id === updated.id ? updated : d));
+      void refresh();
+    } catch (err) {
+      setDetail((d) => (d?.id === before?.id ? before : d));
+      fail(err);
     }
   }
 
@@ -450,7 +528,11 @@ export function InboxView({
           me={state.me}
           sending={sending}
           emChamada={call.activeId === detail.id}
+          blobUploads={blobUploads}
           onSend={send}
+          onEditMessage={editMessage}
+          onDeleteMessage={deleteMessage}
+          onError={(message) => toast(message, "error")}
           onStartCall={(withScreen) => {
             if (call.activeId && call.activeId !== detail.id) {
               toast("Encerre a chamada em andamento antes de começar outra.", "info");

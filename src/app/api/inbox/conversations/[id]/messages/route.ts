@@ -1,6 +1,10 @@
 import { NextResponse } from "next/server";
-import { ValidationError, sendMessage } from "@/lib/inbox/repository";
+import { ValidationError, conversationAudience, sendMessage } from "@/lib/inbox/repository";
+import { AttachmentError, resolveAttachments } from "@/lib/inbox/attachments";
+import { claimAttachments } from "@/lib/media/store";
+import { attachmentsLabel } from "@/lib/inbox/constants";
 import { currentInboxSession } from "@/lib/inbox/viewer";
+import { notifyMessage } from "@/lib/notifications/dispatch";
 import { publishToConversation } from "@/lib/realtime/server";
 import { unauthorized } from "@/lib/auth/session";
 
@@ -9,8 +13,9 @@ export const dynamic = "force-dynamic";
 type Ctx = { params: Promise<{ id: string }> };
 
 /**
- * Manda a mensagem. Quem escreveu sai da sessão — o corpo manda só o texto,
- * como o comentário da tarefa.
+ * Manda a mensagem. Quem escreveu sai da sessão — o corpo manda o texto e,
+ * se houver, os anexos (ids do que acabou de subir, ou o GIF escolhido) e a
+ * mensagem que ela responde.
  */
 export async function POST(req: Request, { params }: Ctx) {
   const session = await currentInboxSession();
@@ -23,14 +28,17 @@ export async function POST(req: Request, { params }: Ctx) {
   } catch {
     return NextResponse.json({ error: "JSON inválido." }, { status: 400 });
   }
-  const { text } = (body ?? {}) as Record<string, unknown>;
+  const { text, attachmentIds, gif, replyToId } = (body ?? {}) as Record<string, unknown>;
 
   try {
+    const owner = { agencyId: session.scope.agencyId, uploaderId: session.me.id, conversationId: id };
+    const attachments = await resolveAttachments({ attachmentIds, gif }, owner);
     const conversation = await sendMessage(
       session.scope,
       session.me.id,
       id,
       String(text ?? ""),
+      { attachments, replyToId: typeof replyToId === "string" ? replyToId : null },
     );
     if (!conversation) {
       return NextResponse.json(
@@ -38,6 +46,15 @@ export async function POST(req: Request, { params }: Ctx) {
         { status: 404 },
       );
     }
+    const sent = conversation.messages[conversation.messages.length - 1];
+    // O anexo fica preso a esta mensagem: não vai em outra.
+    await claimAttachments(
+      attachments.filter((a) => a.kind !== "gif").map((a) => a.id),
+      owner,
+      sent.id,
+    );
+    const said = String(text ?? "").trim() || attachmentsLabel(attachments);
+    const group = conversation.kind === "grupo" ? conversation.title : "";
     /*
      * Avisa quem está com a conversa aberta. Depois da gravação, nunca no
      * lugar dela: o evento é só um empurrão ("tem coisa nova aqui"), e quem
@@ -50,12 +67,23 @@ export async function POST(req: Request, { params }: Ctx) {
       conversationId: id,
       // O bastante para a notificação de quem não está com a conversa aberta.
       from: { id: session.me.id, name: session.me.name },
-      group: conversation.kind === "grupo" ? conversation.title : "",
-      preview: String(text ?? "").trim().slice(0, 140),
+      group,
+      preview: said.slice(0, 140),
     });
+    // E a lista de Notificações de cada um (menção, ou "mensagem nova").
+    const audience = await conversationAudience(session.scope, session.me.id, id);
+    if (audience) {
+      await notifyMessage(
+        session.scope,
+        { id: session.me.id, name: session.me.name },
+        { id, kind: conversation.kind, group, ...audience },
+        said,
+        sent.id,
+      );
+    }
     return NextResponse.json({ conversation }, { status: 201 });
   } catch (err) {
-    if (err instanceof ValidationError) {
+    if (err instanceof ValidationError || err instanceof AttachmentError) {
       return NextResponse.json({ error: err.message }, { status: 422 });
     }
     throw err;

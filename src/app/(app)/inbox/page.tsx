@@ -50,6 +50,7 @@ export default async function InboxPage({
       snapshot={{ me: session.me, members, conversations }}
       initialConversation={initial ?? null}
       live={await ablyReady()}
+      blobUploads={Boolean(process.env.BLOB_READ_WRITE_TOKEN)}
     />
   );
 }
