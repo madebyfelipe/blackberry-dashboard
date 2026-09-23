@@ -94,6 +94,11 @@ export async function registerUser(input: NewUser): Promise<PublicUser> {
   });
 }
 
+/** O nome de uma agência, pelo de quem já tem conta nela. */
+export async function agencyNameOf(agencyId: string): Promise<string | undefined> {
+  return (await read()).find((u) => u.agencyId === agencyId)?.agency;
+}
+
 /**
  * Login. A mensagem de erro é a mesma para e-mail inexistente e senha errada —
  * não entrega quais e-mails existem na base.

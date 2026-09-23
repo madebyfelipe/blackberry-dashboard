@@ -1,4 +1,5 @@
 import { notFound, redirect } from "next/navigation";
+import { redirectWithoutScope } from "@/lib/auth/session";
 import { getBatch } from "@/lib/approval/repository";
 import { slugify } from "@/lib/approval/clients";
 import { currentAgencyScope } from "@/lib/auth/session";
@@ -13,7 +14,7 @@ export default async function LotePage({
 }) {
   const { cliente, lote } = await params;
   const scope = await currentAgencyScope();
-  if (!scope) redirect("/login?sessao=encerrada");
+  if (!scope) return redirectWithoutScope();
   // Lote de outra agência cai no mesmo 404 de um lote que não existe.
   const batch = await getBatch(scope, lote);
   if (!batch) {

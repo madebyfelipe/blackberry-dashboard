@@ -8,7 +8,7 @@ import { canManageTeam } from "@/lib/inbox/users";
  */
 export type UserRow = Pick<
   InboxMember,
-  "id" | "name" | "email" | "handle" | "role" | "status" | "lastSeenAt" | "createdAt"
+  "id" | "name" | "email" | "handle" | "role" | "status" | "lastSeenAt" | "createdAt" | "joinRequest"
 > & {
   /** `/criar-conta?convite=…` — só para Admin e Gerente, só em convite pendente. */
   invitePath: string | null;
@@ -24,6 +24,7 @@ export function toUserRow(m: InboxMember, viewer: Pick<InboxMember, "role">): Us
     status: m.status,
     lastSeenAt: m.lastSeenAt,
     createdAt: m.createdAt,
+    joinRequest: m.joinRequest,
     invitePath:
       m.status === "convite" && m.invite && canManageTeam(viewer)
         ? `/criar-conta?convite=${m.invite.token}`

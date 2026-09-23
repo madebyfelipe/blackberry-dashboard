@@ -1,8 +1,10 @@
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
+import { redirect } from "next/navigation";
 import { agencyScope } from "@/lib/agency/id";
 import type { AgencyScope } from "@/lib/agency/types";
 import { getPasswordVersion, getUserForSession } from "./repository";
+import { memberAccess } from "@/lib/inbox/repository";
 import { SESSION_COOKIE, SESSION_MAX_AGE, readSession, signSession } from "./token";
 import type { PublicUser } from "./types";
 
@@ -78,13 +80,38 @@ export type AgencySession = { user: PublicUser; scope: AgencyScope };
  */
 export async function requireAgency(): Promise<AgencySession | null> {
   const user = await currentUser();
-  return user ? { user, scope: agencyScope(user) } : null;
+  if (!user || (await accessOf(user)) !== "ok") return null;
+  return { user, scope: agencyScope(user) };
 }
 
 /** O mesmo escopo, para as telas do shell (Server Components). */
 export async function currentAgencyScope(): Promise<AgencyScope | undefined> {
   const user = await currentUser();
-  return user && agencyScope(user);
+  if (!user || (await accessOf(user)) !== "ok") return undefined;
+  return agencyScope(user);
+}
+
+/**
+ * Se a conta pode usar a agência agora (ver `memberAccess`): arquivado perde
+ * o acesso, e quem chegou pelo convite automático do domínio espera
+ * aprovação. O layout usa isto para mostrar a tela certa; as duas funções
+ * acima, para não devolver escopo a quem não pode.
+ */
+export async function accessOf(user: PublicUser): Promise<"ok" | "aguardando" | "bloqueado"> {
+  return memberAccess(agencyScope(user).agencyId, user.email);
+}
+
+/**
+ * Para onde vai uma tela do shell que ficou sem escopo. Quem tem conta mas
+ * não pode entrar (arquivado, ou pedido de entrada esperando aprovação) vai
+ * para `/acesso`, que explica; sem conta, volta ao login como sempre. Sem
+ * essa divisão, o pedido pelo domínio caía no login com a sessão apagada e
+ * nunca via a tela de espera.
+ */
+export async function redirectWithoutScope(): Promise<never> {
+  const user = await currentUser();
+  if (user && (await accessOf(user)) !== "ok") redirect("/acesso");
+  redirect("/login?sessao=encerrada");
 }
 
 /** Resposta padrão para quem chamou a API sem sessão. */

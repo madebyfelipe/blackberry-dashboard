@@ -3,6 +3,7 @@ import { agencyIdOrLegacy } from "@/lib/agency/id";
 import { isPresence } from "./constants";
 import { handleProblem, normalizeHandle, suggestHandle } from "./handle";
 import { isMemberRole, isMemberStatus } from "./users";
+import { normalizeDomain } from "./domain";
 import { seedInbox } from "./seed";
 import type { Conversation, InboxData, InboxMember, Message } from "./types";
 
@@ -39,6 +40,7 @@ function normalizeMember(raw: Partial<InboxMember> & { id: string }): InboxMembe
             invitedBy: String(raw.invite.invitedBy ?? ""),
           }
         : null,
+    joinRequest: raw.joinRequest === true,
   };
 }
 
@@ -151,6 +153,20 @@ function settleAdmins(members: InboxMember[]): InboxMember[] {
   );
 }
 
+function normalizeSettings(raw: unknown): InboxData["settings"] {
+  if (!raw || typeof raw !== "object") return {};
+  const out: InboxData["settings"] = {};
+  for (const [agencyId, value] of Object.entries(raw as Record<string, unknown>)) {
+    const v = (value ?? {}) as { domain?: unknown; domainRole?: unknown };
+    const domain = typeof v.domain === "string" ? normalizeDomain(v.domain) : "";
+    out[agencyId] = {
+      domain: domain || null,
+      domainRole: isMemberRole(v.domainRole) ? v.domainRole : "editor",
+    };
+  }
+  return out;
+}
+
 /**
  * Migração de leitura, como nos outros stores: arquivo gravado antes de um
  * campo continua válido, e o que faltar entra com o padrão. Arquivo de uma
@@ -168,6 +184,7 @@ function revive(raw: unknown): InboxData {
     conversations: (Array.isArray(data.conversations) ? data.conversations : [])
       .filter((c): c is Conversation => !!c && typeof c === "object" && !!c.id)
       .map(normalizeConversation),
+    settings: normalizeSettings(data.settings),
   };
 }
 

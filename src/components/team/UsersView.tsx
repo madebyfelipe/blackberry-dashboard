@@ -26,7 +26,7 @@ import { useColumnWidths } from "@/components/ui/useColumnWidths";
 import { tableMinWidth, type ColumnSpec } from "@/lib/ui/columns";
 import { initialsOf } from "@/components/ui/Mark";
 import { formatShortDate } from "@/lib/format";
-import type { MemberRole, MemberStatus } from "@/lib/inbox/types";
+import type { MemberRole, MemberStatus, TeamSettings } from "@/lib/inbox/types";
 import {
   MEMBER_ROLES,
   MEMBER_STATUSES,
@@ -88,11 +88,17 @@ export function UsersView({
   initialUsers,
   meId,
   canManage,
+  initialSettings,
+  myEmail,
 }: {
   initialUsers: UserRow[];
   meId: string;
   canManage: boolean;
+  initialSettings: TeamSettings;
+  myEmail: string;
 }) {
+  const [settings, setSettings] = useState(initialSettings);
+  const [domainOpen, setDomainOpen] = useState(false);
   const { toast } = useToast();
   const [users, setUsers] = useState(initialUsers);
   const [tab, setTab] = useState<Tab>("todos");
@@ -117,6 +123,7 @@ export function UsersView({
   const selectedVisible = visibleIds.filter((id) => selected.has(id));
 
   const countOf = (s: MemberStatus) => users.filter((u) => u.status === s).length;
+  const requests = users.filter((u) => u.joinRequest);
 
   function replace(user: UserRow) {
     setUsers((all) => all.map((u) => (u.id === user.id ? user : u)));
@@ -201,7 +208,7 @@ export function UsersView({
         actions={
           <>
             <ScreenAction onClick={guard(() => setModal({ mode: "create" }))}>Adicionar usuário</ScreenAction>
-            <ScreenIconAction label="Mais ações" onClick={() => soon("Mais ações")}>
+            <ScreenIconAction label="Domínio da agência" onClick={guard(() => setDomainOpen(true))}>
               <EllipsisIcon size={16} />
             </ScreenIconAction>
           </>
@@ -218,6 +225,23 @@ export function UsersView({
           overflowLabel="Mais status"
         />
       </ScreenHeader>
+
+      {requests.length > 0 && canManage && (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-tile border border-border bg-surface-2 px-4 py-3">
+          <p className="text-[13px] text-fg-soft">
+            {requests.length === 1
+              ? `${requests[0].name} pediu para entrar pelo domínio @${settings.domain ?? "—"}.`
+              : `${requests.length} pessoas pediram para entrar pelo domínio @${settings.domain ?? "—"}.`}
+          </p>
+          <button
+            type="button"
+            onClick={() => setTab("convite")}
+            className="tap rounded-mark bg-primary px-3.5 py-1.5 text-[12px] font-semibold text-on-primary hover:bg-white"
+          >
+            Revisar
+          </button>
+        </div>
+      )}
 
       <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden rounded-card">
         <Toolbar
@@ -351,6 +375,8 @@ export function UsersView({
                     ),
                   )}
                   onDelete={guard(() => void remove(u))}
+                  onApprove={guard(() => void patch(u, { status: "ativo" }, `${u.name} entrou no time.`))}
+                  onReject={guard(() => void patch(u, { status: "arquivado" }, `Pedido de ${u.name} recusado.`))}
                   anchor={menu!.anchor}
                   onClose={() => setMenu(null)}
                 />
@@ -413,6 +439,19 @@ export function UsersView({
           ]}
         />
       </div>
+
+      {domainOpen && (
+        <DomainDialog
+          settings={settings}
+          myEmail={myEmail}
+          onClose={() => setDomainOpen(false)}
+          onSaved={(s) => {
+            setSettings(s);
+            setDomainOpen(false);
+          }}
+          call={call}
+        />
+      )}
 
       {modal && (
         <UserModal
@@ -487,7 +526,9 @@ function UsersTable({
 
         <TableBody>
           {users.map((u, i) => {
-            const status = STATUS_BY_ID[u.status];
+            const status = u.joinRequest
+              ? { ...STATUS_BY_ID.convite, label: "Pediu para entrar" }
+              : STATUS_BY_ID[u.status];
             return (
               <TableRow key={u.id} index={i} selected={selected.has(u.id)} onClick={() => onOpen(u)}>
                 <Checkbox
@@ -564,10 +605,14 @@ function RowMenu({
   onArchive,
   onToggleActive,
   onDelete,
+  onApprove,
+  onReject,
   anchor,
   onClose,
 }: {
   user: UserRow;
+  onApprove: () => void;
+  onReject: () => void;
   anchor: DOMRect;
   isMe: boolean;
   onEdit: () => void;
@@ -611,8 +656,15 @@ function RowMenu({
         style={pos ? { top: pos.top, left: pos.left } : { top: 0, left: 0, visibility: "hidden" }}
         className="fixed z-[61] flex w-[238px] animate-pop-in flex-col gap-0.5 rounded-nav border border-border bg-overlay p-1.5 shadow-[0_12px_32px_rgba(0,0,0,0.6)]"
       >
+        {user.joinRequest && (
+          <>
+            <Item icon={<CheckIcon size={15} />} label="Aprovar entrada" onClick={run(onApprove)} />
+            <Item icon={<XIcon size={15} />} label="Recusar" danger onClick={run(onReject)} />
+            <div className="my-1 h-px bg-divider" />
+          </>
+        )}
         <Item icon={<PencilIcon size={15} />} label="Editar" onClick={run(onEdit)} />
-        {invite ? (
+        {user.joinRequest ? null : invite ? (
           <>
             <Item icon={<CopyIcon size={15} />} label="Copiar link do convite" onClick={run(onCopy)} />
             <Item icon={<MailIcon size={15} />} label="Reenviar acesso" onClick={run(onResend)} />
@@ -638,7 +690,7 @@ function RowMenu({
             />
           </>
         )}
-        {invite && (
+        {invite && !user.joinRequest && (
           <>
             <div className="my-1 h-px bg-divider" />
             <Item icon={<TrashIcon size={15} />} label="Excluir" danger onClick={run(onDelete)} />
@@ -851,6 +903,133 @@ function UserModal({
           </form>
         )}
       </div>
+    </div>
+  );
+}
+
+/* ================================================== domínio da agência */
+
+function DomainDialog({
+  settings,
+  myEmail,
+  onClose,
+  onSaved,
+  call,
+}: {
+  settings: TeamSettings;
+  myEmail: string;
+  onClose: () => void;
+  onSaved: (s: TeamSettings) => void;
+  call: <T>(url: string, init: RequestInit) => Promise<T>;
+}) {
+  const { toast } = useToast();
+  const suggested = myEmail.includes("@") ? myEmail.split("@").pop()! : "";
+  const [on, setOn] = useState(!!settings.domain);
+  const [domain, setDomain] = useState(settings.domain ?? suggested);
+  const [role, setRole] = useState<MemberRole>(settings.domainRole);
+  const [saving, setSaving] = useState(false);
+
+  async function submit(e: React.FormEvent) {
+    e.preventDefault();
+    setSaving(true);
+    try {
+      const data = await call<{ settings: TeamSettings }>("/api/users/ajustes", {
+        method: "PATCH",
+        body: JSON.stringify({ domain: on ? domain : null, domainRole: role }),
+      });
+      onSaved(data.settings);
+      toast(data.settings.domain ? `Convite automático ligado para @${data.settings.domain}.` : "Convite automático desligado.");
+    } catch (err) {
+      toast(err instanceof Error ? err.message : "Não foi possível salvar.", "error");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div role="dialog" aria-modal="true" aria-label="Domínio da agência" className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div className="absolute inset-0 animate-fade-in bg-black/70 backdrop-blur-[2px]" onClick={onClose} />
+      <form
+        onSubmit={submit}
+        className="relative flex w-full max-w-[440px] animate-scale-in flex-col gap-5 rounded-card border border-border bg-surface p-6 shadow-[0_24px_64px_rgba(0,0,0,0.65)]"
+      >
+        <header className="flex items-start justify-between gap-3">
+          <div className="flex flex-col gap-1">
+            <h2 className="text-[16px] font-semibold text-fg">Domínio da agência</h2>
+            <p className="text-[12px] leading-[18px] text-muted">
+              Quem criar conta com um e-mail deste domínio ganha um convite automático para o time. A
+              entrada espera a aprovação de um Admin ou Gerente — o black berry ainda não confirma
+              e-mail, e é essa aprovação que garante que a pessoa é mesmo da casa.
+            </p>
+          </div>
+          <button type="button" aria-label="Fechar" onClick={onClose} className="text-muted hover:text-fg-soft">
+            <XIcon size={16} />
+          </button>
+        </header>
+
+        <button
+          type="button"
+          role="switch"
+          aria-checked={on}
+          onClick={() => setOn((v) => !v)}
+          className="flex items-center justify-between rounded-field bg-surface-2 px-4 py-3 text-left inset-ring-1 inset-ring-border"
+        >
+          <span className="text-[13px] text-fg-soft">Convite automático pelo domínio</span>
+          <span className={cn("flex h-5 w-[34px] items-center rounded-pill px-0.5", on ? "justify-end bg-primary" : "justify-start bg-border")}>
+            <span className={cn("h-4 w-4 rounded-full", on ? "bg-surface" : "bg-muted")} />
+          </span>
+        </button>
+
+        {on && (
+          <>
+            <label className="flex flex-col gap-2">
+              <span className="text-[12px] font-medium text-fg-3">Domínio</span>
+              <div className="relative">
+                <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-[14px] text-muted">@</span>
+                <input
+                  value={domain}
+                  onChange={(e) => setDomain(e.target.value.replace(/^@+/, "").toLowerCase())}
+                  placeholder="estudionorte.com"
+                  className="w-full rounded-field bg-surface-2 py-2.5 pl-8 pr-4 text-[14px] text-fg-soft placeholder:text-placeholder inset-ring-1 inset-ring-border focus:outline-none focus:inset-ring-border-strong"
+                />
+              </div>
+              <span className="text-[11px] text-dim">Precisa ser o domínio do seu próprio e-mail. E-mail pessoal (Gmail, Outlook…) não vale.</span>
+            </label>
+            <fieldset className="flex flex-col gap-2">
+              <legend className="pb-2 text-[12px] font-medium text-fg-3">Entram como</legend>
+              <div className="flex flex-wrap gap-1.5">
+                {MEMBER_ROLES.map((r) => (
+                  <button
+                    key={r.id}
+                    type="button"
+                    aria-pressed={role === r.id}
+                    onClick={() => setRole(r.id)}
+                    className={cn(
+                      "rounded-pill px-3 py-1.5 text-[12px] font-medium transition-colors",
+                      role === r.id ? "bg-primary text-on-primary" : "bg-surface-2 text-fg-3 hover:text-fg-soft",
+                    )}
+                  >
+                    {r.label}
+                  </button>
+                ))}
+              </div>
+            </fieldset>
+          </>
+        )}
+
+        <div className="flex justify-end gap-2">
+          <button type="button" onClick={onClose} className="tap rounded-field px-4 py-2.5 text-[13px] font-medium text-fg-3 hover:text-fg-soft">
+            Cancelar
+          </button>
+          <button
+            type="submit"
+            disabled={saving}
+            className="tap rounded-field bg-primary px-4 py-2.5 text-[13px] font-medium text-on-primary hover:bg-white disabled:opacity-50"
+          >
+            {saving ? "Salvando…" : "Salvar"}
+          </button>
+        </div>
+      </form>
     </div>
   );
 }

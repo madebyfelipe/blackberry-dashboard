@@ -64,6 +64,20 @@ export type InboxMember = {
    * some quando ela entra.
    */
   invite: { token: string; agencyName: string; invitedBy: string } | null;
+  /**
+   * Chegou pelo domínio da agência (convite automático) e espera aprovação.
+   * Enquanto `true`, a conta existe mas não enxerga nada da agência — ver
+   * `memberAccess` e `lib/inbox/domain.ts`.
+   */
+  joinRequest: boolean;
+};
+
+/** Ajustes do time de uma agência — hoje, o domínio do convite automático. */
+export type TeamSettings = {
+  /** "estudionorte.com" — `null` desliga o convite automático. */
+  domain: string | null;
+  /** A função com que o pedido entra quando aprovado. */
+  domainRole: MemberRole;
 };
 
 /**
@@ -125,6 +139,8 @@ export type Conversation = {
 export type InboxData = {
   members: InboxMember[];
   conversations: Conversation[];
+  /** Por agência (`agencyId` → ajustes). */
+  settings: Record<string, TeamSettings>;
 };
 
 /**

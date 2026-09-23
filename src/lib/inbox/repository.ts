@@ -2,6 +2,7 @@ import type { AgencyScope } from "@/lib/agency/types";
 import { MESSAGE_MAX, isPresence } from "./constants";
 import { handleProblem, normalizeHandle, suggestHandle } from "./handle";
 import { canManageTeam, isMemberRole, isMemberStatus } from "./users";
+import { domainProblem, emailDomain, normalizeDomain } from "./domain";
 import { read, transaction } from "./store";
 import type {
   Conversation,
@@ -12,6 +13,7 @@ import type {
   MemberRole,
   MemberStatus,
   Message,
+  TeamSettings,
   Presence,
 } from "./types";
 import {
@@ -123,8 +125,9 @@ export async function ensureMember(
       // A pessoa trocou o nome em Configurações: a conversa acompanha.
       member.name = name;
       member.lastSeenAt = stamp;
-      // O convite vira gente: a primeira entrada é o aceite.
-      if (member.status === "convite") {
+      // O convite vira gente: a primeira entrada é o aceite. O pedido pelo
+      // domínio, não — ele espera um Admin aprovar.
+      if (member.status === "convite" && !member.joinRequest) {
         member.status = "ativo";
         member.invite = null;
       }
@@ -145,6 +148,7 @@ export async function ensureMember(
       lastSeenAt: stamp,
       createdAt: stamp,
       invite: null,
+      joinRequest: false,
     };
     data.members.push(created);
     return { ...created };
@@ -213,6 +217,7 @@ export async function inviteMember(
         agencyName: scope.agencyName,
         invitedBy: inviter?.name ?? "",
       },
+      joinRequest: false,
     };
     data.members.push(created);
     return { ...created };
@@ -252,7 +257,15 @@ export async function updateMember(
     if (id === viewerId && patch.role !== undefined && !canManageTeam({ role: patch.role })) {
       throw new ValidationError("Você não pode tirar de si mesmo a administração do time.");
     }
-    if (patch.status !== undefined && patch.status !== m.status) {
+    if (m.joinRequest && patch.status !== undefined) {
+      // O pedido pelo domínio: aprovar (ativo) ou recusar (arquivado).
+      if (patch.status !== "ativo" && patch.status !== "arquivado") {
+        throw new ValidationError("Um pedido de entrada é aprovado ou recusado.");
+      }
+      m.status = patch.status;
+      m.joinRequest = false;
+      if (patch.status === "ativo") m.lastSeenAt = m.lastSeenAt ?? null;
+    } else if (patch.status !== undefined && patch.status !== m.status) {
       if (m.status === "convite") {
         throw new ValidationError("Convite pendente vira ativo quando a pessoa cria a conta — ou é excluído.");
       }
@@ -284,6 +297,10 @@ export async function deleteMember(
     if (data.members[i].status !== "convite") {
       throw new ValidationError("Só convite pendente pode ser excluído. Quem já trabalhou no time é arquivado.");
     }
+    if (data.members[i].joinRequest) {
+      // A conta já existe dentro da agência: sem o membro, ela entraria direto.
+      throw new ValidationError("Pedido de entrada se recusa (fica arquivado) — não se exclui.");
+    }
     data.members.splice(i, 1);
     return true;
   });
@@ -305,6 +322,117 @@ export async function renewInvite(
     m.invite = { ...m.invite, token: newInviteToken() };
     return { ...m };
   });
+}
+
+/* ------------------------------------------------ domínio e acesso */
+
+const DEFAULT_SETTINGS: TeamSettings = { domain: null, domainRole: "editor" };
+
+export async function getTeamSettings(scope: AgencyScope): Promise<TeamSettings> {
+  return (await read()).settings[scope.agencyId] ?? DEFAULT_SETTINGS;
+}
+
+/**
+ * Liga, troca ou desliga o domínio do convite automático. Só Admin e Gerente,
+ * e só um domínio do próprio e-mail de quem configura (ver `domainProblem`).
+ */
+export async function setTeamDomain(
+  scope: AgencyScope,
+  viewerId: string,
+  input: { domain: string | null; domainRole?: MemberRole },
+): Promise<TeamSettings> {
+  return transaction((data) => {
+    assertManager(data, scope, viewerId);
+    const viewer = membersOf(data, scope).find((m) => m.id === viewerId)!;
+    const current = data.settings[scope.agencyId] ?? DEFAULT_SETTINGS;
+    let domain: string | null = null;
+    if (input.domain) {
+      domain = normalizeDomain(input.domain);
+      const problem = domainProblem(domain, viewer.email);
+      if (problem) throw new ValidationError(problem);
+      const taken = Object.entries(data.settings).some(
+        ([agencyId, s]) => agencyId !== scope.agencyId && s.domain === domain,
+      );
+      if (taken) throw new ValidationError(`${domain} já é o domínio de outra agência.`);
+    }
+    const role = input.domainRole ?? current.domainRole;
+    if (!isMemberRole(role)) throw new ValidationError("Função inválida.");
+    const next: TeamSettings = { domain, domainRole: role };
+    data.settings[scope.agencyId] = next;
+    return { ...next };
+  });
+}
+
+/**
+ * A agência dona de um domínio — o cadastro sem convite usa isto para achar
+ * o time de quem chega com e-mail da casa. Roda sem sessão, como `findInvite`.
+ */
+export async function agencyForEmail(
+  email: string,
+): Promise<{ agencyId: InboxMember["agencyId"]; agencyName: string } | undefined> {
+  const domain = emailDomain(email);
+  if (!domain) return undefined;
+  const data = await read();
+  const entry = Object.entries(data.settings).find(([, s]) => s.domain === domain);
+  if (!entry) return undefined;
+  const agencyId = entry[0] as InboxMember["agencyId"];
+  // O nome da agência: o de qualquer convite gravado, ou o próprio id.
+  const invite = data.members.find((m) => m.agencyId === agencyId && m.invite)?.invite;
+  return { agencyId, agencyName: invite?.agencyName ?? "" };
+}
+
+/**
+ * O pedido de entrada de quem se cadastrou com o domínio da agência: a
+ * pessoa vira membro "convite pendente", marcada como pedido, com a função
+ * padrão do domínio. Só enxerga a agência depois que alguém aprova.
+ */
+export async function requestJoin(
+  agencyId: InboxMember["agencyId"],
+  user: { name: string; email: string },
+): Promise<InboxMember> {
+  const email = user.email.trim().toLowerCase();
+  const name = user.name.trim() || "—";
+  return transaction((data) => {
+    const members = data.members.filter((m) => m.agencyId === agencyId);
+    const existing = members.find((m) => m.email === email);
+    if (existing) return { ...existing };
+    let id = memberIdFromEmail(email);
+    while (data.members.some((m) => m.id === id)) id = `${id}-${Math.random().toString(36).slice(2, 5)}`;
+    const created: InboxMember = {
+      id,
+      agencyId,
+      name,
+      email,
+      handle: suggestHandle(name, members.map((m) => m.handle)),
+      presence: "offline",
+      role: data.settings[agencyId]?.domainRole ?? "editor",
+      status: "convite",
+      lastSeenAt: null,
+      createdAt: new Date().toISOString(),
+      invite: null,
+      joinRequest: true,
+    };
+    data.members.push(created);
+    return { ...created };
+  });
+}
+
+/**
+ * Se a conta pode usar a agência agora. É a trava de `requireAgency`:
+ * arquivado não entra mais (arquivar é tirar o acesso), e o pedido pelo
+ * domínio espera aprovação. Quem ainda não é membro entra — é o primeiro
+ * acesso, e `ensureMember` o registra.
+ */
+export async function memberAccess(
+  agencyId: InboxMember["agencyId"],
+  email: string,
+): Promise<"ok" | "aguardando" | "bloqueado"> {
+  const e = email.trim().toLowerCase();
+  const m = (await read()).members.find((x) => x.agencyId === agencyId && x.email === e);
+  if (!m) return "ok";
+  if (m.status === "arquivado") return "bloqueado";
+  if (m.joinRequest) return "aguardando";
+  return "ok";
 }
 
 /**
