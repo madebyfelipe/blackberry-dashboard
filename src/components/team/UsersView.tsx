@@ -12,6 +12,7 @@ import { SelectionBar } from "@/components/ui/SelectionBar";
 import { Popover } from "@/components/ui/Popover";
 import { useToast } from "@/components/ui/Toast";
 import { Spinner } from "@/components/ui/Spinner";
+import { ModalShell, chipState, modalBodyInput, modalChip, modalPrimary, modalTitleInput } from "@/components/ui/ModalShell";
 import {
   Cell,
   Checkbox,
@@ -756,8 +757,8 @@ function UserModal({
   const [saving, setSaving] = useState(false);
   const [created, setCreated] = useState<UserRow | null>(null);
 
-  async function submit(e: React.FormEvent) {
-    e.preventDefault();
+  async function submit() {
+    if (saving || !name.trim() || (!editing && !email.trim())) return;
     setSaving(true);
     try {
       if (editing) {
@@ -783,127 +784,101 @@ function UserModal({
     }
   }
 
-  return (
-    <div role="dialog" aria-modal="true" aria-label={editing ? "Editar usuário" : "Adicionar usuário"} className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div className="absolute inset-0 animate-fade-in bg-black/70 backdrop-blur-[2px]" onClick={onClose} />
-      <div className="relative flex w-full max-w-[440px] animate-scale-in flex-col gap-5 rounded-card border border-border bg-surface p-6 shadow-[0_24px_64px_rgba(0,0,0,0.65)]">
-        <header className="flex items-start justify-between gap-3">
-          <div className="flex flex-col gap-1">
-            <h2 className="text-[16px] font-semibold text-fg">
-              {created ? "Convite criado" : editing ? "Editar usuário" : "Adicionar usuário"}
-            </h2>
-            <p className="text-[12px] text-muted">
-              {created
-                ? `${created.name} entra no time ao criar a conta por este link.`
-                : editing
-                  ? `@${editing.handle} · ${editing.email || "sem e-mail"}`
-                  : "A pessoa recebe um link de cadastro e já entra no seu time."}
-            </p>
-          </div>
-          <button type="button" aria-label="Fechar" onClick={onClose} className="text-muted hover:text-fg-soft">
-            <XIcon size={16} />
+  // Convite criado: o mesmo modal mostra o link para copiar e mandar.
+  if (created) {
+    return (
+      <ModalShell
+        trail={["Usuários"]}
+        title="Convite criado"
+        onClose={onClose}
+        footerStart={<span className="text-[12px] text-muted">Vale até {created.name} entrar.</span>}
+        footerEnd={
+          <button type="button" onClick={onClose} className={modalPrimary}>
+            Pronto
           </button>
-        </header>
+        }
+      >
+        <p className={modalTitleInput}>{created.name}</p>
+        <p className="text-[14px] leading-[21px] text-fg-soft">
+          Entra no time ao criar a conta por este link. O black berry ainda não manda e-mail —
+          envie por onde o time já conversa; “Reenviar acesso” gera outro se este se perder.
+        </p>
+        <div className="flex items-center gap-2 rounded-field bg-surface-2 py-1.5 pl-4 pr-1.5 inset-ring-1 inset-ring-border">
+          <span className="min-w-0 flex-1 truncate font-mono text-[12px] text-fg-3">
+            {created.invitePath ? absolute(created.invitePath) : "—"}
+          </span>
+          <button
+            type="button"
+            onClick={() => onCopyInvite(created)}
+            className="tap flex shrink-0 items-center gap-1.5 rounded-pill bg-primary px-3.5 py-2 text-[12px] font-semibold text-on-primary hover:bg-white"
+          >
+            <CopyIcon size={13} /> Copiar link
+          </button>
+        </div>
+      </ModalShell>
+    );
+  }
 
-        {created ? (
-          <div className="flex flex-col gap-4">
-            <div className="flex items-center gap-2 rounded-field bg-surface-2 px-4 py-3 inset-ring-1 inset-ring-border">
-              <span className="min-w-0 flex-1 truncate font-mono text-[12px] text-fg-3">
-                {created.invitePath ? absolute(created.invitePath) : "—"}
-              </span>
-              <button
-                type="button"
-                onClick={() => onCopyInvite(created)}
-                className="tap flex shrink-0 items-center gap-1.5 rounded-mark bg-primary px-3 py-1.5 text-[12px] font-semibold text-on-primary hover:bg-white"
-              >
-                <CopyIcon size={13} /> Copiar
-              </button>
-            </div>
-            <p className="text-[12px] leading-[18px] text-muted">
-              O black berry ainda não manda e-mail — envie o link por onde o time já conversa. Ele
-              vale até a pessoa entrar, e “Reenviar acesso” gera um novo se este se perder.
-            </p>
-            <button
-              type="button"
-              onClick={onClose}
-              className="tap w-fit self-end rounded-field bg-border px-4 py-2.5 text-[13px] font-medium text-fg hover:bg-border-strong"
-            >
-              Pronto
-            </button>
-          </div>
-        ) : (
-          <form className="flex flex-col gap-4" onSubmit={submit}>
-            <label className="flex flex-col gap-2">
-              <span className="text-[12px] font-medium text-fg-3">Nome</span>
-              <input
-                required
-                autoFocus
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder="Como o time chama a pessoa"
-                className="rounded-field bg-surface-2 px-4 py-2.5 text-[14px] text-fg-soft placeholder:text-placeholder inset-ring-1 inset-ring-border focus:outline-none focus:inset-ring-border-strong"
-              />
-            </label>
-            <label className="flex flex-col gap-2">
-              <span className="text-[12px] font-medium text-fg-3">E-mail</span>
-              <input
-                required
-                type="email"
-                value={email}
-                readOnly={!!editing}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="pessoa@agencia.com"
-                className="rounded-field bg-surface-2 px-4 py-2.5 text-[14px] text-fg-soft placeholder:text-placeholder inset-ring-1 inset-ring-border read-only:text-muted focus:outline-none focus:inset-ring-border-strong"
-              />
-            </label>
-            <fieldset className="flex flex-col gap-2">
-              <legend className="pb-2 text-[12px] font-medium text-fg-3">Função</legend>
-              <div className="flex flex-wrap gap-1.5">
-                {MEMBER_ROLES.map((r) => (
-                  <button
-                    key={r.id}
-                    type="button"
-                    aria-pressed={role === r.id}
-                    disabled={editing?.id === meId && r.id !== "admin" && r.id !== "gerente"}
-                    onClick={() => setRole(r.id)}
-                    className={cn(
-                      "rounded-pill px-3 py-1.5 text-[12px] font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-40",
-                      role === r.id ? "bg-primary text-on-primary" : "bg-surface-2 text-fg-3 hover:text-fg-soft",
-                    )}
-                  >
-                    {r.label}
-                  </button>
-                ))}
-              </div>
-            </fieldset>
-            <div className="flex justify-end gap-2 pt-1">
-              <button
-                type="button"
-                onClick={onClose}
-                className="tap rounded-field px-4 py-2.5 text-[13px] font-medium text-fg-3 hover:text-fg-soft"
-              >
-                Cancelar
-              </button>
-              <button
-                type="submit"
-                disabled={saving}
-                className="tap rounded-field bg-primary px-4 py-2.5 text-[13px] font-medium text-on-primary hover:bg-white disabled:opacity-50"
-              >
-                {saving ? (
-                  <span className="flex items-center gap-2">
-                    <Spinner /> Salvando…
-                  </span>
-                ) : editing ? (
-                  "Salvar"
-                ) : (
-                  "Criar convite"
-                )}
-              </button>
-            </div>
-          </form>
-        )}
-      </div>
-    </div>
+  return (
+    <ModalShell
+      trail={["Usuários"]}
+      title={editing ? "Editar usuário" : "Adicionar usuário"}
+      onClose={onClose}
+      onSubmit={() => void submit()}
+      chips={MEMBER_ROLES.map((r) => (
+        <button
+          key={r.id}
+          type="button"
+          aria-pressed={role === r.id}
+          disabled={editing?.id === meId && r.id !== "admin" && r.id !== "gerente"}
+          onClick={() => setRole(r.id)}
+          className={cn(modalChip, chipState(role === r.id), "disabled:cursor-not-allowed disabled:opacity-40")}
+        >
+          {role === r.id && <CheckIcon size={13} />}
+          {r.label}
+        </button>
+      ))}
+      footerStart={
+        <span className="text-[12px] text-muted">
+          {editing ? `@${editing.handle}` : "Recebe um link de cadastro que entra no seu time."}
+        </span>
+      }
+      footerEnd={
+        <button
+          type="submit"
+          disabled={saving || !name.trim() || (!editing && !email.trim())}
+          className={modalPrimary}
+        >
+          {saving ? (
+            <span className="flex items-center gap-2">
+              <Spinner /> Salvando…
+            </span>
+          ) : editing ? (
+            "Salvar"
+          ) : (
+            "Criar convite"
+          )}
+        </button>
+      }
+    >
+      <input
+        autoFocus
+        value={name}
+        onChange={(e) => setName(e.target.value)}
+        placeholder="Nome da pessoa"
+        aria-label="Nome"
+        className={modalTitleInput}
+      />
+      <input
+        type="email"
+        value={email}
+        readOnly={!!editing}
+        onChange={(e) => setEmail(e.target.value)}
+        placeholder="E-mail (pessoa@agencia.com)"
+        aria-label="E-mail"
+        className={cn(modalBodyInput, "read-only:text-muted")}
+      />
+    </ModalShell>
   );
 }
 
@@ -929,8 +904,8 @@ function DomainDialog({
   const [role, setRole] = useState<MemberRole>(settings.domainRole);
   const [saving, setSaving] = useState(false);
 
-  async function submit(e: React.FormEvent) {
-    e.preventDefault();
+  async function submit() {
+    if (saving) return;
     setSaving(true);
     try {
       const data = await call<{ settings: TeamSettings }>("/api/users/ajustes", {
@@ -938,7 +913,11 @@ function DomainDialog({
         body: JSON.stringify({ domain: on ? domain : null, domainRole: role }),
       });
       onSaved(data.settings);
-      toast(data.settings.domain ? `Convite automático ligado para @${data.settings.domain}.` : "Convite automático desligado.");
+      toast(
+        data.settings.domain
+          ? `Convite automático ligado para @${data.settings.domain}.`
+          : "Convite automático desligado.",
+      );
     } catch (err) {
       toast(err instanceof Error ? err.message : "Não foi possível salvar.", "error");
     } finally {
@@ -947,89 +926,66 @@ function DomainDialog({
   }
 
   return (
-    <div role="dialog" aria-modal="true" aria-label="Domínio da agência" className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div className="absolute inset-0 animate-fade-in bg-black/70 backdrop-blur-[2px]" onClick={onClose} />
-      <form
-        onSubmit={submit}
-        className="relative flex w-full max-w-[440px] animate-scale-in flex-col gap-5 rounded-card border border-border bg-surface p-6 shadow-[0_24px_64px_rgba(0,0,0,0.65)]"
-      >
-        <header className="flex items-start justify-between gap-3">
-          <div className="flex flex-col gap-1">
-            <h2 className="text-[16px] font-semibold text-fg">Domínio da agência</h2>
-            <p className="text-[12px] leading-[18px] text-muted">
-              Quem criar conta com um e-mail deste domínio ganha um convite automático para o time. A
-              entrada espera a aprovação de um Admin ou Gerente — o black berry ainda não confirma
-              e-mail, e é essa aprovação que garante que a pessoa é mesmo da casa.
-            </p>
-          </div>
-          <button type="button" aria-label="Fechar" onClick={onClose} className="text-muted hover:text-fg-soft">
-            <XIcon size={16} />
-          </button>
-        </header>
-
-        <button
-          type="button"
-          role="switch"
-          aria-checked={on}
-          onClick={() => setOn((v) => !v)}
-          className="flex items-center justify-between rounded-field bg-surface-2 px-4 py-3 text-left inset-ring-1 inset-ring-border"
-        >
-          <span className="text-[13px] text-fg-soft">Convite automático pelo domínio</span>
-          <span className={cn("flex h-5 w-[34px] items-center rounded-pill px-0.5", on ? "justify-end bg-primary" : "justify-start bg-border")}>
-            <span className={cn("h-4 w-4 rounded-full", on ? "bg-surface" : "bg-muted")} />
-          </span>
-        </button>
-
-        {on && (
-          <>
-            <label className="flex flex-col gap-2">
-              <span className="text-[12px] font-medium text-fg-3">Domínio</span>
-              <div className="relative">
-                <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-[14px] text-muted">@</span>
-                <input
-                  value={domain}
-                  onChange={(e) => setDomain(e.target.value.replace(/^@+/, "").toLowerCase())}
-                  placeholder="estudionorte.com"
-                  className="w-full rounded-field bg-surface-2 py-2.5 pl-8 pr-4 text-[14px] text-fg-soft placeholder:text-placeholder inset-ring-1 inset-ring-border focus:outline-none focus:inset-ring-border-strong"
-                />
-              </div>
-              <span className="text-[11px] text-dim">Precisa ser o domínio do seu próprio e-mail. E-mail pessoal (Gmail, Outlook…) não vale.</span>
-            </label>
-            <fieldset className="flex flex-col gap-2">
-              <legend className="pb-2 text-[12px] font-medium text-fg-3">Entram como</legend>
-              <div className="flex flex-wrap gap-1.5">
-                {MEMBER_ROLES.map((r) => (
-                  <button
-                    key={r.id}
-                    type="button"
-                    aria-pressed={role === r.id}
-                    onClick={() => setRole(r.id)}
-                    className={cn(
-                      "rounded-pill px-3 py-1.5 text-[12px] font-medium transition-colors",
-                      role === r.id ? "bg-primary text-on-primary" : "bg-surface-2 text-fg-3 hover:text-fg-soft",
-                    )}
-                  >
-                    {r.label}
-                  </button>
-                ))}
-              </div>
-            </fieldset>
-          </>
-        )}
-
-        <div className="flex justify-end gap-2">
-          <button type="button" onClick={onClose} className="tap rounded-field px-4 py-2.5 text-[13px] font-medium text-fg-3 hover:text-fg-soft">
-            Cancelar
-          </button>
+    <ModalShell
+      trail={["Usuários"]}
+      title="Domínio da agência"
+      onClose={onClose}
+      onSubmit={() => void submit()}
+      chips={
+        <>
           <button
-            type="submit"
-            disabled={saving}
-            className="tap rounded-field bg-primary px-4 py-2.5 text-[13px] font-medium text-on-primary hover:bg-white disabled:opacity-50"
+            type="button"
+            role="switch"
+            aria-checked={on}
+            onClick={() => setOn((v) => !v)}
+            className={cn(modalChip, chipState(on))}
           >
-            {saving ? "Salvando…" : "Salvar"}
+            <span className={cn("h-[7px] w-[7px] rounded-full", on ? "bg-flow-on" : "bg-badge-strong")} />
+            {on ? "Convite automático ligado" : "Convite automático desligado"}
           </button>
-        </div>
-      </form>
-    </div>
+          {on &&
+            MEMBER_ROLES.map((r) => (
+              <button
+                key={r.id}
+                type="button"
+                aria-pressed={role === r.id}
+                onClick={() => setRole(r.id)}
+                className={cn(modalChip, chipState(role === r.id))}
+              >
+                {role === r.id && <CheckIcon size={13} />}
+                {r.label}
+              </button>
+            ))}
+        </>
+      }
+      footerStart={
+        <span className="text-[12px] text-muted">
+          {on ? "Função com que os pedidos entram, se aprovados." : "Ninguém entra pelo domínio."}
+        </span>
+      }
+      footerEnd={
+        <button type="submit" disabled={saving} className={modalPrimary}>
+          {saving ? "Salvando…" : "Salvar"}
+        </button>
+      }
+    >
+      <div className="flex items-baseline gap-1">
+        <span className="text-[20px] font-semibold text-muted">@</span>
+        <input
+          autoFocus
+          value={domain}
+          disabled={!on}
+          onChange={(e) => setDomain(e.target.value.replace(/^@+/, "").toLowerCase())}
+          placeholder="estudionorte.com"
+          aria-label="Domínio"
+          className={cn(modalTitleInput, "disabled:text-muted")}
+        />
+      </div>
+      <p className="text-[14px] leading-[21px] text-fg-soft">
+        Quem criar conta com um e-mail deste domínio ganha um convite automático para o time e
+        espera a aprovação de um Admin ou Gerente — o black berry ainda não confirma e-mail. Só
+        vale o domínio do seu próprio e-mail; Gmail, Outlook e afins não.
+      </p>
+    </ModalShell>
   );
 }
