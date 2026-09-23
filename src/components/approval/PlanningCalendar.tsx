@@ -78,6 +78,32 @@ export function PlanningCalendar({ batch: initialBatch, clientSlug }: { batch: B
   const [draft, setDraft] = useState<Draft | null>(null);
   const [saving, setSaving] = useState(false);
   const [sharing, setSharing] = useState(false);
+  /** Arrastar um criativo para outro dia remarca a data (e o prazo da tarefa). */
+  const [dragId, setDragId] = useState<string | null>(null);
+  const [dropDay, setDropDay] = useState<string | null>(null);
+
+  async function moveTo(pieceId: string, day: string) {
+    const piece = batch.pieces.find((p) => p.id === pieceId);
+    if (!piece || dayKey(new Date(piece.date)) === day) return;
+    const before = batch;
+    // Otimista: o criativo já aparece no dia novo; volta se o servidor recusar.
+    upsert({ ...piece, date: noonOf(day) });
+    try {
+      const res = await fetch(`/api/batches/${batch.id}/pieces/${pieceId}`, {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ date: noonOf(day) }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data?.error ?? "Não foi possível remarcar.");
+      upsert(data.piece as Piece);
+      const [, m, d] = day.split("-");
+      toast(`${piece.name} remarcado para ${d}/${m}.`);
+    } catch (e) {
+      setBatch(before);
+      toast(e instanceof Error ? e.message : "Não foi possível remarcar.", "error");
+    }
+  }
 
   // Abre no mês do primeiro criativo; lote vazio abre no mês de hoje.
   const [cursor, setCursor] = useState(() => {
@@ -263,11 +289,23 @@ export function PlanningCalendar({ batch: initialBatch, clientSlug }: { batch: B
             return (
               <div
                 key={c.key}
+                onDragOver={(e) => {
+                  if (!dragId) return;
+                  e.preventDefault();
+                  setDropDay(c.key);
+                }}
+                onDragLeave={() => setDropDay((d) => (d === c.key ? null : d))}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  setDropDay(null);
+                  if (dragId) void moveTo(dragId, c.key);
+                  setDragId(null);
+                }}
                 className={cn(
-                  "group relative flex min-h-[112px] flex-col gap-1 border-border p-1.5",
+                  "group relative flex min-h-[112px] flex-col gap-1 border-border p-1.5 transition-colors",
                   i % 7 !== 6 && "border-r",
                   i < cells.length - 7 && "border-b",
-                  c.inMonth ? "bg-bg" : "bg-surface/40",
+                  dropDay === c.key ? "bg-surface-2" : c.inMonth ? "bg-bg" : "bg-surface/40",
                 )}
               >
                 <div className="flex items-center justify-between px-1">
@@ -294,8 +332,17 @@ export function PlanningCalendar({ batch: initialBatch, clientSlug }: { batch: B
                     <button
                       key={p.id}
                       type="button"
+                      draggable
+                      onDragStart={(e) => {
+                        e.dataTransfer.effectAllowed = "move";
+                        setDragId(p.id);
+                      }}
+                      onDragEnd={() => {
+                        setDragId(null);
+                        setDropDay(null);
+                      }}
                       onClick={() => openPiece(p)}
-                      title={p.name}
+                      title={`${p.name} — arraste para outro dia`}
                       className="tap flex w-full items-center gap-1.5 rounded-mark bg-surface-2 px-2 py-1 text-left text-[11px] text-fg-soft transition-colors hover:bg-border"
                     >
                       <f.Icon size={12} className="shrink-0 text-fg-3" />

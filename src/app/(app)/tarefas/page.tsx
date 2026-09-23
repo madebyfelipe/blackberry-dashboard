@@ -1,6 +1,5 @@
-import { redirectWithoutScope } from "@/lib/auth/session";
 import { listTasks } from "@/lib/tasks/repository";
-import { currentAgencyScope, currentUser } from "@/lib/auth/session";
+import { currentAgencyScope, currentUser, redirectWithoutScope } from "@/lib/auth/session";
 import { TasksView } from "@/components/tasks/TasksView";
 
 export const dynamic = "force-dynamic";

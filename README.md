@@ -353,6 +353,17 @@ comentário e do Inbox oferece o time inteiro e insere o @ — não o nome, que
 pode repetir. O responsável da tarefa aceita `@handle` e o repositório troca
 pelo nome de quem atende por ele (@ de ninguém é recusado).
 
+## Atalhos e pequenas conveniências
+
+- **Ações rápidas**: `/` abre o menu; com ele aberto, `C` cria tarefa e `F`
+  cria cliente. (Fora de campo de texto — digitando, a barra é só barra.)
+- **Tarefas**: "Minhas" na barra filtra pelo seu nome; na tarefa de fluxo,
+  "Mover para <próxima etapa>" / "Concluir" no topo.
+- **Planejamento**: `+` no hover do dia cria o criativo; arrastar o criativo
+  para outro dia remarca (e o prazo da tarefa acompanha).
+- **Lateral**: não lidas do Inbox ao lado do item (sem as silenciadas).
+- **Abas do navegador** com o nome de cada tela.
+
 ## App de desktop
 
 A pasta `desktop/` é o black berry para Windows, macOS e Linux: uma janela

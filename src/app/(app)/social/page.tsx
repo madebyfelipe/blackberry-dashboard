@@ -1,8 +1,7 @@
-import { redirectWithoutScope } from "@/lib/auth/session";
 import { listBatches } from "@/lib/approval/repository";
+import { currentAgencyScope, redirectWithoutScope } from "@/lib/auth/session";
 import { listClientSummaries } from "@/lib/approval/clients";
 import { listClients } from "@/lib/clients/repository";
-import { currentAgencyScope } from "@/lib/auth/session";
 import { ClientsView } from "@/components/approval/ClientsView";
 
 export const dynamic = "force-dynamic";

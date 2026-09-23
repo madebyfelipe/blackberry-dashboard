@@ -1,8 +1,7 @@
 import { notFound, redirect } from "next/navigation";
-import { redirectWithoutScope } from "@/lib/auth/session";
+import { currentAgencyScope, redirectWithoutScope } from "@/lib/auth/session";
 import { getBatch } from "@/lib/approval/repository";
 import { slugify } from "@/lib/approval/clients";
-import { currentAgencyScope } from "@/lib/auth/session";
 import { CreativeComposer } from "@/components/approval/CreativeComposer";
 
 export const dynamic = "force-dynamic";
