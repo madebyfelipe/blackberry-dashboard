@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import type { PublicUser } from "@/lib/auth/types";
 import { Breadcrumb } from "@/components/ui/Breadcrumb";
+import { Screen } from "@/components/ui/Screen";
 import { Input } from "@/components/ui/Input";
 import { Spinner } from "@/components/ui/Spinner";
 import { useToast } from "@/components/ui/Toast";
@@ -27,7 +28,8 @@ const ROLE_LABEL: Record<PublicUser["role"], string> = {
 
 export function SettingsView({ user, handle }: { user: PublicUser; handle: string }) {
   return (
-    <div className="flex h-full min-h-0 flex-col gap-5 overflow-y-auto px-1 py-5 md:py-6 md:pl-2 md:pr-6">
+    <Screen gap="md">
+      <div className="flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto">
       <Breadcrumb
         items={[{ label: "black berry", href: "/tarefas" }, { label: "Configurações" }]}
       />
@@ -45,7 +47,8 @@ export function SettingsView({ user, handle }: { user: PublicUser; handle: strin
         <PasswordCard />
         <SessionCard user={user} />
       </div>
-    </div>
+      </div>
+    </Screen>
   );
 }
 
@@ -65,7 +68,7 @@ function Card({
   return (
     <section
       style={{ ["--d" as string]: index }}
-      className="stagger-item flex flex-col gap-5 rounded-card border border-border bg-surface-2 p-6"
+      className="stagger-item flex flex-col gap-5 rounded-tile border border-border bg-surface-2 p-6"
     >
       <header className="flex items-start gap-3">
         {icon && (
@@ -137,7 +140,7 @@ function FlowsLink() {
     <Link
       href="/configuracoes/fluxos"
       style={{ ["--d" as string]: 1 }}
-      className="stagger-item tap flex items-center gap-3 rounded-card border border-border bg-surface-2 p-6 transition-colors hover:bg-row-raised"
+      className="stagger-item tap flex items-center gap-3 rounded-tile border border-border bg-surface-2 p-6 transition-colors hover:bg-row-raised"
     >
       <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-border text-fg-3">
         <GitBranchIcon size={18} />

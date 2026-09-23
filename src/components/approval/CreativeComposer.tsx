@@ -6,6 +6,7 @@ import type { Batch, Piece, PieceFormat } from "@/lib/approval/types";
 import { CAPTION_LIMIT, pieceFormat } from "@/lib/approval/constants";
 import { formatPieceDate } from "@/lib/format";
 import { Breadcrumb } from "@/components/ui/Breadcrumb";
+import { Screen } from "@/components/ui/Screen";
 import { useToast } from "@/components/ui/Toast";
 import { Spinner } from "@/components/ui/Spinner";
 import { ActionMenu } from "@/components/tasks/ActionMenu";
@@ -320,7 +321,8 @@ export function CreativeComposer({
   const slides = composerPiece?.media ?? [];
 
   return (
-    <div className="flex h-full min-h-0 flex-col gap-5 overflow-y-auto px-1 py-5 md:py-6 md:pl-2 md:pr-6">
+    <Screen gap="md">
+      <div className="flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto">
       {/* Header Row — trilha à esquerda, ações à direita */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <Breadcrumb
@@ -668,6 +670,7 @@ export function CreativeComposer({
       {sharing && (
         <ShareBatchModal batch={batch} clientSlug={clientSlug} onClose={() => setSharing(false)} />
       )}
-    </div>
+      </div>
+    </Screen>
   );
 }

@@ -13,11 +13,13 @@ import {
 } from "@/lib/approval/constants";
 import { formatPieceDate } from "@/lib/format";
 import { Breadcrumb } from "@/components/ui/Breadcrumb";
+import { Screen, ScreenAction, ScreenHeader, ScreenIconAction } from "@/components/ui/Screen";
+import { TabStrip } from "@/components/ui/Tabs";
+import { Badge } from "@/components/ui/Badge";
 import { PieceThumb } from "./PieceThumb";
-import { RoundIconButton } from "./RoundIconButton";
 import { ScrollFade } from "./ScrollFade";
 import { useToast } from "@/components/ui/Toast";
-import { CopyIcon } from "@/components/icons";
+import { CopyIcon, PencilIcon } from "@/components/icons";
 import { cn } from "@/lib/cn";
 
 type Filter = "todas" | PieceStatus;
@@ -123,61 +125,46 @@ export function LoteView({
   ];
 
   return (
-    <div className="flex h-full min-h-0 flex-col gap-4 px-1 py-5 md:gap-[22px] md:pl-2 md:pr-7">
-      {/* Header Row — trilha à esquerda, link público à direita */}
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <Breadcrumb
-          items={[
-            { label: "black berry", href: "/tarefas" },
-            { label: "Social media", href: "/social" },
-            { label: batch.client, href: `/social/${clientSlug}` },
-            { label: batch.label },
-          ]}
-        />
+    <Screen gap="md">
+      <Breadcrumb
+        items={[
+          { label: "black berry", href: "/tarefas" },
+          { label: "Social media", href: "/social" },
+          { label: batch.client, href: `/social/${clientSlug}` },
+          { label: batch.label },
+        ]}
+      />
 
-        <div className="flex min-w-0 items-center gap-2">
-          {/*
-           * O desenho só tem o caminho feliz; quando o link não está valendo,
-           * a URL copiada não levaria a lugar nenhum — o selo diz por quê, e
-           * o botão de copiar fica desligado.
-           */}
-          {linkStatus !== "ativo" && (
-            <span className="shrink-0 rounded-pill bg-border-strong px-3 py-1.5 text-[12px] font-medium text-fg-soft">
-              Link {linkStatus}
+      <ScreenHeader
+        actions={
+          <>
+            {/*
+             * Quando o link não está valendo, a URL copiada não levaria a
+             * lugar nenhum — o selo diz por quê.
+             */}
+            {linkStatus !== "ativo" && <Badge label={`Link ${linkStatus}`} size="md" />}
+            <span className="hidden max-w-[260px] truncate rounded-mark border border-panel-ring bg-surface-2 px-3.5 py-2.5 text-[12px] text-fg-3 xl:block">
+              {publicUrl}
             </span>
-          )}
-          {/*
-           * A URL inteira só cabe no desktop; no celular fica o botão, que é
-           * o que a pessoa usa de qualquer jeito.
-           */}
-          <span className="hidden max-w-[320px] truncate rounded-field border border-border bg-surface px-4 py-2.5 text-[13px] text-fg-2 lg:block">
-            {publicUrl}
-          </span>
-          <RoundIconButton tone="primary" label="Copiar link" onClick={copyLink}>
-            <CopyIcon size={16} />
-          </RoundIconButton>
-        </div>
-      </div>
-
-      {/* Filter Chips */}
-      <div className="flex flex-wrap items-center gap-2">
-        {chips.map((c) => (
-          <button
-            key={c.id}
-            type="button"
-            onClick={() => setFilter(c.id)}
-            aria-pressed={filter === c.id}
-            className={cn(
-              "tap rounded-pill px-4 py-2 text-[14px] transition-colors",
-              filter === c.id
-                ? "bg-primary text-on-primary"
-                : "text-fg-soft hover:bg-surface",
-            )}
-          >
-            {c.label} {c.count}
-          </button>
-        ))}
-      </div>
+            <ScreenAction onClick={copyLink}>
+              <CopyIcon size={14} className="mr-2" />
+              Copiar link
+            </ScreenAction>
+            <ScreenIconAction
+              label="Editar lote"
+              onClick={() => router.push(`/social/${clientSlug}/${batch.id}/planejamento`)}
+            >
+              <PencilIcon size={15} />
+            </ScreenIconAction>
+          </>
+        }
+      >
+        <TabStrip
+          tabs={chips.map((c) => ({ id: c.id, label: c.label, count: c.count }))}
+          active={filter}
+          onSelect={(id) => setFilter(id as Filter)}
+        />
+      </ScreenHeader>
 
       {/*
        * Body — no desktop as duas colunas rolam por dentro; no celular elas
@@ -261,7 +248,7 @@ export function LoteView({
           )}
         </ScrollFade>
       </div>
-    </div>
+    </Screen>
   );
 }
 
