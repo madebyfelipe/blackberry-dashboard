@@ -9,9 +9,21 @@ import {
   MenuToggle,
 } from "@/components/ui/MenuPanel";
 import type { ActiveDevices, CallDevices, DeviceKind } from "@/lib/inbox/devices";
+import {
+  FPS_OPTIONS,
+  OPTIMIZE_OPTIONS,
+  RESOLUTION_OPTIONS,
+  type ScreenFps,
+  type ScreenOptimize,
+  type ScreenQuality,
+  type ScreenResolution,
+} from "@/lib/inbox/screenQuality";
 
 /*
  * Os ajustes da chamada: qual microfone, qual saída de som, qual câmera.
+ *
+ * A seção Transmissão escolhe a qualidade da tela compartilhada; trocar no
+ * meio da transmissão vale na hora, sem abrir o seletor de novo.
  *
  * Não há export desenhado para este menu, então ele é montado só com as peças
  * do painel de 300px que o Felipe já desenhou para os menus de Filtros e de
@@ -31,6 +43,11 @@ export function CallSettingsMenu({
   noiseSuppression,
   onToggleNoiseSuppression,
   outputSupported,
+  screenQuality,
+  onScreenQuality,
+  screenSupported,
+  preview,
+  onTogglePreview,
 }: {
   devices: CallDevices;
   active: ActiveDevices;
@@ -41,6 +58,13 @@ export function CallSettingsMenu({
   onToggleNoiseSuppression: () => void;
   /** Só o Chrome e o Edge deixam a página escolher o alto-falante. */
   outputSupported: boolean;
+  screenQuality: ScreenQuality;
+  onScreenQuality: (q: ScreenQuality) => void;
+  /** Celular não compartilha tela: a seção nem aparece. */
+  screenSupported: boolean;
+  /** Mostrar, para você, a sua própria tela enquanto transmite. */
+  preview: boolean;
+  onTogglePreview: () => void;
 }) {
   return (
     <MenuPanel>
@@ -86,6 +110,48 @@ export function CallSettingsMenu({
         active={active}
         onSelect={onSelect}
       />
+
+      {screenSupported && (
+        <>
+          <MenuDivider />
+          <MenuTitle>Transmissão</MenuTitle>
+          <MenuRow label="Resolução">
+            <MenuDropdown
+              label="Resolução da transmissão"
+              value={screenQuality.resolution}
+              options={RESOLUTION_OPTIONS}
+              onSelect={(id) =>
+                onScreenQuality({ ...screenQuality, resolution: id as ScreenResolution })
+              }
+            />
+          </MenuRow>
+          <MenuRow label="Quadros">
+            <MenuDropdown
+              label="Quadros por segundo da transmissão"
+              value={String(screenQuality.fps)}
+              options={FPS_OPTIONS}
+              onSelect={(id) => onScreenQuality({ ...screenQuality, fps: Number(id) as ScreenFps })}
+            />
+          </MenuRow>
+          <MenuRow label="Priorizar">
+            <MenuDropdown
+              label="Priorizar nitidez ou fluidez"
+              value={screenQuality.optimize}
+              options={OPTIMIZE_OPTIONS}
+              onSelect={(id) =>
+                onScreenQuality({ ...screenQuality, optimize: id as ScreenOptimize })
+              }
+            />
+          </MenuRow>
+          <MenuRow label="Prévia da minha tela">
+            <MenuToggle
+              on={preview}
+              onClick={onTogglePreview}
+              label={preview ? "Esconder a prévia da minha tela" : "Mostrar a prévia da minha tela"}
+            />
+          </MenuRow>
+        </>
+      )}
     </MenuPanel>
   );
 }
