@@ -38,6 +38,12 @@ export type AppNotification = {
    * tarefa ou a conversa dá por lidas todas as notificações dela.
    */
   ref: string;
+  /**
+   * A mensagem que o aviso mostra (só nos avisos de conversa). É por ela que
+   * editar troca o trecho e apagar o esconde — nunca pelo texto, que pode
+   * repetir ("ok") ou já ter sido editado.
+   */
+  messageId?: string;
   /** Quantas mensagens a notificação resume (só `mensagem`; 1 no resto). */
   count: number;
   /** ISO — a mais recente do resumo. */
@@ -49,5 +55,5 @@ export type AppNotification = {
 /** O que quem avisa precisa dizer; id, agência e datas nascem no repositório. */
 export type NotificationInput = Pick<
   AppNotification,
-  "recipientId" | "kind" | "actor" | "title" | "body" | "href" | "ref"
+  "recipientId" | "kind" | "actor" | "title" | "body" | "href" | "ref" | "messageId"
 >;

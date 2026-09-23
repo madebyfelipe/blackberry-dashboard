@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { ValidationError, conversationAudience, sendMessage } from "@/lib/inbox/repository";
 import { AttachmentError, resolveAttachments } from "@/lib/inbox/attachments";
+import { claimAttachments } from "@/lib/media/store";
 import { attachmentsLabel } from "@/lib/inbox/constants";
 import { currentInboxSession } from "@/lib/inbox/viewer";
 import { notifyMessage } from "@/lib/notifications/dispatch";
@@ -30,7 +31,8 @@ export async function POST(req: Request, { params }: Ctx) {
   const { text, attachmentIds, gif, replyToId } = (body ?? {}) as Record<string, unknown>;
 
   try {
-    const attachments = await resolveAttachments({ attachmentIds, gif });
+    const owner = { agencyId: session.scope.agencyId, uploaderId: session.me.id, conversationId: id };
+    const attachments = await resolveAttachments({ attachmentIds, gif }, owner);
     const conversation = await sendMessage(
       session.scope,
       session.me.id,
@@ -44,6 +46,13 @@ export async function POST(req: Request, { params }: Ctx) {
         { status: 404 },
       );
     }
+    const sent = conversation.messages[conversation.messages.length - 1];
+    // O anexo fica preso a esta mensagem: não vai em outra.
+    await claimAttachments(
+      attachments.filter((a) => a.kind !== "gif").map((a) => a.id),
+      owner,
+      sent.id,
+    );
     const said = String(text ?? "").trim() || attachmentsLabel(attachments);
     const group = conversation.kind === "grupo" ? conversation.title : "";
     /*
@@ -69,6 +78,7 @@ export async function POST(req: Request, { params }: Ctx) {
         { id: session.me.id, name: session.me.name },
         { id, kind: conversation.kind, group, ...audience },
         said,
+        sent.id,
       );
     }
     return NextResponse.json({ conversation }, { status: 201 });

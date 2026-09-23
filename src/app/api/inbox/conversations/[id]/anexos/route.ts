@@ -26,6 +26,13 @@ export async function POST(req: Request, { params }: Ctx) {
     return NextResponse.json({ error: "Conversa não encontrada." }, { status: 404 });
   }
 
+  // O anexo nasce preso a quem subiu e a esta conversa — ver `resolveAttachments`.
+  const owner = {
+    agencyId: session.scope.agencyId,
+    uploaderId: session.me.id,
+    conversationId: id,
+    messageId: null,
+  };
   const isJson = (req.headers.get("content-type") ?? "").includes("application/json");
   try {
     let media;
@@ -34,7 +41,7 @@ export async function POST(req: Request, { params }: Ctx) {
       const pathname = typeof body?.pathname === "string" ? body.pathname : "";
       if (!pathname) return NextResponse.json({ error: "Envio inválido." }, { status: 400 });
       media = await saveBlobMedia(
-        { pathname, name: typeof body?.name === "string" ? body.name.slice(0, 160) : "" },
+        { pathname, name: typeof body?.name === "string" ? body.name.slice(0, 160) : "", owner },
         ATTACHMENT_POLICY,
       );
     } else {
@@ -45,7 +52,7 @@ export async function POST(req: Request, { params }: Ctx) {
       }
       media = await saveMedia(
         new Uint8Array(await file.arrayBuffer()),
-        { mime: file.type, name: file.name.slice(0, 160) },
+        { mime: file.type, name: file.name.slice(0, 160), owner },
         ATTACHMENT_POLICY,
       );
     }

@@ -165,10 +165,13 @@ export function messageNotifications(
   },
   /** O texto, ou a descrição do anexo quando não há texto ("Áudio", "GIF"). */
   text: string,
+  /** A mensagem — é por ela que editar/apagar acompanha o aviso. */
+  messageId?: string,
 ): NotificationInput[] {
   const link = {
     href: `/inbox?conversa=${encodeURIComponent(conversation.id)}`,
     ref: `conversa:${conversation.id}`,
+    ...(messageId ? { messageId } : {}),
   };
   const inside = new Set(conversation.memberIds);
   const muted = new Set(conversation.mutedBy);

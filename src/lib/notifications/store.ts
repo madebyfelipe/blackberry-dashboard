@@ -22,6 +22,7 @@ function normalize(raw: Partial<AppNotification> & { id: string }): AppNotificat
     // Só caminho do próprio app: o clique numa notificação nunca sai do produto.
     href: typeof raw.href === "string" && raw.href.startsWith("/") && !raw.href.startsWith("//") ? raw.href : "/notificacoes",
     ref: String(raw.ref ?? ""),
+    ...(typeof raw.messageId === "string" && raw.messageId ? { messageId: raw.messageId } : {}),
     count: Number.isFinite(raw.count) && (raw.count as number) > 0 ? Math.floor(raw.count as number) : 1,
     createdAt: String(raw.createdAt ?? new Date().toISOString()),
     readAt: typeof raw.readAt === "string" && raw.readAt ? raw.readAt : null,

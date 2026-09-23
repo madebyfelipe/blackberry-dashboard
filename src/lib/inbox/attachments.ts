@@ -33,10 +33,27 @@ export function attachmentFromMedia(media: MediaAsset): Attachment {
 
 export class AttachmentError extends Error {}
 
-export async function resolveAttachments(input: {
-  attachmentIds?: unknown;
-  gif?: unknown;
-}): Promise<Attachment[]> {
+/** Quem manda, e onde: só entra anexo que essa pessoa subiu nessa conversa. */
+export type AttachmentOwner = { agencyId: string; uploaderId: string; conversationId: string };
+
+/** O arquivo é um anexo desta pessoa, nesta conversa? (Arte de lote nunca é.) */
+export function ownsAttachment(media: MediaAsset | undefined, owner: AttachmentOwner): boolean {
+  const o = media?.owner;
+  return (
+    !!o &&
+    o.agencyId === owner.agencyId &&
+    o.uploaderId === owner.uploaderId &&
+    o.conversationId === owner.conversationId
+  );
+}
+
+export async function resolveAttachments(
+  input: {
+    attachmentIds?: unknown;
+    gif?: unknown;
+  },
+  owner: AttachmentOwner,
+): Promise<Attachment[]> {
   const ids = Array.isArray(input.attachmentIds)
     ? [...new Set(input.attachmentIds.map(String).filter(Boolean))]
     : [];
@@ -48,7 +65,15 @@ export async function resolveAttachments(input: {
     // O id é o de 32 hex que o registro da mídia devolveu — nada de caminho.
     if (!/^[a-f0-9]{32}$/.test(id)) throw new AttachmentError("Anexo inválido.");
     const media = await getMedia(id);
-    if (!media) throw new AttachmentError("Um dos anexos não chegou. Envie de novo.");
+    /*
+     * Só o que **você** subiu **nesta** conversa, e que ainda não foi em
+     * outra mensagem. Sem isso, o id de uma arte de lote (ou do anexo de
+     * outra pessoa) entraria na mensagem — e apagar a mensagem apagaria o
+     * arquivo dos outros.
+     */
+    if (!media || !ownsAttachment(media, owner) || media.owner?.messageId) {
+      throw new AttachmentError("Um dos anexos não chegou. Envie de novo.");
+    }
     out.push(attachmentFromMedia(media));
   }
   if (input.gif && typeof input.gif === "object") {

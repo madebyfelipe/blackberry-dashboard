@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { MentionText, useMentionInput } from "@/components/team/Mentions";
 import { cn } from "@/lib/cn";
 import {
@@ -74,6 +74,7 @@ export function Composer({
   const [dragging, setDragging] = useState(false);
   const ref = useRef<HTMLTextAreaElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+  const gifButtonRef = useRef<HTMLSpanElement>(null);
   // Passou dos 5 minutos, o gravador para sozinho e a mensagem vai.
   const recorder = useRecorder(onError, () => void stopAndSend());
   const mentions = useMentionInput({
@@ -145,6 +146,8 @@ export function Composer({
     setFiles([]);
     requestAnimationFrame(grow);
   }
+
+  const closeGifs = useCallback(() => setGifs(false), []);
 
   function sendGif(gif: GifResult) {
     setGifs(false);
@@ -328,9 +331,11 @@ export function Composer({
               <ComposerIcon label="Emoji" onClick={() => onUndesigned("Seletor de emoji")}>
                 <SmileIcon size={16} />
               </ComposerIcon>
-              <ComposerIcon label="GIF" pressed={gifs} onClick={() => setGifs((g) => !g)}>
-                <StickerIcon size={16} />
-              </ComposerIcon>
+              <span ref={gifButtonRef} className="flex">
+                <ComposerIcon label="GIF" pressed={gifs} onClick={() => setGifs((g) => !g)}>
+                  <StickerIcon size={16} />
+                </ComposerIcon>
+              </span>
 
               {draft.trim() || ready.length > 0 || uploading ? (
                 <button
@@ -356,7 +361,7 @@ export function Composer({
           {mentions.menu()}
         </div>
 
-        {gifs && <GifPicker onPick={sendGif} onClose={() => setGifs(false)} />}
+        {gifs && <GifPicker onPick={sendGif} onClose={closeGifs} toggleRef={gifButtonRef} />}
       </form>
     </div>
   );

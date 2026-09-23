@@ -103,23 +103,23 @@ export async function deleteNotification(
 }
 
 /**
- * A mensagem foi apagada: o aviso que mostrava o texto dela deixa de mostrar.
- * Casa pelo trecho (`body`) dentro da mesma conversa — apagar é justamente
- * não deixar o texto circulando, nem na lista de notificações de quem recebeu.
+ * A mensagem mudou: o aviso que mostrava o texto dela acompanha — editada,
+ * o trecho novo; apagada, "Mensagem apagada". Casa pelo id da mensagem, na
+ * agência: nunca pelo texto (que repete, e que a edição já trocou).
  */
-export async function redactNotifications(
+export async function updateMessageNotifications(
   scope: AgencyScope,
-  ref: string,
+  messageId: string,
   body: string,
-  replacement: string,
 ): Promise<number> {
-  const hit = (n: AppNotification) => n.agencyId === scope.agencyId && n.ref === ref && n.body === body;
-  if (!body || !(await read()).some(hit)) return 0;
+  const hit = (n: AppNotification) =>
+    n.agencyId === scope.agencyId && n.messageId === messageId && n.body !== body;
+  if (!messageId || !(await read()).some(hit)) return 0;
   return transaction((list) => {
     let changed = 0;
     for (const n of list) {
       if (!hit(n)) continue;
-      n.body = replacement;
+      n.body = body;
       changed++;
     }
     return changed;

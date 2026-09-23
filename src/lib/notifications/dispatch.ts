@@ -82,9 +82,10 @@ export function notifyMessage(
   actor: Actor,
   conversation: Parameters<typeof messageNotifications>[2],
   text: string,
+  messageId?: string,
 ): Promise<void> {
   return safely("aviso da mensagem", async () => {
     const team = await listMembers(scope);
-    await deliver(scope, messageNotifications(team, actor, conversation, text));
+    await deliver(scope, messageNotifications(team, actor, conversation, text, messageId));
   });
 }

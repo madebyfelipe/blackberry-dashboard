@@ -405,6 +405,8 @@ function EditBox({
     setSaving(true);
     try {
       await onSave(text);
+    } catch {
+      // O erro já apareceu no toast (InboxView); a edição fica aberta para tentar de novo.
     } finally {
       setSaving(false);
     }

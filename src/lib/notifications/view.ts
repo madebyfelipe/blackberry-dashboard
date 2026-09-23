@@ -53,6 +53,7 @@ export function mergeNotification(
     const open = list.find(
       (n) =>
         n.kind === "mensagem" &&
+        n.agencyId === input.agencyId &&
         n.recipientId === input.recipientId &&
         n.ref === input.ref &&
         !n.readAt,
@@ -63,6 +64,7 @@ export function mergeNotification(
         actor: input.actor,
         title: input.title,
         body: input.body,
+        messageId: input.messageId,
         count: open.count + 1,
         createdAt: now,
       };

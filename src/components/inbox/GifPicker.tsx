@@ -14,9 +14,12 @@ import { apiSearchGifs, type GifResult } from "./api";
 export function GifPicker({
   onPick,
   onClose,
+  toggleRef,
 }: {
   onPick: (gif: GifResult) => void;
   onClose: () => void;
+  /** O botão que abre e fecha: clicar nele não conta como "clicar fora". */
+  toggleRef?: React.RefObject<HTMLElement | null>;
 }) {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<GifResult[] | null>(null);
@@ -50,7 +53,8 @@ export function GifPicker({
 
   useEffect(() => {
     function onDown(e: MouseEvent) {
-      if (!ref.current?.contains(e.target as Node)) onClose();
+      const t = e.target as Node;
+      if (!ref.current?.contains(t) && !toggleRef?.current?.contains(t)) onClose();
     }
     function onKey(e: KeyboardEvent) {
       if (e.key === "Escape") onClose();
@@ -61,7 +65,7 @@ export function GifPicker({
       window.removeEventListener("mousedown", onDown);
       window.removeEventListener("keydown", onKey);
     };
-  }, [onClose]);
+  }, [onClose, toggleRef]);
 
   return (
     <div

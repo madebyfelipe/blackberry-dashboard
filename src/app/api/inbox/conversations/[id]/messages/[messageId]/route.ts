@@ -6,9 +6,8 @@ import {
   editMessage,
 } from "@/lib/inbox/repository";
 import { currentInboxSession } from "@/lib/inbox/viewer";
-import { deleteMedia } from "@/lib/media/store";
-import { attachmentsLabel } from "@/lib/inbox/constants";
-import { redactNotifications } from "@/lib/notifications/repository";
+import { deleteMedia, getMedia } from "@/lib/media/store";
+import { updateMessageNotifications } from "@/lib/notifications/repository";
 import { excerpt } from "@/lib/notifications/view";
 import { publishToConversation } from "@/lib/realtime/server";
 import { unauthorized } from "@/lib/auth/session";
@@ -40,6 +39,9 @@ export async function PATCH(req: Request, { params }: Ctx) {
   try {
     const conversation = await editMessage(session.scope, session.me.id, id, messageId, String(text ?? ""));
     if (!conversation) return NextResponse.json(NOT_FOUND, { status: 404 });
+    // O aviso de quem recebeu mostra o texto novo.
+    const edited = conversation.messages.find((m) => m.id === messageId);
+    if (edited?.text) await updateMessageNotifications(session.scope, messageId, excerpt(edited.text));
     await publishToConversation(session.scope, id, { tipo: "mensagem", conversationId: id });
     return NextResponse.json({ conversation });
   } catch (err) {
@@ -56,19 +58,31 @@ export async function DELETE(_req: Request, { params }: Ctx) {
   try {
     const result = await deleteMessage(session.scope, session.me.id, id, messageId);
     if (!result) return NextResponse.json(NOT_FOUND, { status: 404 });
-    // Os arquivos que a mensagem levava saem junto (o GIF não é nosso).
+    /*
+     * Os arquivos que a mensagem levava saem junto — mas só os que são
+     * **desta** mensagem (anexo que esta pessoa subiu aqui e que foi preso a
+     * ela). Uma arte de lote ou o anexo de outra mensagem nunca é apagado
+     * por aqui, mesmo que o id tenha ido parar na lista. O GIF não é nosso.
+     */
     await Promise.all(
       result.removed
         .filter((a) => a.kind !== "gif")
-        .map((a) => deleteMedia(a.id).catch(() => undefined)),
+        .map(async (a) => {
+          const media = await getMedia(a.id);
+          const o = media?.owner;
+          if (
+            o &&
+            o.agencyId === session.scope.agencyId &&
+            o.uploaderId === session.me.id &&
+            o.conversationId === id &&
+            o.messageId === messageId
+          ) {
+            await deleteMedia(a.id).catch(() => undefined);
+          }
+        }),
     );
-    // O aviso que alguém recebeu dela também para de mostrar o texto.
-    await redactNotifications(
-      session.scope,
-      `conversa:${id}`,
-      excerpt(result.text || attachmentsLabel(result.removed)),
-      "Mensagem apagada",
-    );
+    // O aviso de quem recebeu para de mostrar o texto.
+    await updateMessageNotifications(session.scope, messageId, "Mensagem apagada");
     await publishToConversation(session.scope, id, { tipo: "mensagem", conversationId: id });
     return NextResponse.json({ conversation: result.conversation });
   } catch (err) {

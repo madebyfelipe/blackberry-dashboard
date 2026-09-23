@@ -123,7 +123,7 @@ async function fetchBlobBytes(
  */
 export async function saveMedia(
   bytes: Uint8Array,
-  meta: { mime: string; name: string },
+  meta: { mime: string; name: string; owner?: MediaAsset["owner"] },
   policy: MediaPolicy = ART_POLICY,
 ): Promise<MediaAsset> {
   const mime = baseMime(meta.mime);
@@ -144,6 +144,7 @@ export async function saveMedia(
     width: dims?.width,
     height: dims?.height,
     createdAt: new Date().toISOString(),
+    ...(meta.owner ? { owner: meta.owner } : {}),
   };
 
   // Bytes primeiro: um registro sem arquivo daria uma arte quebrada na tela.
@@ -259,6 +260,7 @@ export async function saveBlobMedia(
   meta: {
     pathname: string;
     name: string;
+    owner?: MediaAsset["owner"];
   },
   policy: MediaPolicy = ART_POLICY,
 ): Promise<MediaAsset> {
@@ -298,6 +300,7 @@ export async function saveBlobMedia(
     createdAt: new Date().toISOString(),
     blobUrl: found.url,
     blobPathname: found.pathname,
+    ...(meta.owner ? { owner: meta.owner } : {}),
   };
 
   await index.transaction((map) => {
@@ -305,4 +308,35 @@ export async function saveBlobMedia(
   });
 
   return asset;
+}
+
+/**
+ * Prende anexos a uma mensagem — só os que ainda estão soltos e são de quem
+ * manda, nesta conversa. Devolve os ids que prendeu; o que não prendeu (já
+ * usado, de outra pessoa) não entra na mensagem.
+ */
+export async function claimAttachments(
+  ids: string[],
+  owner: { agencyId: string; uploaderId: string; conversationId: string },
+  messageId: string,
+): Promise<string[]> {
+  if (ids.length === 0) return [];
+  return index.transaction((map) => {
+    const claimed: string[] = [];
+    for (const id of ids) {
+      const o = map[id]?.owner;
+      if (
+        !o ||
+        o.agencyId !== owner.agencyId ||
+        o.uploaderId !== owner.uploaderId ||
+        o.conversationId !== owner.conversationId ||
+        o.messageId
+      ) {
+        continue;
+      }
+      o.messageId = messageId;
+      claimed.push(id);
+    }
+    return claimed;
+  });
 }

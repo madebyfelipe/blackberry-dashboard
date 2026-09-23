@@ -66,6 +66,12 @@ describe("mensagens da mesma conversa viram um aviso só", () => {
     assert.equal(out.length, 2);
   });
 
+  test("aviso de outra agência não se mistura, mesmo com o mesmo destinatário e ref", () => {
+    const list = [base({ id: "m", kind: "mensagem", ref: "conversa:g1", agencyId: "outra" as never })];
+    const { list: out } = mergeNotification(list, input(), "2026-09-20T11:00:00.000Z");
+    assert.equal(out.length, 2);
+  });
+
   test("conversa de outra pessoa não se mistura", () => {
     const list = [base({ id: "m", kind: "mensagem", ref: "conversa:g1", recipientId: "ana" })];
     const { list: out } = mergeNotification(list, input(), "2026-09-20T11:00:00.000Z");

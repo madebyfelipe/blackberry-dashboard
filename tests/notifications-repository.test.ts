@@ -70,14 +70,19 @@ describe("as notificações de cada um", () => {
   });
 });
 
-describe("mensagem apagada", () => {
-  test("o aviso com o texto dela passa a dizer que foi apagada — só naquela conversa", async () => {
-    const msg = { kind: "mensagem" as const, ref: "conversa:g7", href: "/inbox?conversa=g7" };
-    await pushNotifications(AGENCIA_A, [{ ...aviso("caio"), ...msg, body: "segredo" }]);
-    await pushNotifications(AGENCIA_A, [{ ...aviso("caio"), ...msg, ref: "conversa:outra", body: "segredo" }]);
-    const { redactNotifications } = await import("../src/lib/notifications/repository");
-    assert.equal(await redactNotifications(AGENCIA_A, "conversa:g7", "segredo", "Mensagem apagada"), 1);
-    const bodies = (await listNotifications(AGENCIA_A, "caio")).map((n) => `${n.ref}:${n.body}`).sort();
-    assert.deepEqual(bodies, ["conversa:g7:Mensagem apagada", "conversa:outra:segredo"]);
+describe("mensagem editada ou apagada", () => {
+  test("o aviso acompanha pelo id da mensagem — não pelo texto, que repete", async () => {
+    const { updateMessageNotifications } = await import("../src/lib/notifications/repository");
+    const msg = { kind: "mencao" as const, ref: "conversa:g7", href: "/inbox?conversa=g7" };
+    await pushNotifications(AGENCIA_A, [{ ...aviso("caio"), ...msg, body: "ok", messageId: "m1" }]);
+    await pushNotifications(AGENCIA_A, [{ ...aviso("caio"), ...msg, body: "ok", messageId: "m2" }]);
+    // Editada: o trecho novo.
+    assert.equal(await updateMessageNotifications(AGENCIA_A, "m1", "ok, feito"), 1);
+    // Apagada depois de editada: ainda acha (pelo id), e só ela.
+    assert.equal(await updateMessageNotifications(AGENCIA_A, "m1", "Mensagem apagada"), 1);
+    // Outra agência não mexe em nada.
+    assert.equal(await updateMessageNotifications(AGENCIA_B, "m2", "x"), 0);
+    const bodies = (await listNotifications(AGENCIA_A, "caio")).map((n) => `${n.messageId}:${n.body}`).sort();
+    assert.deepEqual(bodies, ["m1:Mensagem apagada", "m2:ok"]);
   });
 });
