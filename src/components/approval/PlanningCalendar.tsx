@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import Link from "next/link";
 import type { Batch, Piece, PieceFormat } from "@/lib/approval/types";
 import { CAPTION_LIMIT, pieceFormat } from "@/lib/approval/constants";
@@ -10,6 +10,7 @@ import { useToast } from "@/components/ui/Toast";
 import { Spinner } from "@/components/ui/Spinner";
 import { cn } from "@/lib/cn";
 import {
+  CalendarIcon,
   ChevronLeftIcon,
   ChevronRightIcon,
   CirclePlayIcon,
@@ -19,11 +20,11 @@ import {
   LayoutGridIcon,
   PlusIcon,
   SaveIcon,
-  XIcon,
 } from "@/components/icons";
 import { BatchViewToggle } from "./BatchViewToggle";
 import { RoundIconButton } from "./RoundIconButton";
 import { ShareBatchModal } from "./ShareBatchModal";
+import { ModalShell, chipState, modalBodyInput, modalChip, modalPrimary, modalTitleInput } from "@/components/ui/ModalShell";
 
 /*
  * Planejamento — o lote como calendário.
@@ -359,6 +360,7 @@ export function PlanningCalendar({ batch: initialBatch, clientSlug }: { batch: B
       {draft && (
         <PlanDialog
           draft={draft}
+          client={batch.client}
           saving={saving}
           editorHref={draft.pieceId ? `/social/${clientSlug}/${batch.id}/editor?peca=${draft.pieceId}` : null}
           onChange={setDraft}
@@ -375,6 +377,7 @@ export function PlanningCalendar({ batch: initialBatch, clientSlug }: { batch: B
 
 function PlanDialog({
   draft,
+  client,
   saving,
   editorHref,
   onChange,
@@ -382,47 +385,32 @@ function PlanDialog({
   onClose,
 }: {
   draft: Draft;
+  client: string;
   saving: boolean;
   editorHref: string | null;
   onChange: React.Dispatch<React.SetStateAction<Draft | null>>;
   onSave: () => void;
   onClose: () => void;
 }) {
-  useEffect(() => {
-    function onKey(e: KeyboardEvent) {
-      if (e.key === "Escape") onClose();
-    }
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [onClose]);
-
   const [y, m, d] = draft.day.split("-").map(Number);
-  const dayLabel = new Date(y, m - 1, d).toLocaleDateString("pt-BR", { weekday: "long", day: "numeric", month: "long" });
+  const dayLabel = new Date(y, m - 1, d).toLocaleDateString("pt-BR", { weekday: "short", day: "numeric", month: "short" });
   // Sempre a partir do estado mais novo: duas mudanças no mesmo instante
   // (autocompletar, digitação rápida) não podem apagar uma à outra.
-  const set = (patch: Partial<Draft>) => onChange((d) => (d ? { ...d, ...patch } : d));
+  const set = (patch: Partial<Draft>) => onChange((cur) => (cur ? { ...cur, ...patch } : cur));
 
   return (
-    <div role="dialog" aria-modal="true" aria-label="Criativo do dia" className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div className="absolute inset-0 animate-fade-in bg-black/70 backdrop-blur-[2px]" onClick={onClose} />
-      <form
-        onSubmit={(e) => {
-          e.preventDefault();
-          onSave();
-        }}
-        className="relative flex max-h-[calc(100vh-32px)] w-full max-w-[460px] animate-scale-in flex-col gap-4 overflow-y-auto rounded-card border border-border bg-surface p-6 shadow-[0_24px_64px_rgba(0,0,0,0.65)]"
-      >
-        <header className="flex items-start justify-between gap-3">
-          <div className="flex flex-col gap-1">
-            <h2 className="text-[16px] font-semibold text-fg">{draft.pieceId ? "Editar criativo" : "Novo criativo"}</h2>
-            <p className="text-[12px] capitalize text-muted">{dayLabel}</p>
-          </div>
-          <button type="button" aria-label="Fechar" onClick={onClose} className="text-muted hover:text-fg-soft">
-            <XIcon size={16} />
-          </button>
-        </header>
-
-        <div className="flex gap-1 rounded-panel border border-border bg-bg p-1" role="radiogroup" aria-label="Formato">
+    <ModalShell
+      trail={[client, "Planejamento"]}
+      title={draft.pieceId ? "Editar criativo" : "Novo criativo"}
+      label="Criativo do dia"
+      onClose={onClose}
+      onSubmit={onSave}
+      chips={
+        <>
+          <span className={cn(modalChip, "text-fg-soft inset-ring-border")}>
+            <CalendarIcon size={14} className="text-muted" />
+            {dayLabel}
+          </span>
           {FORMATS.map(({ id, label, Icon }) => (
             <button
               key={id}
@@ -430,78 +418,73 @@ function PlanDialog({
               role="radio"
               aria-checked={draft.format === id}
               onClick={() => set({ format: id })}
-              className={cn(
-                "tap flex flex-1 flex-col items-center gap-1.5 rounded-mark py-2.5 text-[11px] font-semibold transition-colors",
-                draft.format === id ? "bg-primary text-on-primary" : "text-muted hover:text-fg-soft",
-              )}
+              className={cn(modalChip, chipState(draft.format === id))}
             >
-              <Icon size={16} />
+              <Icon size={14} />
               {label}
             </button>
           ))}
-        </div>
-
-        <label className="flex flex-col gap-2">
-          <span className="text-[12px] font-semibold text-muted">Nome (opcional)</span>
-          <input
-            autoFocus
-            value={draft.name}
-            onChange={(e) => set({ name: e.target.value })}
-            placeholder="Ex.: Promo dia dos pais"
-            className="rounded-panel border border-border bg-bg px-3.5 py-2.5 text-[13px] text-fg-soft placeholder:text-muted focus:border-border-strong focus:outline-none"
-          />
-        </label>
-
-        <label className="flex flex-col gap-2">
-          <span className="flex items-center justify-between text-[12px] font-semibold text-muted">
-            Legenda
-            <span className="font-normal">
-              {draft.caption.length.toLocaleString("pt-BR")} / {CAPTION_LIMIT.toLocaleString("pt-BR")}
+        </>
+      }
+      footerStart={
+        editorHref ? (
+          <Link href={editorHref} className="flex items-center gap-1.5 text-[12px] font-medium text-fg-3 hover:text-fg-soft">
+            <ExternalLinkIcon size={13} /> Abrir no editor (arquivos)
+          </Link>
+        ) : (
+          <span className="text-[12px] text-muted">Vira tarefa no fluxo do cliente ao salvar.</span>
+        )
+      }
+      footerEnd={
+        <button type="submit" disabled={saving} className={modalPrimary}>
+          {saving ? (
+            <span className="flex items-center gap-2">
+              <Spinner size={14} /> Salvando…
             </span>
-          </span>
-          <textarea
-            value={draft.caption}
-            maxLength={CAPTION_LIMIT}
-            onChange={(e) => set({ caption: e.target.value })}
-            placeholder="A legenda que o cliente vai aprovar…"
-            className="min-h-[96px] resize-y rounded-panel border border-border bg-bg px-3.5 py-2.5 text-[13px]/[19px] text-fg-soft placeholder:text-muted focus:border-border-strong focus:outline-none"
-          />
-        </label>
-
-        <label className="flex flex-col gap-2">
-          <span className="text-[12px] font-semibold text-muted">Briefing para o designer</span>
-          <textarea
-            value={draft.briefing}
-            maxLength={4000}
-            onChange={(e) => set({ briefing: e.target.value })}
-            placeholder="Referências, texto da arte, o que não pode faltar… (só a agência vê)"
-            className="min-h-[96px] resize-y rounded-panel border border-border bg-bg px-3.5 py-2.5 text-[13px]/[19px] text-fg-soft placeholder:text-muted focus:border-border-strong focus:outline-none"
-          />
-        </label>
-
-        <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
-          {editorHref ? (
-            <Link href={editorHref} className="flex items-center gap-1.5 text-[12px] font-medium text-fg-3 hover:text-fg-soft">
-              <ExternalLinkIcon size={13} /> Abrir no editor (arquivos)
-            </Link>
+          ) : draft.pieceId ? (
+            "Salvar"
           ) : (
-            <span />
+            "Criar criativo"
           )}
-          <div className="flex gap-2">
-            <button type="button" onClick={onClose} className="tap rounded-panel px-4 py-2.5 text-[13px] font-medium text-fg-3 hover:text-fg-soft">
-              Cancelar
-            </button>
-            <button
-              type="submit"
-              disabled={saving}
-              className="tap flex items-center gap-2 rounded-panel bg-primary px-4 py-2.5 text-[13px] font-semibold text-on-primary hover:bg-white disabled:opacity-60"
-            >
-              {saving && <Spinner size={14} />}
-              Salvar
-            </button>
-          </div>
-        </div>
-      </form>
-    </div>
+        </button>
+      }
+    >
+      <input
+        autoFocus
+        value={draft.name}
+        onChange={(e) => set({ name: e.target.value })}
+        placeholder="Nome do criativo"
+        aria-label="Nome do criativo"
+        className={modalTitleInput}
+      />
+      <div className="flex flex-col gap-1">
+        <textarea
+          value={draft.caption}
+          maxLength={CAPTION_LIMIT}
+          onChange={(e) => set({ caption: e.target.value })}
+          placeholder="Legenda que o cliente vai aprovar..."
+          aria-label="Legenda"
+          rows={3}
+          className={modalBodyInput}
+        />
+        <span className="self-end text-[11px] text-dim">
+          {draft.caption.length.toLocaleString("pt-BR")} / {CAPTION_LIMIT.toLocaleString("pt-BR")}
+        </span>
+      </div>
+      <div className="flex flex-col gap-1.5 rounded-field bg-surface-2 px-4 py-3 inset-ring-1 inset-ring-border">
+        <span className="text-[11px] font-semibold uppercase tracking-[0.6px] text-label">
+          Briefing para o designer · só a agência vê
+        </span>
+        <textarea
+          value={draft.briefing}
+          maxLength={4000}
+          onChange={(e) => set({ briefing: e.target.value })}
+          placeholder="Referências, texto da arte, o que não pode faltar..."
+          aria-label="Briefing para o designer"
+          rows={3}
+          className={modalBodyInput}
+        />
+      </div>
+    </ModalShell>
   );
 }
