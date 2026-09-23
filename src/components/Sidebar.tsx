@@ -81,6 +81,12 @@ const SECTIONS: { title: string; items: NavItem[] }[] = [
   },
 ];
 
+/** As ações rápidas e a letra de cada uma (com o menu aberto pelo "/"). */
+const QUICK_ACTIONS = [
+  { key: "c", label: "Nova tarefa", href: "/tarefas?novo=1" },
+  { key: "f", label: "Novo cliente", href: "/clientes?novo=1" },
+] as const;
+
 const ALL_HREFS = [...INBOXES, ...SECTIONS.flatMap((s) => s.items)].map((i) => i.href);
 
 const ROLE_LABEL: Record<PublicUser["role"], string> = {
@@ -215,7 +221,12 @@ function SidebarPanel({
   /*
    * "/" abre as ações rápidas, como o desenho promete na própria linha. Sai do
    * caminho enquanto a pessoa digita em qualquer campo.
+   *
+   * Com o menu aberto, uma letra escolhe a ação: C cria tarefa, F cria
+   * cliente — "/" e a letra, sem tirar a mão do teclado.
    */
+  const quickOpenRef = useRef(quickOpen);
+  quickOpenRef.current = quickOpen;
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
       const el = e.target as HTMLElement | null;
@@ -229,11 +240,17 @@ function SidebarPanel({
         setQuickOpen((o) => !o);
       } else if (e.key === "Escape") {
         setQuickOpen(false);
+      } else if (quickOpenRef.current) {
+        const action = QUICK_ACTIONS.find((a) => a.key === e.key.toLowerCase());
+        if (!action) return;
+        e.preventDefault();
+        setQuickOpen(false);
+        router.push(action.href);
       }
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, []);
+  }, [router]);
 
   async function signOut() {
     setLeaving(true);
@@ -305,20 +322,17 @@ function SidebarPanel({
               role="menu"
               className="absolute left-0 top-[calc(100%+6px)] z-50 w-full animate-pop-in overflow-hidden rounded-menu border border-border bg-surface-2 p-1.5 shadow-[0_16px_40px_rgba(0,0,0,0.55)]"
             >
-              <QuickAction
-                label="Nova tarefa"
-                onSelect={() => {
-                  setQuickOpen(false);
-                  router.push("/tarefas?novo=1");
-                }}
-              />
-              <QuickAction
-                label="Novo cliente"
-                onSelect={() => {
-                  setQuickOpen(false);
-                  router.push("/clientes?novo=1");
-                }}
-              />
+              {QUICK_ACTIONS.map((a) => (
+                <QuickAction
+                  key={a.key}
+                  label={a.label}
+                  shortcut={a.key.toUpperCase()}
+                  onSelect={() => {
+                    setQuickOpen(false);
+                    router.push(a.href);
+                  }}
+                />
+              ))}
             </div>
           )}
         </div>
@@ -504,9 +518,11 @@ function NavLink({
 
 function QuickAction({
   label,
+  shortcut,
   onSelect,
 }: {
   label: string;
+  shortcut: string;
   onSelect: () => void;
 }) {
   return (
@@ -517,7 +533,10 @@ function QuickAction({
       className="flex w-full items-center gap-2.5 rounded-mark px-2.5 py-2 text-left text-[13px] text-fg-soft transition-colors hover:bg-border"
     >
       <PlusIcon size={14} className="text-muted" />
-      {label}
+      <span className="flex-1">{label}</span>
+      <kbd className="rounded-mark bg-surface px-1.5 py-0.5 font-sans text-[11px] font-medium text-muted inset-ring-1 inset-ring-border">
+        {shortcut}
+      </kbd>
     </button>
   );
 }
