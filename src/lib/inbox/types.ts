@@ -24,6 +24,16 @@ export type Presence = "disponivel" | "ocupado" | "ausente" | "offline";
 
 export type ConversationKind = "grupo" | "direta";
 
+/** A função na agência (coluna FUNÇÃO da tela de Usuários). */
+export type MemberRole = "admin" | "gerente" | "editor" | "visualizador" | "financeiro";
+
+/**
+ * Onde a pessoa está no time: trabalhando, convidada e ainda sem conta,
+ * afastada, ou fora (arquivada — o histórico dela fica, ela não recebe mais
+ * nada).
+ */
+export type MemberStatus = "ativo" | "convite" | "inativo" | "arquivado";
+
 /**
  * Alguém do time. Nasce de duas portas: o `seed` (a equipe da demonstração) e
  * `ensureMember`, que registra quem entra no app pela primeira vez — enquanto
@@ -42,6 +52,18 @@ export type InboxMember = {
    */
   handle: string;
   presence: Presence;
+  role: MemberRole;
+  status: MemberStatus;
+  /** ISO — a última vez que abriu o produto. `null` = nunca entrou. */
+  lastSeenAt: string | null;
+  /** ISO — quando entrou no time (ou foi convidado). */
+  createdAt: string;
+  /**
+   * O convite de quem ainda não tem conta. O token vai no link de cadastro
+   * (`/criar-conta?convite=…`) e é o que coloca a pessoa **nesta** agência;
+   * some quando ela entra.
+   */
+  invite: { token: string; agencyName: string; invitedBy: string } | null;
 };
 
 /**

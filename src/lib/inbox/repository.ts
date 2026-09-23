@@ -1,6 +1,7 @@
 import type { AgencyScope } from "@/lib/agency/types";
 import { MESSAGE_MAX, isPresence } from "./constants";
 import { handleProblem, normalizeHandle, suggestHandle } from "./handle";
+import { canManageTeam, isMemberRole, isMemberStatus } from "./users";
 import { read, transaction } from "./store";
 import type {
   Conversation,
@@ -8,6 +9,8 @@ import type {
   ConversationSummary,
   InboxData,
   InboxMember,
+  MemberRole,
+  MemberStatus,
   Message,
   Presence,
 } from "./types";
@@ -97,17 +100,34 @@ export async function ensureMember(
 ): Promise<InboxMember> {
   const email = user.email.trim().toLowerCase();
   const name = user.name.trim() || "—";
+  const now = Date.now();
 
   const existing = membersOf(await read(), scope).find((m) => m.email === email);
-  // Caminho comum: já existe e está em dia — nenhuma gravação por page load.
-  if (existing && existing.name === name) return existing;
+  // Caminho comum: já existe, está em dia e o último acesso é recente — nenhuma
+  // gravação por carregamento de tela.
+  if (
+    existing &&
+    existing.name === name &&
+    existing.status !== "convite" &&
+    existing.lastSeenAt &&
+    now - Date.parse(existing.lastSeenAt) < LAST_SEEN_EVERY_MS
+  ) {
+    return existing;
+  }
 
   return transaction((data) => {
     const members = membersOf(data, scope);
     const member = members.find((m) => m.email === email);
+    const stamp = new Date(now).toISOString();
     if (member) {
       // A pessoa trocou o nome em Configurações: a conversa acompanha.
       member.name = name;
+      member.lastSeenAt = stamp;
+      // O convite vira gente: a primeira entrada é o aceite.
+      if (member.status === "convite") {
+        member.status = "ativo";
+        member.invite = null;
+      }
       return { ...member };
     }
     let id = memberIdFromEmail(email);
@@ -119,10 +139,186 @@ export async function ensureMember(
       email,
       handle: suggestHandle(name, members.map((m) => m.handle)),
       presence: "disponivel",
+      // Quem abre a agência administra; quem chega depois sem convite, edita.
+      role: members.length === 0 ? "admin" : "editor",
+      status: "ativo",
+      lastSeenAt: stamp,
+      createdAt: stamp,
+      invite: null,
     };
     data.members.push(created);
     return { ...created };
   });
+}
+
+/** De quanto em quanto tempo o "último acesso" é regravado. */
+const LAST_SEEN_EVERY_MS = 5 * 60_000;
+
+/* ------------------------------------------------------------ Usuários */
+
+/** Quem pede não pode mexer no time — a regra não é da tela, é daqui. */
+export class ForbiddenError extends Error {}
+
+function assertManager(data: InboxData, scope: AgencyScope, viewerId: string) {
+  const viewer = membersOf(data, scope).find((m) => m.id === viewerId);
+  if (!viewer || !canManageTeam(viewer)) {
+    throw new ForbiddenError("Só Admin e Gerente mexem no time.");
+  }
+}
+
+function newInviteToken(): string {
+  const bytes = new Uint8Array(18);
+  crypto.getRandomValues(bytes);
+  return Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+/**
+ * "Adicionar usuário": a pessoa entra no time como convite pendente, com o
+ * @ já reservado e um token para o link de cadastro. Ela vira ativa quando
+ * cria a conta por esse link e entra pela primeira vez (`ensureMember`).
+ */
+export async function inviteMember(
+  scope: AgencyScope,
+  viewerId: string,
+  input: { name: string; email: string; role: MemberRole },
+): Promise<InboxMember> {
+  const name = String(input.name ?? "").trim().slice(0, 60);
+  const email = String(input.email ?? "").trim().toLowerCase();
+  if (!name) throw new ValidationError("Informe o nome.");
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw new ValidationError("E-mail inválido.");
+  if (!isMemberRole(input.role)) throw new ValidationError("Função inválida.");
+
+  return transaction((data) => {
+    assertManager(data, scope, viewerId);
+    const members = membersOf(data, scope);
+    if (members.some((m) => m.email === email)) {
+      throw new ValidationError("Esse e-mail já está no time.");
+    }
+    const inviter = members.find((m) => m.id === viewerId);
+    let id = memberIdFromEmail(email);
+    while (data.members.some((m) => m.id === id)) id = `${id}-${Math.random().toString(36).slice(2, 5)}`;
+    const created: InboxMember = {
+      id,
+      agencyId: scope.agencyId,
+      name,
+      email,
+      handle: suggestHandle(name, members.map((m) => m.handle)),
+      presence: "offline",
+      role: input.role,
+      status: "convite",
+      lastSeenAt: null,
+      createdAt: new Date().toISOString(),
+      invite: {
+        token: newInviteToken(),
+        agencyName: scope.agencyName,
+        invitedBy: inviter?.name ?? "",
+      },
+    };
+    data.members.push(created);
+    return { ...created };
+  });
+}
+
+export type MemberPatch = {
+  name?: string;
+  role?: MemberRole;
+  status?: MemberStatus;
+};
+
+/**
+ * Editar, arquivar, reativar. Duas travas que a tela não consegue furar:
+ * ninguém tira de si mesmo a administração (a agência ficaria sem quem
+ * administra), e convite pendente só sai do estado quando a pessoa entra.
+ */
+export async function updateMember(
+  scope: AgencyScope,
+  viewerId: string,
+  id: string,
+  patch: MemberPatch,
+): Promise<InboxMember | undefined> {
+  if (patch.role !== undefined && !isMemberRole(patch.role)) throw new ValidationError("Função inválida.");
+  if (patch.status !== undefined && !isMemberStatus(patch.status)) throw new ValidationError("Status inválido.");
+  if (patch.name !== undefined && !String(patch.name).trim()) {
+    throw new ValidationError("O nome não pode ficar vazio.");
+  }
+
+  return transaction((data) => {
+    assertManager(data, scope, viewerId);
+    const m = membersOf(data, scope).find((x) => x.id === id);
+    if (!m) return undefined;
+    if (id === viewerId && patch.status !== undefined && patch.status !== "ativo") {
+      throw new ValidationError("Você não pode arquivar nem desativar a si mesmo.");
+    }
+    if (id === viewerId && patch.role !== undefined && !canManageTeam({ role: patch.role })) {
+      throw new ValidationError("Você não pode tirar de si mesmo a administração do time.");
+    }
+    if (patch.status !== undefined && patch.status !== m.status) {
+      if (m.status === "convite") {
+        throw new ValidationError("Convite pendente vira ativo quando a pessoa cria a conta — ou é excluído.");
+      }
+      if (patch.status === "convite") {
+        throw new ValidationError('Convite só nasce em "Adicionar usuário".');
+      }
+      m.status = patch.status;
+    }
+    if (patch.name !== undefined) m.name = String(patch.name).trim().slice(0, 60);
+    if (patch.role !== undefined) m.role = patch.role;
+    return { ...m };
+  });
+}
+
+/**
+ * Excluir só vale para convite que ninguém aceitou. Quem já trabalhou tem
+ * mensagem, tarefa e histórico com o nome dele — tirar a pessoa apagaria o
+ * rastro; para isso existe arquivar.
+ */
+export async function deleteMember(
+  scope: AgencyScope,
+  viewerId: string,
+  id: string,
+): Promise<boolean> {
+  return transaction((data) => {
+    assertManager(data, scope, viewerId);
+    const i = data.members.findIndex((m) => m.id === id && m.agencyId === scope.agencyId);
+    if (i === -1) return false;
+    if (data.members[i].status !== "convite") {
+      throw new ValidationError("Só convite pendente pode ser excluído. Quem já trabalhou no time é arquivado.");
+    }
+    data.members.splice(i, 1);
+    return true;
+  });
+}
+
+/** Troca o token do convite — o "Reenviar acesso" quando o link antigo se perdeu. */
+export async function renewInvite(
+  scope: AgencyScope,
+  viewerId: string,
+  id: string,
+): Promise<InboxMember | undefined> {
+  return transaction((data) => {
+    assertManager(data, scope, viewerId);
+    const m = membersOf(data, scope).find((x) => x.id === id);
+    if (!m) return undefined;
+    if (m.status !== "convite" || !m.invite) {
+      throw new ValidationError("Essa pessoa já tem conta — o acesso dela é o e-mail e a senha.");
+    }
+    m.invite = { ...m.invite, token: newInviteToken() };
+    return { ...m };
+  });
+}
+
+/**
+ * O convite por trás de um link de cadastro. Roda **sem sessão** — quem
+ * autoriza é o token, como no link público de aprovação —, então devolve só
+ * o necessário para o cadastro: e-mail, nome, agência.
+ */
+export async function findInvite(token: string): Promise<
+  { email: string; name: string; agencyId: InboxMember["agencyId"]; agencyName: string } | undefined
+> {
+  if (!/^[a-f0-9]{36}$/.test(token)) return undefined;
+  const m = (await read()).members.find((x) => x.status === "convite" && x.invite?.token === token);
+  if (!m || !m.invite) return undefined;
+  return { email: m.email, name: m.name, agencyId: m.agencyId, agencyName: m.invite.agencyName };
 }
 
 /**

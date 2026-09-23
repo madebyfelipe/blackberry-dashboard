@@ -2,6 +2,7 @@ import { createStore } from "@/lib/store";
 import { agencyIdOrLegacy } from "@/lib/agency/id";
 import { isPresence } from "./constants";
 import { handleProblem, normalizeHandle, suggestHandle } from "./handle";
+import { isMemberRole, isMemberStatus } from "./users";
 import { seedInbox } from "./seed";
 import type { Conversation, InboxData, InboxMember, Message } from "./types";
 
@@ -24,6 +25,20 @@ function normalizeMember(raw: Partial<InboxMember> & { id: string }): InboxMembe
     email: String(raw.email ?? "").trim().toLowerCase(),
     presence: isPresence(raw.presence) ? raw.presence : "offline",
     handle: normalizeHandle(String(raw.handle ?? "")),
+    // Gravado antes da tela de Usuários: quem já estava no time está ativo, e
+    // a função padrão é editor — quem administra é promovido na tela.
+    role: isMemberRole(raw.role) ? raw.role : "editor",
+    status: isMemberStatus(raw.status) ? raw.status : "ativo",
+    lastSeenAt: typeof raw.lastSeenAt === "string" && raw.lastSeenAt ? raw.lastSeenAt : null,
+    createdAt: typeof raw.createdAt === "string" && raw.createdAt ? raw.createdAt : "2026-09-01T09:00:00.000Z",
+    invite:
+      raw.invite && typeof raw.invite === "object" && raw.invite.token
+        ? {
+            token: String(raw.invite.token),
+            agencyName: String(raw.invite.agencyName ?? ""),
+            invitedBy: String(raw.invite.invitedBy ?? ""),
+          }
+        : null,
   };
 }
 
@@ -121,6 +136,22 @@ function normalizeConversation(
 }
 
 /**
+ * Toda agência precisa de alguém que administre o time. Gravação de antes da
+ * tela de Usuários não tem função nenhuma — todo mundo cairia em "editor" e a
+ * agência ficaria sem quem convide ou arquive. Então, onde ninguém é Admin nem
+ * Gerente, quem tem conta (e-mail) vira Admin. Membro sem conta (a equipe de
+ * demonstração) continua editor.
+ */
+function settleAdmins(members: InboxMember[]): InboxMember[] {
+  const managed = new Set(
+    members.filter((m) => m.role === "admin" || m.role === "gerente").map((m) => m.agencyId),
+  );
+  return members.map((m) =>
+    !managed.has(m.agencyId) && m.email && m.status === "ativo" ? { ...m, role: "admin" } : m,
+  );
+}
+
+/**
  * Migração de leitura, como nos outros stores: arquivo gravado antes de um
  * campo continua válido, e o que faltar entra com o padrão. Arquivo de uma
  * versão em que o Inbox ainda não existia simplesmente não tem este arquivo —
@@ -129,11 +160,11 @@ function normalizeConversation(
 function revive(raw: unknown): InboxData {
   const data = (raw ?? {}) as Partial<InboxData>;
   return {
-    members: settleHandles(
+    members: settleAdmins(settleHandles(
       (Array.isArray(data.members) ? data.members : [])
         .filter((m): m is InboxMember => !!m && typeof m === "object" && !!m.id)
         .map(normalizeMember),
-    ),
+    )),
     conversations: (Array.isArray(data.conversations) ? data.conversations : [])
       .filter((c): c is Conversation => !!c && typeof c === "object" && !!c.id)
       .map(normalizeConversation),

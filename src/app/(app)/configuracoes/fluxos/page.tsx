@@ -3,6 +3,7 @@ import { currentInboxSession } from "@/lib/inbox/viewer";
 import { listFlows } from "@/lib/flows/repository";
 import { listMembers } from "@/lib/inbox/repository";
 import { FlowsView } from "@/components/flows/FlowsView";
+import { isWorking } from "@/lib/inbox/users";
 
 export const dynamic = "force-dynamic";
 
@@ -21,7 +22,7 @@ export default async function FluxosPage({
   return (
     <FlowsView
       initialFlows={flows}
-      team={members.map((m) => ({ id: m.id, name: m.name, handle: m.handle }))}
+      team={members.filter(isWorking).map((m) => ({ id: m.id, name: m.name, handle: m.handle }))}
       initialFlowId={params.fluxo ?? null}
       initialStepId={params.etapa ?? null}
     />

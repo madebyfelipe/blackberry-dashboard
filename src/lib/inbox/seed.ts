@@ -18,15 +18,25 @@ import type { Conversation, InboxData, InboxMember, Message } from "./types";
  *    tela estática); no produto quem abre a tela é ele.
  */
 
-const TEAM: Omit<InboxMember, "agencyId">[] = [
+type TeamRow = Pick<InboxMember, "id" | "name" | "email" | "handle" | "presence" | "role">;
+
+const TEAM_ROWS: TeamRow[] = [
   // O e-mail é o que liga este membro à conta de demonstração (ver README).
-  { id: "felipe", name: "Felipe", email: "felipe@blackberry.app", handle: "felipe", presence: "disponivel" },
-  { id: "marina", name: "Marina", email: "", handle: "marina", presence: "disponivel" },
-  { id: "ana", name: "Ana", email: "", handle: "ana", presence: "ocupado" },
-  { id: "rodrigo", name: "Rodrigo Q.", email: "", handle: "rodrigo", presence: "ausente" },
-  { id: "camila", name: "Camila", email: "", handle: "camila", presence: "offline" },
-  { id: "pedro", name: "Pedro E.", email: "", handle: "pedro", presence: "disponivel" },
+  { id: "felipe", name: "Felipe", email: "felipe@blackberry.app", handle: "felipe", presence: "disponivel", role: "admin" },
+  { id: "marina", name: "Marina", email: "", handle: "marina", presence: "disponivel", role: "editor" },
+  { id: "ana", name: "Ana", email: "", handle: "ana", presence: "ocupado", role: "editor" },
+  { id: "rodrigo", name: "Rodrigo Q.", email: "", handle: "rodrigo", presence: "ausente", role: "editor" },
+  { id: "camila", name: "Camila", email: "", handle: "camila", presence: "offline", role: "gerente" },
+  { id: "pedro", name: "Pedro E.", email: "", handle: "pedro", presence: "disponivel", role: "editor" },
 ];
+
+const TEAM: Omit<InboxMember, "agencyId">[] = TEAM_ROWS.map((row) => ({
+  ...row,
+  status: "ativo",
+  lastSeenAt: null,
+  createdAt: "2026-09-01T09:00:00.000Z",
+  invite: null,
+}));
 
 /** Minutos atrás — para o que aconteceu "hoje", sem cair no futuro. */
 function minutesAgo(minutes: number): string {

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { AuthError, AuthField, AuthShell } from "@/components/auth/AuthShell";
@@ -16,6 +16,25 @@ export default function CriarContaPage() {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  /**
+   * Cadastro por convite (`?convite=…`, o link da tela de Usuários): nome e
+   * e-mail vêm do convite, e a agência é a de quem convidou — a conta entra
+   * no time em vez de abrir uma agência nova.
+   */
+  const [convite, setConvite] = useState<{ token: string; agency: string } | null>(null);
+
+  useEffect(() => {
+    const token = new URLSearchParams(window.location.search).get("convite");
+    if (!token) return;
+    fetch(`/api/auth/convite?token=${encodeURIComponent(token)}`)
+      .then((r) => (r.ok ? r.json() : Promise.reject(r)))
+      .then((data: { email: string; name: string; agency: string }) => {
+        setConvite({ token, agency: data.agency });
+        setEmail(data.email);
+        setName((n) => n || data.name);
+      })
+      .catch(() => setError("Este convite não vale mais. Peça um link novo a quem te convidou."));
+  }, []);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -25,7 +44,9 @@ export default function CriarContaPage() {
       const res = await fetch("/api/auth/register", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ name, agency, email, password }),
+        body: JSON.stringify(
+          convite ? { name, email, password, convite: convite.token } : { name, agency, email, password },
+        ),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data?.error ?? "Não foi possível criar a conta.");
@@ -70,6 +91,11 @@ export default function CriarContaPage() {
           />
         </AuthField>
 
+        {convite ? (
+          <p className="rounded-field border border-white/15 bg-black/45 px-4 py-3 text-[13px] text-fg-3">
+            Você vai entrar no time da <span className="font-semibold text-fg">{convite.agency}</span>.
+          </p>
+        ) : (
         <AuthField label="Agência" htmlFor="agency">
           <Input
             id="agency"
@@ -80,6 +106,7 @@ export default function CriarContaPage() {
             className="border-white/15 bg-black/45"
           />
         </AuthField>
+        )}
 
         <AuthField label="E-mail" htmlFor="email">
           <Input
@@ -89,8 +116,9 @@ export default function CriarContaPage() {
             autoComplete="email"
             placeholder="voce@empresa.com"
             value={email}
+            readOnly={!!convite}
             onChange={(e) => setEmail(e.target.value)}
-            className="border-white/15 bg-black/45"
+            className="border-white/15 bg-black/45 read-only:text-fg-3"
           />
         </AuthField>
 

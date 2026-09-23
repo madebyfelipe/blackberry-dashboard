@@ -73,8 +73,9 @@ export async function registerUser(input: NewUser): Promise<PublicUser> {
     if (users.some((u) => u.email === email)) {
       throw new AuthError("Já existe uma conta com esse e-mail.");
     }
-    const agency =
-      (input.agency ?? "").trim() || `Agência de ${name.split(" ")[0]}`;
+    const agency = input.joinAgency
+      ? input.joinAgency.agencyName
+      : (input.agency ?? "").trim() || `Agência de ${name.split(" ")[0]}`;
     const user: User = {
       id: "u" + Math.random().toString(36).slice(2, 9),
       name,
@@ -83,7 +84,7 @@ export async function registerUser(input: NewUser): Promise<PublicUser> {
       agency,
       // Cada cadastro abre um tenant novo. Digitar o nome de uma agência que
       // já existe não coloca ninguém dentro dela (ver `newAgencyId`).
-      agencyId: newAgencyId(agency),
+      agencyId: input.joinAgency ? input.joinAgency.agencyId : newAgencyId(agency),
       passwordHash,
       passwordVersion: 1,
       createdAt: new Date().toISOString(),

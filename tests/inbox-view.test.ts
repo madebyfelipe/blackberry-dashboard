@@ -32,10 +32,19 @@ import type {
  * comportamento sem subir o app nem abrir uma conversa.
  */
 
+/** Os campos da tela de Usuários, iguais para todo membro destes testes. */
+const NO_TIME = {
+  role: "editor",
+  status: "ativo",
+  lastSeenAt: null,
+  createdAt: "2026-09-01T09:00:00.000Z",
+  invite: null,
+} as const;
+
 const MEMBROS: InboxMember[] = [
-  { id: "felipe", agencyId: AGENCIA_A.agencyId, name: "Felipe", email: "f@bb.app", handle: "felipe", presence: "disponivel" },
-  { id: "marina", agencyId: AGENCIA_A.agencyId, name: "Marina", email: "", handle: "marina", presence: "ocupado" },
-  { id: "ana", agencyId: AGENCIA_A.agencyId, name: "Ana", email: "", handle: "ana", presence: "offline" },
+  { id: "felipe", agencyId: AGENCIA_A.agencyId, name: "Felipe", email: "f@bb.app", handle: "felipe", presence: "disponivel", ...NO_TIME },
+  { id: "marina", agencyId: AGENCIA_A.agencyId, name: "Marina", email: "", handle: "marina", presence: "ocupado", ...NO_TIME },
+  { id: "ana", agencyId: AGENCIA_A.agencyId, name: "Ana", email: "", handle: "ana", presence: "offline", ...NO_TIME },
 ];
 
 function msg(over: Partial<Message> & { id: string }): Message {
@@ -334,7 +343,7 @@ describe("chamada longa e grupo sem nome", () => {
   });
 
   test("grupo sem nome se chama por quem está nele", () => {
-    const m = (name: string) => ({ id: name, agencyId: AGENCIA_A.agencyId, name, email: "", handle: name.toLowerCase(), presence: "disponivel" as const });
+    const m = (name: string) => ({ id: name, agencyId: AGENCIA_A.agencyId, name, email: "", handle: name.toLowerCase(), presence: "disponivel" as const, ...NO_TIME });
     assert.equal(groupFallbackTitle([m("Marina"), m("Ana")]), "Marina e Ana");
     assert.equal(groupFallbackTitle([m("Marina"), m("Ana"), m("Pedro")]), "Marina, Ana e Pedro");
     assert.equal(

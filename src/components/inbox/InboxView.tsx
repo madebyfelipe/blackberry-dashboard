@@ -116,13 +116,13 @@ export function InboxView({
   );
 
   /** A equipe com a presença de agora — é dela que sai o "adicionar alguém". */
-  const team = useMemo<InboxMember[]>(
-    () =>
-      aoVivoOk
-        ? state.members.map((m) => ({ ...m, presence: online[m.id] ?? "offline" }))
-        : state.members,
-    [aoVivoOk, online, state.members],
-  );
+  const team = useMemo<InboxMember[]>(() => {
+    // Convidado sem conta, inativo e arquivado não entram em conversa nova.
+    const working = state.members.filter((m) => m.status === "ativo");
+    return aoVivoOk
+      ? working.map((m) => ({ ...m, presence: online[m.id] ?? "offline" }))
+      : working;
+  }, [aoVivoOk, online, state.members]);
 
   const conversations = useMemo(
     () => sortSummaries(state.conversations).map(aoVivo),

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { listMembers } from "@/lib/inbox/repository";
 import { currentInboxSession } from "@/lib/inbox/viewer";
 import { unauthorized } from "@/lib/auth/session";
+import { isWorking } from "@/lib/inbox/users";
 
 export const dynamic = "force-dynamic";
 
@@ -15,6 +16,7 @@ export async function GET() {
   const members = await listMembers(session.scope);
   return NextResponse.json({
     me: session.me.id,
-    members: members.map((m) => ({ id: m.id, name: m.name, handle: m.handle })),
+    // Só quem trabalha: convidado, inativo e arquivado não se marcam nem se atribuem.
+    members: members.filter(isWorking).map((m) => ({ id: m.id, name: m.name, handle: m.handle })),
   });
 }
