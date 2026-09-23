@@ -2,6 +2,7 @@ import { notFound, redirect } from "next/navigation";
 import { getTask } from "@/lib/tasks/repository";
 import { currentAgencyScope } from "@/lib/auth/session";
 import { TaskDetail } from "@/components/tasks/TaskDetail";
+import { getFlow } from "@/lib/flows/repository";
 
 export const dynamic = "force-dynamic";
 
@@ -20,5 +21,8 @@ export default async function TarefaPage({ params }: Ctx) {
   const task = await getTask(scope, id);
   if (!task) notFound();
 
-  return <TaskDetail task={task} />;
+  // O fluxo da tarefa, para a tela oferecer "mover para a próxima etapa".
+  const flow = task.flowId ? await getFlow(scope, task.flowId) : undefined;
+
+  return <TaskDetail task={task} flow={flow ?? null} />;
 }

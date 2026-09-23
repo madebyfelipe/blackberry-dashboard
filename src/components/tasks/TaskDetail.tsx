@@ -1,5 +1,7 @@
 "use client";
 
+import type { Flow } from "@/lib/flows/types";
+import { nextStep, stepPosition } from "@/lib/flows/view";
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { Task, TaskPatch, TaskPriority, TaskStatus } from "@/lib/tasks/types";
@@ -17,6 +19,7 @@ import { PriorityBars } from "./PriorityBars";
 import {
   ArrowUpIcon,
   CalendarIcon,
+  ArrowRightIcon,
   CheckIcon,
   CirclePlusIcon,
   FolderIcon,
@@ -42,7 +45,7 @@ import { cn } from "@/lib/cn";
  * PATCH vai atrás, e um erro devolve o valor anterior com um toast. Não há
  * botão "Salvar" porque não há rascunho — é edição direta.
  */
-export function TaskDetail({ task: initial }: { task: Task }) {
+export function TaskDetail({ task: initial, flow }: { task: Task; flow: Flow | null }) {
   const router = useRouter();
   const { toast } = useToast();
   const [task, setTask] = useState<Task>(initial);
@@ -68,6 +71,35 @@ export function TaskDetail({ task: initial }: { task: Task }) {
     } catch (e) {
       setTask(before);
       toast(errMsg(e), "error");
+    }
+  }
+
+  /*
+   * A etapa do fluxo em que a tarefa está e para onde ela vai. O botão faz o
+   * mesmo que marcar "Concluído" — o servidor entrega a tarefa ao responsável
+   * da próxima etapa —, só que dizendo para onde ela vai antes do clique.
+   */
+  const step = flow?.steps.find((s) => s.id === task.stepId) ?? null;
+  const next = flow && step ? nextStep(flow, step.id) : null;
+  const position = flow && step ? stepPosition(flow, step.id) : null;
+  const [advancing, setAdvancing] = useState(false);
+
+  async function advance() {
+    if (advancing) return;
+    setAdvancing(true);
+    try {
+      const updated = await apiUpdateTask(task.id, { status: "concluido" });
+      setTask(updated);
+      router.refresh();
+      toast(
+        next
+          ? `Movida para ${next.name}${updated.assignee !== "—" ? `, com ${updated.assignee}` : ""}.`
+          : "Tarefa concluída — fim do fluxo.",
+      );
+    } catch (e) {
+      toast(errMsg(e), "error");
+    } finally {
+      setAdvancing(false);
     }
   }
 
@@ -150,6 +182,31 @@ export function TaskDetail({ task: initial }: { task: Task }) {
         </div>
 
         <div className="flex shrink-0 items-center gap-2">
+          {step && (task.status !== "concluido" || next) && (
+            <button
+              type="button"
+              onClick={() => void advance()}
+              disabled={advancing}
+              className="tap flex h-10 items-center gap-2 rounded-full bg-primary px-4 text-[13px] font-semibold text-on-primary transition-colors hover:bg-white disabled:opacity-60"
+            >
+              {next ? (
+                <>
+                  Mover para {next.name}
+                  <ArrowRightIcon size={15} />
+                </>
+              ) : (
+                <>
+                  <CheckIcon size={15} strokeWidth={2.5} />
+                  Concluir
+                </>
+              )}
+            </button>
+          )}
+          {step && task.status === "concluido" && !next && (
+            <span className="flex h-10 items-center gap-1.5 rounded-full bg-surface px-4 text-[13px] font-medium text-fg-3">
+              <CheckIcon size={14} /> Fluxo concluído
+            </span>
+          )}
           <button
             type="button"
             aria-label="Renomear tarefa"
@@ -262,6 +319,17 @@ export function TaskDetail({ task: initial }: { task: Task }) {
               onSelect={(s) => s !== task.status && patch({ status: s })}
             />
           </PropertyRow>
+
+          {flow && step && (
+            <PropertyRow label="Etapa">
+              <span className="truncate text-[13px] text-fg-soft">
+                {step.name}
+                <span className="text-muted">
+                  {" "}· {position?.index} de {position?.total} · {flow.name}
+                </span>
+              </span>
+            </PropertyRow>
+          )}
 
           <PropertyRow label="Responsável">
             <span className="flex min-w-0 items-center gap-2">

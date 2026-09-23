@@ -1,0 +1,128 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import type { Batch } from "@/lib/approval/types";
+import { useToast } from "@/components/ui/Toast";
+import { ArrowLeftIcon, CheckIcon, CopyIcon, XIcon } from "@/components/icons";
+
+/*
+ * O lote salvo, pronto para o cliente: QR code do link público, o campo com
+ * o link e "copiar", e a volta para a tela do lote (não para o editor —
+ * quem salvou terminou de montar).
+ *
+ * Tela provisória: o modal não tem desenho ainda. O QR é gerado no navegador
+ * (`qrcode`), em preto sobre branco — é um código para câmera ler, não cor de
+ * interface, e é a única exceção à régua de cor aqui, como a íris do login.
+ */
+
+export function ShareBatchModal({
+  batch,
+  clientSlug,
+  onClose,
+}: {
+  batch: Batch;
+  clientSlug: string;
+  onClose: () => void;
+}) {
+  const router = useRouter();
+  const { toast } = useToast();
+  const [svg, setSvg] = useState<string>("");
+  const [copied, setCopied] = useState(false);
+  const url = typeof window === "undefined" ? `/a/${batch.token}` : `${window.location.origin}/a/${batch.token}`;
+
+  useEffect(() => {
+    let vivo = true;
+    void import("qrcode").then((QR) =>
+      QR.toString(url, {
+        type: "svg",
+        margin: 1,
+        errorCorrectionLevel: "M",
+        color: { dark: "#000000", light: "#ffffff" },
+      }).then((s) => vivo && setSvg(s)),
+    );
+    return () => {
+      vivo = false;
+    };
+  }, [url]);
+
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") onClose();
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+
+  async function copy() {
+    try {
+      await navigator.clipboard.writeText(url);
+      setCopied(true);
+      toast("Link copiado.");
+      setTimeout(() => setCopied(false), 1800);
+    } catch {
+      toast("Não deu para copiar — selecione o link e copie à mão.", "error");
+    }
+  }
+
+  const back = () => router.push(`/social/${clientSlug}/${batch.id}`);
+
+  return (
+    <div role="dialog" aria-modal="true" aria-label="Lote salvo" className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div className="absolute inset-0 animate-fade-in bg-black/75 backdrop-blur-[3px]" onClick={onClose} />
+      <div className="relative flex w-full max-w-[400px] animate-scale-in flex-col items-center gap-5 rounded-card border border-border bg-surface p-6 text-center shadow-[0_24px_64px_rgba(0,0,0,0.65)]">
+        <button
+          type="button"
+          aria-label="Fechar"
+          onClick={onClose}
+          className="absolute right-4 top-4 text-muted transition-colors hover:text-fg-soft"
+        >
+          <XIcon size={16} />
+        </button>
+
+        <div className="flex flex-col gap-1">
+          <h2 className="text-[16px] font-semibold text-fg">Lote salvo</h2>
+          <p className="text-[12px] text-muted">
+            {batch.label} · {batch.pieces.length} {batch.pieces.length === 1 ? "criativo" : "criativos"} — o cliente
+            aprova por este link, sem senha.
+          </p>
+        </div>
+
+        <div
+          className="flex h-[196px] w-[196px] items-center justify-center overflow-hidden rounded-panel bg-white p-2 [&>svg]:h-full [&>svg]:w-full"
+          aria-label="QR code do link de aprovação"
+          role="img"
+          // SVG gerado pela biblioteca a partir do link — nada vindo de usuário.
+          dangerouslySetInnerHTML={{ __html: svg }}
+        />
+
+        <div className="flex w-full items-center gap-2 rounded-field bg-surface-2 py-1.5 pl-4 pr-1.5 inset-ring-1 inset-ring-border">
+          <input
+            readOnly
+            value={url}
+            aria-label="Link de aprovação"
+            onFocus={(e) => e.currentTarget.select()}
+            className="min-w-0 flex-1 bg-transparent font-mono text-[12px] text-fg-3 focus:outline-none"
+          />
+          <button
+            type="button"
+            onClick={() => void copy()}
+            className="tap flex shrink-0 items-center gap-1.5 rounded-pill bg-primary px-3.5 py-2 text-[12px] font-semibold text-on-primary transition-colors hover:bg-white"
+          >
+            {copied ? <CheckIcon size={13} strokeWidth={2.5} /> : <CopyIcon size={13} />}
+            {copied ? "Copiado" : "Copiar link"}
+          </button>
+        </div>
+
+        <button
+          type="button"
+          onClick={back}
+          className="tap flex h-11 w-full items-center justify-center gap-2 rounded-panel border border-border-strong text-[13px] font-semibold text-fg-soft transition-colors hover:bg-surface-2"
+        >
+          <ArrowLeftIcon size={15} />
+          Voltar para o lote
+        </button>
+      </div>
+    </div>
+  );
+}

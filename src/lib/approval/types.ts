@@ -34,6 +34,11 @@ export type Piece = {
   caption?: string;
   /** hashtags sem "#", separadas por espaço */
   hashtags?: string;
+  /**
+   * O que o designer precisa saber para produzir a peça. É interno da
+   * agência: vai para a tarefa do criativo, nunca para o link do cliente.
+   */
+  briefing?: string;
   format?: PieceFormat;
   channel?: PieceChannel;
   /**
@@ -48,7 +53,7 @@ export type Piece = {
 
 /** Campos editáveis pela agência no editor de lote. */
 export type PieceDraftPatch = Partial<
-  Pick<Piece, "caption" | "hashtags" | "format" | "channel" | "date" | "size" | "name">
+  Pick<Piece, "caption" | "hashtags" | "briefing" | "format" | "channel" | "date" | "size" | "name">
 >;
 
 /** Ciclo do lote: em edição na agência ou já enviado ao cliente. */

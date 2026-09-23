@@ -3,6 +3,7 @@ import { updatePieceDraft } from "@/lib/approval/repository";
 import { PIECE_CHANNELS, PIECE_FORMATS } from "@/lib/approval/constants";
 import type { PieceChannel, PieceDraftPatch, PieceFormat } from "@/lib/approval/types";
 import { requireAgency, unauthorized } from "@/lib/auth/session";
+import { syncPieceTask } from "@/lib/flows/automation";
 
 export const dynamic = "force-dynamic";
 
@@ -27,6 +28,7 @@ export async function PATCH(
   const patch: PieceDraftPatch = {};
   if (typeof body.caption === "string") patch.caption = body.caption;
   if (typeof body.hashtags === "string") patch.hashtags = body.hashtags;
+  if (typeof body.briefing === "string") patch.briefing = body.briefing.slice(0, 4000);
   if (typeof body.name === "string" && body.name.trim()) patch.name = body.name.trim();
   if (typeof body.date === "string" && !Number.isNaN(Date.parse(body.date))) {
     patch.date = new Date(body.date).toISOString();
@@ -52,6 +54,14 @@ export async function PATCH(
   if (!result) {
     // Também é o caso de peça de outra agência — nunca 403 (ver repository).
     return NextResponse.json({ error: "Peça não encontrada." }, { status: 404 });
+  }
+  // A tarefa do criativo acompanha: nome, formato, data e o briefing do designer.
+  if (patch.name || patch.briefing !== undefined || patch.format || patch.date) {
+    try {
+      await syncPieceTask(session.scope, result.batch, result.piece);
+    } catch (err) {
+      console.error("[fluxos] tarefa do criativo não acompanhou a peça", pieceId, err);
+    }
   }
   return NextResponse.json(result);
 }

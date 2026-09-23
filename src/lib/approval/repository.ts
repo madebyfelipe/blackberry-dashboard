@@ -76,6 +76,7 @@ export async function updatePieceDraft(
 
     if (patch.caption !== undefined) piece.caption = patch.caption;
     if (patch.hashtags !== undefined) piece.hashtags = patch.hashtags;
+    if (patch.briefing !== undefined) piece.briefing = patch.briefing;
     if (patch.channel !== undefined) piece.channel = patch.channel;
     if (patch.name !== undefined) piece.name = patch.name;
     if (patch.date !== undefined) piece.date = patch.date;

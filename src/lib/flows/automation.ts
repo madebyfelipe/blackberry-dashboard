@@ -11,6 +11,7 @@ import {
   findTaskBySource,
   getTask,
   moveTaskToStep,
+  updateTask,
 } from "@/lib/tasks/repository";
 import type { Task } from "@/lib/tasks/types";
 import { flowForClient, getFlow } from "./repository";
@@ -95,13 +96,13 @@ export async function taskForPiece(
   }
 
   const task = await createTask(scope, {
-    title: `${piece.name} · ${batch.label}`,
+    title: pieceTaskTitle(batch, piece),
     client: batch.client,
     status: "a-fazer",
     assignee: assignee ?? undefined,
     creator,
     labels: ["criativo"],
-    description: `Criativo do lote **${batch.label}** (${piece.kind}, ${piece.size}).`,
+    description: pieceTaskDescription(batch, piece),
     dueDate: step ? dueFor(step) : null,
     flowId: flow && step ? flow.id : null,
     stepId: step?.id ?? null,
@@ -112,6 +113,35 @@ export async function taskForPiece(
   return (
     (await noteOnly(scope, task, `${onde} — com ${who(member, assignee)}.`)) ?? task
   );
+}
+
+function pieceTaskTitle(batch: Batch, piece: Piece): string {
+  return `${piece.name} · ${batch.label}`;
+}
+
+/** A descrição da tarefa do criativo: o que é, para quando, e o briefing. */
+function pieceTaskDescription(batch: Batch, piece: Piece): string {
+  const date = new Date(piece.date);
+  const when = Number.isNaN(date.getTime())
+    ? ""
+    : ` — para ${date.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", timeZone: "America/Sao_Paulo" })}`;
+  const lines = [`Criativo do lote **${batch.label}** (${piece.kind}, ${piece.size})${when}.`];
+  if (piece.briefing?.trim()) lines.push("", "## Briefing para o designer", piece.briefing.trim());
+  if (piece.caption?.trim()) lines.push("", "## Legenda", piece.caption.trim());
+  return lines.join("\n");
+}
+
+/**
+ * A peça mudou no planejamento ou no editor: a tarefa dela acompanha o nome e
+ * a descrição (formato, data, briefing). A conversa e a etapa não mudam.
+ */
+export async function syncPieceTask(scope: AgencyScope, batch: Batch, piece: Piece): Promise<void> {
+  const task = await findTaskBySource(scope, piece.id);
+  if (!task) return;
+  const title = pieceTaskTitle(batch, piece);
+  const description = pieceTaskDescription(batch, piece);
+  if (task.title === title && task.description === description) return;
+  await updateTask(scope, task.id, { title, description });
 }
 
 /** Deixa um registro na conversa sem mexer na etapa. */
