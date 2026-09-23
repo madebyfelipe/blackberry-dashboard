@@ -3,8 +3,10 @@
 import { useEffect, useRef, useState } from "react";
 import { cn } from "@/lib/cn";
 import {
+  Maximize2Icon,
   MicIcon,
   MicOffIcon,
+  Minimize2Icon,
   PhoneOffIcon,
   ScreenShareIcon,
   Settings2Icon,
@@ -103,12 +105,22 @@ export function CallOverlay({
   detail,
   me,
   withScreen,
+  minimized,
+  onMinimize,
+  onExpand,
   onClose,
 }: {
   detail: ConversationDetail;
   me: InboxMember;
   /** Chamada aberta pelo botão de tela compartilhada. */
   withScreen: boolean;
+  /**
+   * Recolhida no cartão do canto, como a do Discord: a sala segue de pé e a
+   * pessoa continua usando o resto do produto.
+   */
+  minimized: boolean;
+  onMinimize: () => void;
+  onExpand: () => void;
   /** Fecha a chamada. Vem com a conversa atualizada quando o servidor respondeu. */
   onClose: (conversation?: ConversationDetail) => void;
 }) {
@@ -438,9 +450,13 @@ export function CallOverlay({
   }
 
   // Esc encerra, como fecha qualquer sobreposição do produto.
+  const minimizedRef = useRef(minimized);
+  minimizedRef.current = minimized;
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
       if (e.key !== "Escape") return;
+      // Recolhida no canto ela não é sobreposição: o Esc é de quem está na tela.
+      if (minimizedRef.current) return;
       // Com o menu aberto, o Esc fecha o menu — não derruba a chamada.
       if (menuAbertoRef.current) return setMenuAberto(false);
       void encerrar();
@@ -555,32 +571,114 @@ export function CallOverlay({
   const extras = detail.kind === "grupo" ? Math.max(0, outros.length - 1) : 0;
   const ativo = estado === "na-chamada";
 
+  function minimizar() {
+    setMenuAberto(false);
+    onMinimize();
+  }
+
+  const status =
+    estado === "entrando"
+      ? "Entrando na chamada…"
+      : estado === "erro"
+        ? "Chamada interrompida"
+        : estado === "outra-aba"
+          ? "Chamada em outra aba"
+          : callClock(seconds);
+
   return (
     <div
-      role="dialog"
-      aria-modal="true"
+      role={minimized ? "region" : "dialog"}
+      aria-modal={minimized ? undefined : true}
       aria-label={`Chamada em ${detail.title}`}
-      className="fixed inset-0 z-50 flex items-center justify-center p-4"
+      className={cn(
+        "fixed z-50",
+        minimized
+          ? "bottom-3 right-3 md:bottom-4 md:right-4"
+          : "inset-0 flex items-center justify-center p-4",
+      )}
     >
-      <div className="absolute inset-0 animate-fade-in bg-black/75 backdrop-blur-[3px]" />
+      {/*
+       * Recolhida: o cartão do canto. O popup de cima continua montado (só
+       * escondido) porque é nele que a tela compartilhada e as câmeras estão
+       * penduradas — desmontar os <video> cortaria a imagem ao voltar.
+       */}
+      {minimized && (
+        <div className="flex w-[280px] max-w-[calc(100vw-24px)] animate-scale-in items-center gap-2 rounded-card border border-border bg-surface p-3 shadow-[0_16px_40px_rgba(0,0,0,0.6)]">
+          <button
+            type="button"
+            onClick={onExpand}
+            title="Abrir a chamada"
+            className="flex min-w-0 flex-1 items-center gap-2.5 rounded-mark text-left focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-fg-3"
+          >
+            <span
+              className={cn(
+                "flex h-9 w-9 shrink-0 items-center justify-center rounded-pill bg-border-strong text-[12px] font-semibold text-fg",
+                ativo && naSala.length > 0 && "inset-ring-2 inset-ring-fg-3",
+              )}
+              aria-hidden="true"
+            >
+              {initialsOf(doOutroLado ?? detail.title)}
+            </span>
+            <span className="flex min-w-0 flex-col">
+              <span className="truncate text-[13px] font-semibold text-fg">
+                {detail.title}
+              </span>
+              <span className="truncate text-[11px] tabular-nums text-muted">
+                {status}
+                {temTela && " · tela"}
+              </span>
+            </span>
+          </button>
+          <MiniButton
+            label={mudo ? "Tirar do mudo" : "Ficar no mudo"}
+            onClick={alternarMudo}
+            disabled={!ativo}
+            active={mudo}
+          >
+            {mudo ? <MicOffIcon size={15} /> : <MicIcon size={15} />}
+          </MiniButton>
+          <MiniButton label="Abrir a chamada" onClick={onExpand}>
+            <Maximize2Icon size={15} />
+          </MiniButton>
+          <button
+            type="button"
+            onClick={encerrar}
+            aria-label={estado === "outra-aba" ? "Fechar" : "Encerrar chamada"}
+            title={estado === "outra-aba" ? "Fechar" : "Encerrar chamada"}
+            className="tap flex h-8 w-8 shrink-0 items-center justify-center rounded-pill bg-primary text-on-primary transition-colors hover:bg-white focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-fg-3"
+          >
+            <PhoneOffIcon size={15} />
+          </button>
+        </div>
+      )}
+
+      {!minimized && (
+        <div className="absolute inset-0 animate-fade-in bg-black/75 backdrop-blur-[3px]" />
+      )}
 
       <div
         className={cn(
-          "relative flex w-full animate-scale-in flex-col items-center gap-5 rounded-card border border-border bg-surface p-6 shadow-[0_24px_64px_rgba(0,0,0,0.65)]",
+          "relative w-full animate-scale-in flex-col items-center gap-5 rounded-card border border-border bg-surface p-6 shadow-[0_24px_64px_rgba(0,0,0,0.65)]",
+          minimized ? "hidden" : "flex",
           // A tela compartilhada precisa de espaço; sem ela o popup é o do desenho.
           temTela ? "max-w-[720px]" : "max-w-[380px]",
         )}
       >
+        {/* Recolher para o canto — a chamada continua. */}
+        <button
+          type="button"
+          onClick={minimizar}
+          aria-label="Minimizar a chamada"
+          title="Minimizar a chamada"
+          className="tap absolute right-3 top-3 flex h-8 w-8 items-center justify-center rounded-pill text-fg-3 transition-colors hover:bg-surface-2 hover:text-fg-soft focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-fg-3"
+        >
+          <Minimize2Icon size={15} />
+        </button>
+
         <div className="flex flex-col items-center gap-1">
           <p className="text-[15px] font-semibold text-fg">{detail.title}</p>
           <p className="text-[12px] tabular-nums text-muted">
-            {estado === "entrando"
-              ? "Entrando na chamada…"
-              : estado === "erro"
-                ? "Chamada interrompida"
-                : estado === "outra-aba"
-                  ? "Chamada em outra aba"
-                  : callClock(seconds)}
+            {status}
             {ativo && naSala.length > 0 && ` · ${naSala.length + 1} na chamada`}
           </p>
         </div>
@@ -664,7 +762,7 @@ export function CallOverlay({
         )}
 
         <Popover
-          open={menuAberto && ativo}
+          open={menuAberto && ativo && !minimized}
           onClose={() => setMenuAberto(false)}
           side="top"
           align="center"
@@ -782,6 +880,38 @@ function CallAvatar({
       </span>
       <span className="max-w-[96px] truncate text-[11px] text-fg-3">{label}</span>
     </div>
+  );
+}
+
+function MiniButton({
+  label,
+  disabled,
+  active,
+  onClick,
+  children,
+}: {
+  label: string;
+  disabled?: boolean;
+  active?: boolean;
+  onClick?: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      aria-label={label}
+      aria-pressed={active}
+      title={label}
+      disabled={disabled}
+      onClick={onClick}
+      className={cn(
+        "tap flex h-8 w-8 shrink-0 items-center justify-center rounded-pill transition-colors",
+        active ? "bg-border text-fg-soft" : "bg-surface-2 text-fg-3",
+        disabled ? "cursor-not-allowed opacity-45" : "hover:bg-border hover:text-fg-soft",
+      )}
+    >
+      {children}
+    </button>
   );
 }
 

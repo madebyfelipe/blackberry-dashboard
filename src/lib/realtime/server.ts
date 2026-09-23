@@ -1,4 +1,5 @@
 import "server-only";
+import { after } from "next/server";
 import type { AgencyScope } from "@/lib/agency/types";
 import {
   callRoom,
@@ -63,9 +64,6 @@ export async function ablyTokenRequest(
   });
 }
 
-/** Teto para o empurrão do tempo real — ver a nota dentro da função. */
-const PUBLISH_TIMEOUT_MS = 2000;
-
 /**
  * Avisa quem está com a conversa aberta. Chamado **depois** da gravação, e
  * nunca no lugar dela: o tempo real é entrega, não é a verdade. Se o Ably
@@ -96,28 +94,45 @@ export async function notifyMembers(
   );
 }
 
+/** Um cliente REST por instância: a Fluid Compute reaproveita a função entre pedidos. */
+let restClient: Promise<import("ably").Rest> | undefined;
+function rest(key: string) {
+  restClient ??= import("ably").then(({ Rest }) => new Rest({ key }));
+  return restClient;
+}
+
+/*
+ * O empurrão sai **depois** da resposta, pelo `after()` do Next.
+ *
+ * Antes ele corria contra um teto de 2s dentro da própria requisição. Numa
+ * função fria da Vercel, carregar a biblioteca do Ably e abrir a conexão
+ * passa disso com folga: o teto vencia, a resposta ia embora, a função
+ * congelava e o aviso morria no meio — quem estava do outro lado só via a
+ * mensagem na releitura de 60s, e o "tempo real" parecia desligado. Com o
+ * `after()` a plataforma segura a função viva até o aviso sair, e quem
+ * apertou enviar continua sem esperar por ele.
+ */
 async function publish(channels: string[], event: RealtimeEvent): Promise<void> {
   const key = env("ABLY_API_KEY");
   if (!key) return;
+  const enviar = async () => {
+    try {
+      const client = await rest(key);
+      await Promise.all(
+        channels.map((c) => client.channels.get(c).publish(event.tipo, event)),
+      );
+    } catch (err) {
+      // Melhor esforço — a escrita já aconteceu. Mas no log, não em silêncio:
+      // era esse silêncio que escondia o tempo real parado.
+      restClient = undefined;
+      console.error("[realtime] publicar falhou", channels, err);
+    }
+  };
   try {
-    const { Rest } = await import("ably");
-    const rest = new Rest({ key });
-    const enviar = Promise.all(
-      channels.map((c) => rest.channels.get(c).publish(event.tipo, event)),
-    );
-    /*
-     * Com teto de tempo. A mensagem já está gravada quando chegamos aqui: um
-     * provedor lento não pode segurar a resposta de quem apertou enviar —
-     * isso transformaria um aviso que se perde num envio que trava. Quem não
-     * recebeu o empurrão descobre na releitura seguinte.
-     */
-    await Promise.race([
-      enviar,
-      new Promise((resolve) => setTimeout(resolve, PUBLISH_TIMEOUT_MS)),
-    ]);
+    after(enviar);
   } catch {
-    // Publicar é o melhor esforço. Falhar aqui não pode derrubar a resposta
-    // de uma escrita que já aconteceu.
+    // Fora de uma requisição (script, teste): manda na hora.
+    await enviar();
   }
 }
 

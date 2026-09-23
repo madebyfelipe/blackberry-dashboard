@@ -333,8 +333,14 @@ export function RichTextArea({
   const menuPlace = menuOpen ? menuAt() : null;
   const toolbarPlace =
     focused && !menuOpen && selected.trim() !== "" ? toolbarAt() : null;
+  // Campo vazio não mostra o hint: ali já está o placeholder, e os dois
+  // nasciam um em cima do outro na mesma linha.
   const showHint =
-    focused && !menuOpen && sel.start === sel.end && isEmptyLine(draft, sel.start);
+    focused &&
+    !menuOpen &&
+    draft !== "" &&
+    sel.start === sel.end &&
+    isEmptyLine(draft, sel.start);
 
   return (
     <div className="relative w-full">
