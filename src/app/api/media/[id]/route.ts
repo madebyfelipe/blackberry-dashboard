@@ -42,7 +42,10 @@ export async function GET(_req: Request, { params }: Ctx) {
       "content-length": String(bytes.byteLength),
       // O id nunca é reaproveitado: o conteúdo de uma URL não muda.
       "cache-control": "private, max-age=31536000, immutable",
-      "content-disposition": `inline; filename="${encodeURIComponent(asset.name)}"`,
+      // Imagem, vídeo e áudio abrem na página; documento baixa. E o navegador
+      // nunca adivinha outro tipo — o anexo não vira página do app.
+      "content-disposition": `${asset.kind === "file" ? "attachment" : "inline"}; filename="${encodeURIComponent(asset.name)}"`,
+      "x-content-type-options": "nosniff",
     },
   });
 }

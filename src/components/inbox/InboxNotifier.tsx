@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import { usePathname, useRouter } from "next/navigation";
+import { useToast } from "@/components/ui/Toast";
 import { useRealtime } from "@/components/realtime/RealtimeProvider";
 import { conversationChannel, memberChannel, type RealtimeEvent } from "@/lib/realtime/channels";
 import { desktopBridge } from "@/lib/desktop";
@@ -25,7 +26,19 @@ import { initialsOf } from "@/lib/inbox/view";
  * notificação leva o avatar de quem mandou (as iniciais, como no produto); o
  * nome "Black Berry" e o logo no cabeçalho vêm do app de desktop.
  *
- * Sem tempo real configurado (`eventos` falso) não há o que ouvir: nada liga.
+ * Também entrega as **notificações** (menção, tarefa atribuída, comentário):
+ * chegam pelo canal pessoal (ou pela releitura, sem tempo real), viram aviso
+ * do sistema e atualizam o número de "Notificações" na lateral.
+ *
+ * "Você já está vendo" exige **foco**, não só a aba visível. No app de
+ * desktop a página é criada com `backgroundThrottling: false` (para a chamada
+ * seguir viva na bandeja), e isso faz o navegador dizer que ela está
+ * *sempre* visível — com o Inbox aberto e a janela minimizada, nenhum aviso
+ * chegava. E só a conversa que está aberta conta: estar no Inbox lendo uma
+ * conversa não silencia as outras.
+ *
+ * Sem permissão de notificação no sistema, o aviso vira um toast dentro do
+ * app, com "Abrir" — para não sumir calado.
  */
 
 type SubConversation = {
@@ -46,12 +59,72 @@ const POLL_MS = 20_000;
 /** Avisa a lateral (não lidas) e quem mais quiser saber que o Inbox mudou. */
 export const INBOX_CHANGED = "bb:inbox-mudou";
 
+/** Chegou ou foi lida uma notificação — a lateral e a tela de Notificações releem. */
+export const NOTIFICATIONS_CHANGED = "bb:notificacoes-mudou";
+
+/**
+ * A conversa aberta agora no Inbox (a tela avisa ao trocar). É ela, e só
+ * ela, que não precisa de aviso enquanto a janela está em foco.
+ */
+let openConversation: string | null = null;
+export function setOpenConversation(id: string | null) {
+  openConversation = id;
+}
+
+/** A pessoa está com os olhos nesta página agora? Foco, não só "aba visível". */
+function watching(): boolean {
+  return document.visibilityState === "visible" && document.hasFocus();
+}
+
+type NotificationSummary = {
+  id: string;
+  kind: "mencao" | "atribuicao" | "comentario" | "mensagem";
+  title: string;
+  body: string;
+  href: string;
+  ref: string;
+  actor: string;
+};
+
 export function InboxNotifier() {
   const router = useRouter();
   const pathname = usePathname();
   const { eventos, conectado, assinar, renovar } = useRealtime();
+  const { toast } = useToast();
   const pathRef = useRef(pathname);
   pathRef.current = pathname;
+  const toastRef = useRef(toast);
+  toastRef.current = toast;
+
+  /** Está olhando exatamente esta conversa, com a janela em foco. */
+  const lookingAt = (conversationId: string) =>
+    pathRef.current.startsWith("/inbox") && openConversation === conversationId && watching();
+
+  const lookingAtRef = useRef(lookingAt);
+  lookingAtRef.current = lookingAt;
+
+  /** O aviso de uma notificação (menção, atribuição, comentário). */
+  const announce = (n: NotificationSummary) => {
+    window.dispatchEvent(new Event(NOTIFICATIONS_CHANGED));
+    // Mensagem comum já avisou pelo canal da conversa; aqui não repete.
+    if (n.kind === "mensagem") return;
+    const [kind, refId] = n.ref.split(":");
+    if (kind === "conversa" && lookingAt(refId)) return;
+    if (kind === "tarefa" && pathRef.current === `/tarefas/${refId}` && watching()) return;
+    showNotification({
+      router,
+      toast: toastRef.current,
+      href: n.href,
+      title: n.title,
+      body: n.body || "Abra para ver.",
+      // A menção numa conversa troca o aviso de mensagem dela (mesma etiqueta).
+      tag: kind === "conversa" ? `conversa-${refId}` : `notificacao-${n.id}`,
+      call: false,
+      from: n.actor,
+    });
+  };
+  const announceRef = useRef(announce);
+  announceRef.current = announce;
 
   // A permissão só pode ser pedida num gesto da pessoa: o primeiro clique.
   useEffect(() => {
@@ -71,8 +144,28 @@ export function InboxNotifier() {
     if (eventos) return;
     let vivo = true;
     let before: Map<string, SubConversation> | null = null;
+    let seen: Set<string> | null = null;
     let me = "";
     async function tick() {
+      // As notificações: toda não lida que não estava na rodada anterior é nova.
+      try {
+        const res = await fetch("/api/notificacoes?resumo=1", { cache: "no-store" });
+        if (res.ok) {
+          const { latest } = (await res.json()) as { latest: NotificationSummary[] };
+          if (!vivo) return;
+          const ids = new Set(latest.map((n) => n.id));
+          if (seen) {
+            const fresh = latest.filter((n) => !seen!.has(n.id));
+            fresh.forEach((n) => announceRef.current(n));
+            if (fresh.length === 0 && ids.size !== seen.size) {
+              window.dispatchEvent(new Event(NOTIFICATIONS_CHANGED));
+            }
+          }
+          seen = ids;
+        }
+      } catch {
+        // Sem rede nesta rodada: a próxima tenta.
+      }
       let subs: Subs;
       try {
         const res = await fetch("/api/inbox/assinaturas", { cache: "no-store" });
@@ -90,21 +183,31 @@ export function InboxNotifier() {
           const prev = before.get(c.id);
           const newMessage = c.unread > (prev?.unread ?? 0) && c.lastAt !== (prev?.lastAt ?? null);
           if (newMessage) changed = true;
-          const looking = pathRef.current.startsWith("/inbox") && document.visibilityState === "visible";
-          if (newMessage && !c.muted && !looking) {
-            showNotification(router, c.id, c.title, c.preview || "Nova mensagem", false, c.title);
+          if (newMessage && !c.muted && !lookingAtRef.current(c.id)) {
+            showNotification({
+              router,
+              toast: toastRef.current,
+              href: conversationHref(c.id),
+              title: c.title,
+              body: c.preview || "Nova mensagem",
+              tag: `conversa-${c.id}`,
+              call: false,
+              from: c.title,
+            });
           }
           const callStarted =
             (prev?.callMemberIds.length ?? 0) === 0 && c.callMemberIds.length > 0 && !c.callMemberIds.includes(me);
           if (callStarted) {
-            showNotification(
+            showNotification({
               router,
-              c.id,
-              c.kind === "grupo" ? `Chamada em ${c.title}` : `${c.title} está te ligando`,
-              "Clique para abrir a conversa e entrar.",
-              true,
-              c.title,
-            );
+              toast: toastRef.current,
+              href: conversationHref(c.id),
+              title: c.kind === "grupo" ? `Chamada em ${c.title}` : `${c.title} está te ligando`,
+              body: "Clique para abrir a conversa e entrar.",
+              tag: `chamada-${c.id}`,
+              call: true,
+              from: c.title,
+            });
           }
         }
         if (changed) window.dispatchEvent(new Event(INBOX_CHANGED));
@@ -127,15 +230,23 @@ export function InboxNotifier() {
     let me = "";
 
     const notify = (id: string, title: string, body: string, call: boolean, from: string) =>
-      showNotification(router, id, title, body, call, from);
+      showNotification({
+        router,
+        toast: toastRef.current,
+        href: conversationHref(id),
+        title,
+        body,
+        tag: call ? `chamada-${id}` : `conversa-${id}`,
+        call,
+        from,
+      });
 
     function onEvent(e: RealtimeEvent) {
       if (!vivo) return;
       if (e.tipo === "mensagem") {
         window.dispatchEvent(new Event(INBOX_CHANGED));
         if (!e.from || e.from.id === me || muted.has(e.conversationId)) return;
-        const looking = pathRef.current.startsWith("/inbox") && document.visibilityState === "visible";
-        if (looking) return;
+        if (lookingAtRef.current(e.conversationId)) return;
         notify(
           e.conversationId,
           e.group ? `${e.from.name} em ${e.group}` : e.from.name,
@@ -178,6 +289,11 @@ export function InboxNotifier() {
       parar.forEach((p) => p());
       parar = canais.map((canal) =>
         assinar(canal, (e) => {
+          // No canal pessoal: uma notificação nova (menção, tarefa, comentário).
+          if (e.tipo === "notificacao") {
+            announceRef.current(e.notification);
+            return;
+          }
           // No canal pessoal, "suas conversas mudaram": reassina com a lista nova.
           if (e.tipo === "conversas") {
             window.dispatchEvent(new Event(INBOX_CHANGED));
@@ -199,39 +315,72 @@ export function InboxNotifier() {
   return null;
 }
 
-/** A notificação do sistema; clicar abre a conversa (e traz o app da bandeja). */
-function showNotification(
-  router: ReturnType<typeof useRouter>,
-  id: string,
-  title: string,
-  body: string,
-  call: boolean,
+function conversationHref(id: string): string {
+  return `/inbox?conversa=${encodeURIComponent(id)}`;
+}
+
+/**
+ * O aviso do sistema; clicar leva para `href` (e traz o app da bandeja).
+ * Sem permissão de notificação — recusada, ou navegador sem suporte —, o
+ * aviso vira toast dentro do app, com "Abrir".
+ */
+function showNotification({
+  router,
+  toast,
+  href,
+  title,
+  body,
+  tag,
+  call,
+  from,
+}: {
+  router: ReturnType<typeof useRouter>;
+  toast: ReturnType<typeof useToast>["toast"];
+  href: string;
+  title: string;
+  body: string;
+  tag: string;
+  call: boolean;
   /** De quem é o avatar: a pessoa que mandou ou ligou (ou o grupo, sem saber quem). */
-  from: string,
-) {
+  from: string;
+}) {
   // O som toca mesmo sem permissão de notificação: é o aviso que sobra.
   tocarSom();
-  if (typeof Notification === "undefined" || Notification.permission !== "granted") return;
+  const open = () => {
+    desktopBridge()?.show?.();
+    window.focus();
+    router.push(href);
+  };
+  const inApp = () =>
+    toast(body && body !== "Abra para ver." ? `${title} — ${body}` : title, "info", {
+      action: { label: "Abrir", onClick: open },
+      duration: call ? 15_000 : 6_000,
+    });
+  if (typeof Notification === "undefined" || Notification.permission !== "granted") {
+    inApp();
+    return;
+  }
   try {
     const n = new Notification(title, {
       body,
       icon: avatarIcon(from),
       // Selo pequeno da marca (Android e alguns sistemas; o desktop usa o do app).
       badge: "/brand/notificacao.png",
-      tag: call ? `chamada-${id}` : `conversa-${id}`,
+      tag,
+      // Mesma etiqueta substitui o aviso anterior — mas tem de avisar de novo.
+      renotify: true,
       // Ligação fica na tela até alguém clicar; mensagem some sozinha.
       requireInteraction: call,
       // O som é o do black berry (abaixo), não o padrão do sistema.
       silent: true,
-    });
+    } as NotificationOptions);
     n.onclick = () => {
-      desktopBridge()?.show?.();
-      window.focus();
-      router.push(`/inbox?conversa=${encodeURIComponent(id)}`);
+      open();
       n.close();
     };
   } catch {
-    // Navegador sem suporte a construir notificação na página: sem aviso.
+    // Navegador que não constrói notificação na página (Android): toast.
+    inApp();
   }
 }
 

@@ -87,14 +87,45 @@ export type TeamSettings = {
  */
 export type MessageKind = "texto" | "chamada" | "aviso";
 
+/**
+ * O que vai junto da mensagem. `imagem`, `video`, `audio` (inclusive o
+ * gravado no próprio campo) e `arquivo` são bytes que o time subiu — servidos
+ * por `/api/media/<id>`, como as artes. `gif` é da biblioteca (Giphy/Tenor) e
+ * aponta para o CDN dela; o servidor só aceita esses endereços.
+ */
+export type AttachmentKind = "imagem" | "video" | "audio" | "arquivo" | "gif";
+
+export type Attachment = {
+  id: string;
+  kind: AttachmentKind;
+  url: string;
+  name: string;
+  mime: string;
+  /** Bytes (0 no GIF, que não é nosso). */
+  size: number;
+  width?: number;
+  height?: number;
+};
+
 export type Message = {
   id: string;
   /** Id do membro que escreveu — nas linhas de sistema, quem provocou o evento. */
   authorId: string;
+  /** Pode ficar vazio quando a mensagem é só anexo, ou quando foi apagada. */
   text: string;
   /** ISO date */
   createdAt: string;
   kind: MessageKind;
+  attachments: Attachment[];
+  /** A mensagem que esta responde (o "responder" do menu). */
+  replyToId: string | null;
+  /** ISO da última edição — o "(editada)" ao lado da hora. */
+  editedAt: string | null;
+  /**
+   * ISO de quando foi apagada. A linha fica ("mensagem apagada") para quem
+   * respondeu a ela não ficar respondendo ao nada; texto e anexos somem.
+   */
+  deletedAt: string | null;
 };
 
 export type Conversation = {

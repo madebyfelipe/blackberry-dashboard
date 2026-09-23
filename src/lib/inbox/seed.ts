@@ -60,7 +60,17 @@ function msg(
   createdAt: string,
   kind: Message["kind"] = "texto",
 ): Message {
-  return { id: `m${++seq}`, authorId, text, createdAt, kind };
+  return {
+    id: `m${++seq}`,
+    authorId,
+    text,
+    createdAt,
+    kind,
+    attachments: [],
+    replyToId: null,
+    editedAt: null,
+    deletedAt: null,
+  };
 }
 
 function conversation(

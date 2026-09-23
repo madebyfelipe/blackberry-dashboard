@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { addTaskComment, ValidationError } from "@/lib/tasks/repository";
-import { requireAgency, unauthorized } from "@/lib/auth/session";
+import { unauthorized } from "@/lib/auth/session";
+import { currentInboxSession } from "@/lib/inbox/viewer";
+import { notifyTaskComment } from "@/lib/notifications/dispatch";
 
 export const dynamic = "force-dynamic";
 
@@ -11,7 +13,7 @@ type Ctx = { params: Promise<{ id: string }> };
  * corpo manda só o texto, como o `POST /api/tasks` faz com o criador.
  */
 export async function POST(req: Request, { params }: Ctx) {
-  const session = await requireAgency();
+  const session = await currentInboxSession();
   if (!session) return unauthorized();
   const { id } = await params;
 
@@ -32,6 +34,13 @@ export async function POST(req: Request, { params }: Ctx) {
     if (!task) {
       return NextResponse.json({ error: "Tarefa não encontrada." }, { status: 404 });
     }
+    // Quem foi marcado no comentário, e o responsável da tarefa.
+    await notifyTaskComment(
+      session.scope,
+      { id: session.me.id, name: session.me.name },
+      task,
+      String(text ?? "").trim(),
+    );
     return NextResponse.json({ task }, { status: 201 });
   } catch (err) {
     if (err instanceof ValidationError) {

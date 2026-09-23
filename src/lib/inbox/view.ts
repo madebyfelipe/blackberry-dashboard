@@ -1,5 +1,5 @@
 import { activeCallMembers } from "./call";
-import { isOnline } from "./constants";
+import { attachmentsLabel, isOnline } from "./constants";
 import type {
   Conversation,
   ConversationSummary,
@@ -217,11 +217,27 @@ export function previewOf(
 ): string {
   const message = lastMessage(conversation);
   if (!message) return "";
-  const text = message.text.replace(/\s+/g, " ").trim();
+  const text = messageText(message);
   if (message.kind !== "texto") return text;
   if (message.authorId === viewerId) return `Você: ${text}`;
   if (conversation.kind === "direta") return text;
   return `${memberName(members, message.authorId)}: ${text}`;
+}
+
+/**
+ * O texto de uma mensagem numa linha só — a prévia da lista, a citação da
+ * resposta e a notificação. Mensagem só com anexo diz o que é ("Mensagem de
+ * voz", "Arquivo: briefing.pdf"); a apagada diz que foi apagada.
+ */
+export function messageText(message: Message): string {
+  if (message.deletedAt) return "Mensagem apagada";
+  const text = message.text.replace(/\s+/g, " ").trim();
+  return text || attachmentsLabel(message.attachments ?? []);
+}
+
+/** A mensagem que esta responde, se ainda estiver na conversa. */
+export function repliedTo(messages: Message[], message: Message): Message | undefined {
+  return message.replyToId ? messages.find((m) => m.id === message.replyToId) : undefined;
 }
 
 /**
@@ -234,6 +250,7 @@ export function unreadCount(conversation: Conversation, viewerId: string): numbe
   return conversation.messages.filter(
     (m) =>
       m.kind === "texto" &&
+      !m.deletedAt &&
       m.authorId !== viewerId &&
       new Date(m.createdAt).getTime() > since,
   ).length;
@@ -321,7 +338,11 @@ export function matchesQuery(item: ConversationSummary, query: string): boolean 
 export function searchMessages(messages: Message[], query: string): Message[] {
   const q = normalize(query);
   if (!q) return messages;
-  return messages.filter((m) => normalize(m.text).includes(q));
+  return messages.filter(
+    (m) =>
+      normalize(m.text).includes(q) ||
+      (m.attachments ?? []).some((a) => a.kind === "arquivo" && normalize(a.name).includes(q)),
+  );
 }
 
 /**

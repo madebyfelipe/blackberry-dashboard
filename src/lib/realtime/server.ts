@@ -140,6 +140,16 @@ export async function notifyMembers(
   );
 }
 
+/** Um evento no canal pessoal de cada pessoa (hoje, a notificação nova). */
+export async function publishToMembers(
+  scope: AgencyScope,
+  memberIds: string[],
+  event: RealtimeEvent,
+): Promise<void> {
+  if (memberIds.length === 0) return;
+  await publish(memberIds.map((id) => memberChannel(scope.agencyId, id)), event);
+}
+
 /** Um cliente REST por instância: a Fluid Compute reaproveita a função entre pedidos. */
 let restClient: Promise<import("ably").Rest> | undefined;
 function rest(key: string) {

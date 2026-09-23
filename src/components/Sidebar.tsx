@@ -10,7 +10,7 @@ import { Logo } from "@/components/brand/Logo";
 import { apiSetPresence } from "@/components/inbox/api";
 import { PresenceDot } from "@/components/inbox/PresenceDot";
 import { useRealtime } from "@/components/realtime/RealtimeProvider";
-import { INBOX_CHANGED } from "@/components/inbox/InboxNotifier";
+import { INBOX_CHANGED, NOTIFICATIONS_CHANGED } from "@/components/inbox/InboxNotifier";
 import { desktopBridge } from "@/lib/desktop";
 import { PRESENCES } from "@/lib/inbox/constants";
 import type { Presence } from "@/lib/inbox/types";
@@ -22,7 +22,6 @@ import {
   InboxIcon,
   LogOutIcon,
   MenuIcon,
-  MessageSquareIcon,
   PanelLeftIcon,
   PanelsIcon,
   PlayIcon,
@@ -55,11 +54,13 @@ type NavItem = {
   Icon: (p: { size?: number; className?: string }) => React.ReactNode;
 };
 
-/** Caixas de entrada — o bloco de cima, antes dos rótulos de seção. */
+/**
+ * Caixas de entrada — o bloco de cima, antes dos rótulos de seção.
+ * "Conversas" saiu (pedido do Felipe): a conversa do time é o Inbox.
+ */
 const INBOXES: NavItem[] = [
   { href: "/notificacoes", label: "Notificações", Icon: BellIcon },
   { href: "/inbox", label: "Inbox", Icon: InboxIcon },
-  { href: "/conversas", label: "Conversas", Icon: MessageSquareIcon },
 ];
 
 const SECTIONS: { title: string; items: NavItem[] }[] = [
@@ -115,6 +116,42 @@ function useInboxUnread(pathname: string): number {
       vivo = false;
       clearInterval(id);
       document.removeEventListener("visibilitychange", onVisible);
+      window.removeEventListener(INBOX_CHANGED, onChanged);
+    };
+  }, [pathname]);
+  return total;
+}
+
+/**
+ * As notificações não lidas, para o número ao lado de "Notificações". Mesmo
+ * ritmo das não lidas do Inbox: ao trocar de tela, a cada 30s com a aba à
+ * vista e na hora em que o notificador avisa que chegou (ou foi lida) uma.
+ */
+function useNotificationsUnread(pathname: string): number {
+  const [total, setTotal] = useState(0);
+  useEffect(() => {
+    let vivo = true;
+    const load = (force = false) => {
+      if (!force && document.visibilityState !== "visible") return;
+      fetch("/api/notificacoes?resumo=1", { cache: "no-store" })
+        .then((r) => (r.ok ? r.json() : null))
+        .then((d) => {
+          if (vivo && d) setTotal(Number(d.unread) || 0);
+        })
+        .catch(() => undefined);
+    };
+    const onVisible = () => load();
+    const onChanged = () => load(true);
+    load();
+    const id = setInterval(load, 30_000);
+    document.addEventListener("visibilitychange", onVisible);
+    window.addEventListener(NOTIFICATIONS_CHANGED, onChanged);
+    window.addEventListener(INBOX_CHANGED, onChanged);
+    return () => {
+      vivo = false;
+      clearInterval(id);
+      document.removeEventListener("visibilitychange", onVisible);
+      window.removeEventListener(NOTIFICATIONS_CHANGED, onChanged);
       window.removeEventListener(INBOX_CHANGED, onChanged);
     };
   }, [pathname]);
@@ -218,6 +255,7 @@ function SidebarPanel({
   const [menuOpen, setMenuOpen] = useState(false);
   const [quickOpen, setQuickOpen] = useState(false);
   const unread = useInboxUnread(pathname);
+  const notificationsUnread = useNotificationsUnread(pathname);
   /*
    * A disponibilidade de quem está logado (Inbox, issue #30). Mora no menu da
    * conta porque é aqui que "você" está na tela inteira — e porque ela vale em
@@ -385,7 +423,13 @@ function SidebarPanel({
               item={item}
               pathname={pathname}
               index={i}
-              count={item.href === "/inbox" ? unread : 0}
+              count={
+                item.href === "/inbox"
+                  ? unread
+                  : item.href === "/notificacoes"
+                    ? notificationsUnread
+                    : 0
+              }
             />
           ))}
         </div>

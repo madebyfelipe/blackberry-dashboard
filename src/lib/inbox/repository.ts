@@ -1,10 +1,11 @@
 import type { AgencyScope } from "@/lib/agency/types";
-import { MESSAGE_MAX, isPresence } from "./constants";
+import { ATTACHMENTS_MAX, MESSAGE_MAX, canChangeMessage, isPresence } from "./constants";
 import { handleProblem, normalizeHandle, suggestHandle } from "./handle";
 import { canManageTeam, isMemberRole, isMemberStatus } from "./users";
 import { domainProblem, emailDomain, normalizeDomain } from "./domain";
 import { read, transaction } from "./store";
 import type {
+  Attachment,
   Conversation,
   ConversationDetail,
   ConversationSummary,
@@ -637,6 +638,7 @@ function pushMessage(
   authorId: string,
   text: string,
   kind: Message["kind"],
+  extra: { attachments?: Attachment[]; replyToId?: string | null } = {},
 ): Message {
   const message: Message = {
     id: makeId("m"),
@@ -644,6 +646,10 @@ function pushMessage(
     text,
     createdAt: new Date().toISOString(),
     kind,
+    attachments: extra.attachments ?? [],
+    replyToId: extra.replyToId ?? null,
+    editedAt: null,
+    deletedAt: null,
   };
   conversation.messages.push(message);
   // Quem escreve já leu o que escreveu.
@@ -660,18 +666,110 @@ export async function sendMessage(
   viewerId: string,
   id: string,
   text: string,
+  extra: {
+    /**
+     * Já resolvidos pelo servidor (`media` registrada ou GIF conferido) —
+     * nunca a descrição que o navegador mandou.
+     */
+    attachments?: Attachment[];
+    replyToId?: string | null;
+  } = {},
 ): Promise<ConversationDetail | undefined> {
   const clean = (text ?? "").trim();
-  if (!clean) throw new ValidationError("Mensagem vazia.");
+  const attachments = extra.attachments ?? [];
+  if (!clean && attachments.length === 0) throw new ValidationError("Mensagem vazia.");
   if (clean.length > MESSAGE_MAX) {
     throw new ValidationError("Mensagem longa demais.");
+  }
+  if (attachments.length > ATTACHMENTS_MAX) {
+    throw new ValidationError(`Uma mensagem leva até ${ATTACHMENTS_MAX} anexos.`);
   }
   return transaction((data) => {
     const conversation = find(data, scope, viewerId, id);
     if (!conversation) return undefined;
-    pushMessage(conversation, viewerId, clean, "texto");
+    // Responder a algo que não é desta conversa (ou não existe) vira mensagem comum.
+    const replyToId =
+      extra.replyToId && conversation.messages.some((m) => m.id === extra.replyToId)
+        ? extra.replyToId
+        : null;
+    pushMessage(conversation, viewerId, clean, "texto", { attachments, replyToId });
     return detail(conversation, membersOf(data, scope), viewerId);
   });
+}
+
+/**
+ * Quem escreveu edita o texto, dentro da janela de `MESSAGE_EDIT_WINDOW_MS`.
+ * Mensagem de outra pessoa, linha de sistema, apagada ou velha demais:
+ * `ForbiddenError` — a conversa existe (a pessoa está nela), então não há o
+ * que esconder com um 404.
+ */
+export async function editMessage(
+  scope: AgencyScope,
+  viewerId: string,
+  id: string,
+  messageId: string,
+  text: string,
+  now = Date.now(),
+): Promise<ConversationDetail | undefined> {
+  const clean = (text ?? "").trim();
+  if (clean.length > MESSAGE_MAX) throw new ValidationError("Mensagem longa demais.");
+  return transaction((data) => {
+    const conversation = find(data, scope, viewerId, id);
+    const message = conversation?.messages.find((m) => m.id === messageId);
+    if (!conversation || !message) return undefined;
+    if (!canChangeMessage(message, viewerId, now)) {
+      throw new ForbiddenError("Só dá para editar a sua mensagem, até 10 minutos depois de enviada.");
+    }
+    if (!clean && message.attachments.length === 0) throw new ValidationError("Mensagem vazia.");
+    if (clean !== message.text) {
+      message.text = clean;
+      message.editedAt = new Date(now).toISOString();
+    }
+    return detail(conversation, membersOf(data, scope), viewerId);
+  });
+}
+
+/**
+ * Quem escreveu apaga, na mesma janela da edição. A linha continua ("mensagem
+ * apagada") para as respostas a ela não ficarem órfãs; texto e anexos somem.
+ * Devolve também os anexos que saíram, para quem chama apagar os arquivos.
+ */
+export async function deleteMessage(
+  scope: AgencyScope,
+  viewerId: string,
+  id: string,
+  messageId: string,
+  now = Date.now(),
+): Promise<
+  { conversation: ConversationDetail; removed: Attachment[]; text: string } | undefined
+> {
+  return transaction((data) => {
+    const conversation = find(data, scope, viewerId, id);
+    const message = conversation?.messages.find((m) => m.id === messageId);
+    if (!conversation || !message) return undefined;
+    if (!canChangeMessage(message, viewerId, now)) {
+      throw new ForbiddenError("Só dá para apagar a sua mensagem, até 10 minutos depois de enviada.");
+    }
+    const removed = message.attachments;
+    const text = message.text;
+    message.text = "";
+    message.attachments = [];
+    message.deletedAt = new Date(now).toISOString();
+    return { conversation: detail(conversation, membersOf(data, scope), viewerId), removed, text };
+  });
+}
+
+/**
+ * Quem está numa conversa e quem a silenciou — o que a notificação da
+ * mensagem precisa saber de todo mundo, não só de quem mandou.
+ */
+export async function conversationAudience(
+  scope: AgencyScope,
+  viewerId: string,
+  id: string,
+): Promise<{ memberIds: string[]; mutedBy: string[] } | undefined> {
+  const conversation = find(await read(), scope, viewerId, id);
+  return conversation && { memberIds: [...conversation.memberIds], mutedBy: [...conversation.mutedBy] };
 }
 
 /**

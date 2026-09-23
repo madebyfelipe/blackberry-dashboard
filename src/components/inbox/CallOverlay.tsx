@@ -773,10 +773,24 @@ export function CallOverlay({
     }
   }
 
+  const ativo = estado === "na-chamada";
   const outros = detail.members.filter((m) => m.id !== me.id);
   const doOutroLado = detail.kind === "direta" ? outros[0]?.name : detail.title;
-  const extras = detail.kind === "grupo" ? Math.max(0, outros.length - 1) : 0;
-  const ativo = estado === "na-chamada";
+  /*
+   * Quem está na chamada além de você. Com a sala conectada, quem o LiveKit
+   * vê; sem provedor de mídia (ou antes de conectar), o registro do servidor.
+   */
+  const presentes = new Set(
+    (ativo ? naSala : detail.callMemberIds).filter((id) => id !== me.id),
+  );
+  const ordenados = [...outros].sort(
+    (a, b) => Number(presentes.has(b.id)) - Number(presentes.has(a.id)),
+  );
+  const principal = ordenados[0];
+  const resto = ordenados.slice(1, 4);
+  const sobra = Math.max(0, ordenados.length - 1 - resto.length);
+  const statusDe = (id: string) =>
+    presentes.has(id) ? "na chamada" : detail.kind === "direta" ? "chamando…" : "fora da chamada";
   const mostraPrevia = previa && compartilhando;
 
   function minimizar() {
@@ -906,7 +920,12 @@ export function CallOverlay({
           <p className="text-[15px] font-semibold text-fg">{detail.title}</p>
           <p className="text-[12px] tabular-nums text-muted">
             {status}
-            {ativo && naSala.length > 0 && ` · ${naSala.length + 1} na chamada`}
+            {estado !== "entrando" &&
+              (presentes.size > 0
+                ? ` · ${presentes.size + 1} na chamada`
+                : detail.kind === "direta"
+                  ? " · chamando…"
+                  : " · só você, esperando o grupo")}
           </p>
         </div>
 
@@ -966,26 +985,58 @@ export function CallOverlay({
           </div>
         )}
 
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-start justify-center gap-3">
           <CallAvatar
             name={me.name}
             label="Você"
+            status={estado === "entrando" ? "entrando…" : "na chamada"}
+            ausente={estado === "entrando"}
             falando={ativo && !mudo}
             videoRef={cameraLocalRef}
             comVideo={ativo && camera}
             espelhado
           />
-          <span className="h-px w-6 bg-border" aria-hidden="true" />
-          <CallAvatar
-            name={doOutroLado ?? detail.title}
-            label={doOutroLado ?? detail.title}
-            falando={ativo && naSala.length > 0}
-            videoRef={cameraRemotaRef}
-            comVideo={ativo && cameraRemota}
-          />
-          {extras > 0 && (
-            <span className="flex h-[52px] w-[52px] items-center justify-center rounded-pill border border-dashed border-border text-[12px] font-medium text-muted">
-              +{extras}
+          <span className="mt-[26px] h-px w-6 bg-border" aria-hidden="true" />
+          {/*
+           * Quem está do outro lado, e se está **de fato** na chamada: dentro,
+           * o avatar aceso com "na chamada"; fora, apagado e tracejado, com
+           * "chamando…" (direta) ou "fora" (grupo). Quem entrou vem primeiro.
+           */}
+          {principal ? (
+            <CallAvatar
+              name={principal.name}
+              label={principal.name}
+              status={statusDe(principal.id)}
+              ausente={!presentes.has(principal.id)}
+              falando={ativo && presentes.has(principal.id)}
+              videoRef={cameraRemotaRef}
+              comVideo={ativo && cameraRemota}
+            />
+          ) : (
+            <CallAvatar
+              name={detail.title}
+              label={detail.title}
+              ausente
+              videoRef={cameraRemotaRef}
+            />
+          )}
+          {resto.map((m) => (
+            <CallAvatar
+              key={m.id}
+              name={m.name}
+              label={m.name}
+              status={statusDe(m.id)}
+              ausente={!presentes.has(m.id)}
+              falando={ativo && presentes.has(m.id)}
+              pequeno
+            />
+          ))}
+          {sobra > 0 && (
+            <span
+              title={`Mais ${sobra} no grupo`}
+              className="flex h-[40px] w-[40px] items-center justify-center self-start rounded-pill border border-dashed border-border text-[12px] font-medium text-muted"
+            >
+              +{sobra}
             </span>
           )}
         </div>
@@ -1127,6 +1178,9 @@ export function CallOverlay({
 function CallAvatar({
   name,
   label,
+  status,
+  ausente,
+  pequeno,
   falando,
   videoRef,
   comVideo,
@@ -1134,9 +1188,15 @@ function CallAvatar({
 }: {
   name: string;
   label: string;
+  /** "na chamada", "chamando…", "fora da chamada" — a linha de baixo. */
+  status?: string;
+  /** Ainda não entrou: apagado e tracejado, para não parecer que está ouvindo. */
+  ausente?: boolean;
+  /** Os outros membros do grupo, menores ao lado do principal. */
+  pequeno?: boolean;
   falando?: boolean;
   /** Onde a câmera desta pessoa é pendurada. Fica montado sempre. */
-  videoRef: React.RefObject<HTMLVideoElement | null>;
+  videoRef?: React.RefObject<HTMLVideoElement | null>;
   /** A câmera está acesa: o vídeo toma o lugar das iniciais. */
   comVideo?: boolean;
   /** A sua própria imagem vem espelhada, como em qualquer espelho. */
@@ -1151,26 +1211,44 @@ function CallAvatar({
        */}
       <span
         className={cn(
-          "relative flex items-center justify-center overflow-hidden rounded-pill bg-border-strong text-[16px] font-semibold text-fg transition-all",
-          comVideo ? "h-[96px] w-[96px]" : "h-[52px] w-[52px]",
+          "relative flex items-center justify-center overflow-hidden rounded-pill font-semibold transition-all",
+          comVideo ? "h-[96px] w-[96px]" : pequeno ? "h-[40px] w-[40px] text-[13px]" : "h-[52px] w-[52px] text-[16px]",
+          ausente
+            ? "border border-dashed border-border-strong bg-surface-2 text-muted opacity-60"
+            : "bg-border-strong text-fg",
           falando && "inset-ring-2 inset-ring-fg-3",
         )}
         aria-hidden="true"
       >
-        <video
-          ref={videoRef}
-          autoPlay
-          playsInline
-          muted
-          className={cn(
-            "absolute inset-0 h-full w-full object-cover",
-            espelhado && "-scale-x-100",
-            !comVideo && "hidden",
-          )}
-        />
+        {videoRef && (
+          <video
+            ref={videoRef}
+            autoPlay
+            playsInline
+            muted
+            className={cn(
+              "absolute inset-0 h-full w-full object-cover",
+              espelhado && "-scale-x-100",
+              !comVideo && "hidden",
+            )}
+          />
+        )}
         {!comVideo && initialsOf(name)}
       </span>
-      <span className="max-w-[96px] truncate text-[11px] text-fg-3">{label}</span>
+      <span className={cn("truncate text-[11px]", pequeno ? "max-w-[64px]" : "max-w-[96px]", ausente ? "text-muted" : "text-fg-3")}>
+        {label}
+      </span>
+      {status && (
+        <span
+          className={cn(
+            "-mt-1.5 flex items-center gap-1 text-[10px]",
+            ausente ? "text-muted" : "text-fg-soft",
+          )}
+        >
+          {!ausente && <span className="h-1.5 w-1.5 rounded-full bg-presence-on" aria-hidden="true" />}
+          {status}
+        </span>
+      )}
     </div>
   );
 }

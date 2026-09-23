@@ -1,4 +1,4 @@
-export type MediaKind = "image" | "video";
+export type MediaKind = "image" | "video" | "audio" | "file";
 
 /** Arte enviada pela agência e anexada a uma peça do lote. */
 export type MediaAsset = {

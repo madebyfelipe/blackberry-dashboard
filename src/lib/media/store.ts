@@ -4,9 +4,11 @@ import path from "node:path";
 import { createStore } from "@/lib/store";
 import { readDimensions } from "./dimensions";
 import {
-  ACCEPTED_MIME,
-  MAX_UPLOAD_BYTES,
+  ALL_MIME,
+  ART_POLICY,
+  baseMime,
   isMediaBlobPathname,
+  type MediaPolicy,
 } from "./constants";
 import type { MediaAsset } from "./types";
 
@@ -33,12 +35,12 @@ const index = createStore<Record<string, MediaAsset>>({
 const memoryBytes = new Map<string, Uint8Array>();
 
 function fileFor(asset: MediaAsset): string {
-  const { ext } = ACCEPTED_MIME[asset.mime] ?? { ext: "bin" };
+  const { ext } = ALL_MIME[asset.mime] ?? { ext: "bin" };
   return path.join(UPLOAD_DIR, `${asset.id}.${ext}`);
 }
 
 function blobPathFor(asset: Pick<MediaAsset, "id" | "mime">): string {
-  const { ext } = ACCEPTED_MIME[asset.mime] ?? { ext: "bin" };
+  const { ext } = ALL_MIME[asset.mime] ?? { ext: "bin" };
   return `media/${asset.id}.${ext}`;
 }
 
@@ -122,17 +124,13 @@ async function fetchBlobBytes(
 export async function saveMedia(
   bytes: Uint8Array,
   meta: { mime: string; name: string },
+  policy: MediaPolicy = ART_POLICY,
 ): Promise<MediaAsset> {
-  const accepted = ACCEPTED_MIME[meta.mime];
-  if (!accepted) {
-    throw new MediaError(
-      "Formato não aceito. Envie PNG, JPG, WebP, GIF, MP4 ou MOV.",
-    );
-  }
+  const mime = baseMime(meta.mime);
+  const accepted = policy.accepted[mime];
+  if (!accepted) throw new MediaError(policy.notAccepted);
   if (bytes.byteLength === 0) throw new MediaError("Arquivo vazio.");
-  if (bytes.byteLength > MAX_UPLOAD_BYTES) {
-    throw new MediaError("Arquivo acima de 50 MB.");
-  }
+  if (bytes.byteLength > policy.maxBytes) throw new MediaError(policy.tooBig);
 
   const id = randomBytes(16).toString("hex");
   const dims = accepted.kind === "image" ? readDimensions(bytes) : undefined;
@@ -140,7 +138,7 @@ export async function saveMedia(
     id,
     url: `/api/media/${id}`,
     kind: accepted.kind,
-    mime: meta.mime,
+    mime,
     name: meta.name || `arte.${accepted.ext}`,
     size: bytes.byteLength,
     width: dims?.width,
@@ -257,14 +255,17 @@ async function readBlobHeader(pathname: string): Promise<Uint8Array | undefined>
  * O id continua nascendo aqui, aleatório e longo, porque é ele que protege
  * `/api/media/<id>` — servido sem sessão para o link de aprovação.
  */
-export async function saveBlobMedia(meta: {
-  pathname: string;
-  name: string;
-}): Promise<MediaAsset> {
+export async function saveBlobMedia(
+  meta: {
+    pathname: string;
+    name: string;
+  },
+  policy: MediaPolicy = ART_POLICY,
+): Promise<MediaAsset> {
   if (!process.env.BLOB_READ_WRITE_TOKEN) {
     throw new MediaError("Envio direto indisponível: o Blob não está configurado.");
   }
-  if (!isMediaBlobPathname(meta.pathname)) {
+  if (!isMediaBlobPathname(meta.pathname, policy.prefix)) {
     throw new MediaError("Envio inválido.");
   }
 
@@ -276,14 +277,11 @@ export async function saveBlobMedia(meta: {
     throw new MediaError("Arte não chegou ao armazenamento. Tente enviar de novo.");
   }
 
-  const accepted = ACCEPTED_MIME[found.contentType];
-  if (!accepted) {
-    throw new MediaError(
-      "Formato não aceito. Envie PNG, JPG, WebP, GIF, MP4 ou MOV.",
-    );
-  }
+  const mime = baseMime(found.contentType);
+  const accepted = policy.accepted[mime];
+  if (!accepted) throw new MediaError(policy.notAccepted);
   if (found.size === 0) throw new MediaError("Arquivo vazio.");
-  if (found.size > MAX_UPLOAD_BYTES) throw new MediaError("Arquivo acima de 50 MB.");
+  if (found.size > policy.maxBytes) throw new MediaError(policy.tooBig);
 
   const id = randomBytes(16).toString("hex");
   const header = accepted.kind === "image" ? await readBlobHeader(found.pathname) : undefined;
@@ -292,7 +290,7 @@ export async function saveBlobMedia(meta: {
     id,
     url: `/api/media/${id}`,
     kind: accepted.kind,
-    mime: found.contentType,
+    mime,
     name: meta.name || `arte.${accepted.ext}`,
     size: found.size,
     width: dims?.width,

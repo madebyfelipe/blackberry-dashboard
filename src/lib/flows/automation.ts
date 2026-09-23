@@ -2,6 +2,7 @@ import "server-only";
 import type { AgencyScope } from "@/lib/agency/types";
 import type { Batch, Piece } from "@/lib/approval/types";
 import { findClientByName } from "@/lib/clients/repository";
+import { notifyTaskChange } from "@/lib/notifications/dispatch";
 import { listMembers } from "@/lib/inbox/repository";
 import type { InboxMember } from "@/lib/inbox/types";
 import { isWorking } from "@/lib/inbox/users";
@@ -111,9 +112,48 @@ export async function taskForPiece(
   });
 
   const onde = flow && step ? `Entrou no fluxo ${flow.name}, etapa ${step.name}` : "Sem fluxo ativo na agência";
-  return (
-    (await noteOnly(scope, task, `${onde} — com ${who(member, assignee)}.`)) ?? task
-  );
+  const saved = (await noteOnly(scope, task, `${onde} — com ${who(member, assignee)}.`)) ?? task;
+  await notifyTaskChange(scope, { name: SYSTEM }, undefined, saved, onde);
+  return saved;
+}
+
+/**
+ * Uma tarefa criada na mão para um cliente **com fluxo atribuído** (Fluxos e
+ * Processos → Clientes do fluxo) já nasce na primeira etapa dele: com quem
+ * toca a etapa e o prazo dela. Quem escolheu o responsável na mão continua
+ * com ele — o fluxo assume dali para a frente, quando a etapa for concluída.
+ *
+ * Só o fluxo escolhido na ficha vale aqui (não o "primeiro ativo da
+ * agência", como no criativo): tarefa avulsa de cliente sem fluxo continua
+ * avulsa. Devolve `undefined` quando não há fluxo para ela.
+ */
+export async function enterClientFlow(
+  scope: AgencyScope,
+  task: Task,
+  opts: { by: string; keepAssignee: boolean },
+): Promise<Task | undefined> {
+  if (task.flowId || !task.client) return undefined;
+  const ctx = await contextFor(scope, task.client);
+  if (!ctx.flowId) return undefined;
+  const flow = await getFlow(scope, ctx.flowId);
+  if (!flow || flow.status !== "ativo") return undefined;
+  const step = startStep(flow);
+  if (!step) return undefined;
+  const { member, name } = receiver(step, ctx);
+  const assignee = opts.keepAssignee && task.assignee !== "—" ? task.assignee : (name ?? undefined);
+  return moveTaskToStep(scope, task.id, {
+    flowId: flow.id,
+    stepId: step.id,
+    status: task.status,
+    assignee,
+    dueDate: task.dueDate ?? dueFor(step),
+    note: {
+      author: SYSTEM,
+      text: `Entrou no fluxo ${flow.name} (o fluxo de ${task.client}), etapa ${step.name} — com ${
+        opts.keepAssignee && task.assignee !== "—" ? task.assignee : who(member, name)
+      }.`,
+    },
+  });
 }
 
 /** O dia do criativo no Planejamento — é ele que vira o prazo da tarefa. */
@@ -175,15 +215,20 @@ async function enter(
 ): Promise<Task | undefined> {
   const ctx = await contextFor(scope, task.client);
   const { member, name } = receiver(step, ctx);
-  return moveTaskToStep(scope, task.id, {
+  const note = text(who(member, name));
+  const moved = await moveTaskToStep(scope, task.id, {
     flowId: flow.id,
     stepId: step.id,
     status: "a-fazer",
     assignee: name ?? undefined,
     // Tarefa de criativo mantém o dia planejado; as outras ganham o prazo da etapa.
     dueDate: task.source ? task.dueDate : dueFor(step),
-    note: { author: SYSTEM, text: text(who(member, name)) },
+    note: { author: SYSTEM, text: note },
   });
+  // Quem recebe a etapa é avisado — mesmo que já fosse o responsável, porque
+  // a tarefa voltou para a mão dele com trabalho novo.
+  if (moved) await notifyTaskChange(scope, { name: SYSTEM }, { ...task, assignee: "" }, moved, note);
+  return moved;
 }
 
 /**

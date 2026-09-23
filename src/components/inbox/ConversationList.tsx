@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { cn } from "@/lib/cn";
-import { BellOffIcon, SearchIcon, SlidersIcon, SquarePenIcon } from "@/components/icons";
+import { BellOffIcon, PhoneIcon, SearchIcon, SlidersIcon, SquarePenIcon } from "@/components/icons";
 import type {
   ConversationSummary,
   InboxMember,
@@ -285,14 +285,27 @@ function Item({
           >
             {item.title}
           </span>
-          <span
-            className={cn(
-              "shrink-0 text-[10px]",
-              unread ? "text-fg-3" : "text-muted",
-            )}
-          >
-            {listTime(item.lastAt)}
-          </span>
+          {item.callMemberIds.length > 0 ? (
+            // Chamada acontecendo: dá para ver da lista, sem abrir a conversa.
+            <span
+              title={`${item.callMemberIds.length} na chamada agora`}
+              className="flex shrink-0 items-center gap-1 rounded-pill bg-border px-1.5 py-px text-[10px] font-semibold text-fg-soft"
+            >
+              <span className="h-1.5 w-1.5 rounded-full bg-presence-on" aria-hidden="true" />
+              <PhoneIcon size={10} />
+              {item.callMemberIds.length}
+              <span className="sr-only"> na chamada agora</span>
+            </span>
+          ) : (
+            <span
+              className={cn(
+                "shrink-0 text-[10px]",
+                unread ? "text-fg-3" : "text-muted",
+              )}
+            >
+              {listTime(item.lastAt)}
+            </span>
+          )}
         </span>
         <span className="flex items-center justify-between gap-2">
           <span

@@ -60,6 +60,7 @@ Dá para criar outra conta em `/criar-conta` — o cadastro já entra logado.
 | `AUTH_SECRET` | Chave que assina o cookie de sessão. **Obrigatória em produção** (mín. 16 caracteres): sem ela o servidor recusa subir e qualquer assinatura/conferência de cookie lança. Gere com `openssl rand -base64 32` e defina em Vercel → Settings → Environment Variables. Fora de produção o app cai num segredo de desenvolvimento, que não protege nada e invalida as sessões a cada deploy. |
 | `DEMO_PASSWORD` | Senha da conta semeada, para instalações compartilhadas. |
 | `DATABASE_URL` | String de conexão do Postgres (Neon, criado pelo marketplace da Vercel — Storage → Marketplace Database Providers → Neon). Presente, os cinco stores (tarefas, clientes, lotes, contas, índice de mídia — e o Inbox) passam a gravar lá. Ausente, o app usa arquivo JSON local (dev) — nunca em produção sem disco gravável. |
+| `TENOR_API_KEY` · `GIPHY_API_KEY` | A biblioteca de GIFs do Inbox (uma das duas basta; com as duas vale o Tenor). A chave fica no servidor — o navegador busca por `/api/inbox/gifs`. Sem nenhuma, o botão de GIF diz o que configurar. |
 | `BLOB_READ_WRITE_TOKEN` | Token do Vercel Blob (Storage → Create Database → Blob), injetado automaticamente ao conectar o projeto. Presente, a arte vai do navegador **direto** para o Blob (sem passar pela função, ver "O teto de 4,5 MB") e sobrevive a redeploy. Ausente, o editor volta ao upload multipart e os bytes ficam em `data/uploads/`, com fallback em memória em disco somente-leitura. **O store precisa ser criado com acesso "Private"** — ver "Store privado" abaixo; a Vercel não deixa trocar o modo de acesso depois de criado. |
 
 ## Rotas principais
@@ -79,7 +80,9 @@ Dá para criar outra conta em `/criar-conta` — o cadastro já entra logado.
 | `/configuracoes/fluxos` | **Fluxos e Processos** — a esteira de trabalho: etapas, quem toca cada uma, prazo, próxima etapa, aprovadores e automações |
 | `/inbox` | **Inbox** — a conversa do time: grupos e diretas, histórico salvo e pesquisável, presença (disponível · ocupado · ausente · offline) e a chamada com registro no histórico |
 | `/equipe` | **Usuários** (export "Usuários · Painel (Lista)") — o time: função, status, último acesso; "Adicionar usuário" cria convite com link de cadastro que entra **nesta** agência |
-| `/notificacoes`, `/conversas`, `/relatorios` | Placeholders prontos para desenhar (Relatórios saiu da lateral — o lugar é de Fluxos e Processos) |
+| `/notificacoes` | **Notificações** — menções, tarefas atribuídas, comentários na sua tarefa e mensagens novas; ver "Notificações" abaixo |
+| `/conversas` | Redireciona para `/inbox` ("Conversas" saiu da lateral) |
+| `/relatorios` | Placeholder pronto para desenhar (saiu da lateral — o lugar é de Fluxos e Processos) |
 
 ## Design
 
@@ -364,12 +367,50 @@ pelo nome de quem atende por ele (@ de ninguém é recusado).
 - **Lateral**: não lidas do Inbox ao lado do item (sem as silenciadas).
 - **Abas do navegador** com o nome de cada tela.
 
+## Notificações
+
+A tela `/notificacoes` e o número ao lado dela na lateral. Quatro tipos, cada
+um nascendo num lugar só (`lib/notifications/dispatch.ts`, chamado pelas rotas
+e pelo motor dos fluxos — sempre **depois** de gravar, e falhar em avisar não
+desfaz nada):
+
+| Tipo | Quando |
+| --- | --- |
+| `atribuicao` | A tarefa passou a ser sua — na mão (criar/editar o responsável) ou pelo fluxo (etapa nova, ajuste do cliente) |
+| `mencao` | Seu @ **novo** no briefing, num comentário ou numa mensagem (a menção fura o silêncio da conversa) |
+| `comentario` | Comentaram numa tarefa que é sua |
+| `mensagem` | Mensagem nova numa conversa sua não silenciada; várias da mesma conversa, até você ler, viram um aviso só |
+
+Quem recebe o quê é função pura (`rules.ts`, testada): ninguém é avisado do
+que ele mesmo fez, só quem está ativo no time recebe, e é um aviso por pessoa
+por evento. Abrir a tarefa ou a conversa dá por lidos os avisos dela (`ref`
+`tarefa:<id>`/`conversa:<id>`). A entrega ao vivo vai pelo canal pessoal do
+Ably (`{ tipo: "notificacao" }`); sem tempo real, o notificador relê a cada
+20s.
+
+## Inbox: responder, editar, apagar, anexos
+
+- **Editar e apagar** só a própria mensagem, até 10 minutos depois
+  (`MESSAGE_EDIT_WINDOW_MS`, em `lib/inbox/constants.ts` — a regra é do
+  repositório, a tela só esconde o que ele recusaria). Apagar deixa a linha
+  "Mensagem apagada" para as respostas a ela não ficarem órfãs.
+- **Anexo** passa pelo mesmo armazenamento das artes (`media/store.ts`), com
+  outra política (`ATTACHMENT_POLICY`: 20 MB, pasta `anexos/` no Blob, tipos
+  fechados — nada que o navegador execute; documento é servido como
+  download, com `nosniff`). O navegador sobe e recebe um id; a mensagem leva
+  os ids, e o servidor monta o anexo a partir do registro, nunca da descrição
+  que veio do navegador.
+- **GIF** é o único anexo que aponta para fora: só entra endereço do CDN do
+  Tenor ou do Giphy (`isGifUrl`).
+
 ## Notificações e a chave do Ably
 
 - **Mensagem e ligação avisam em qualquer tela** (`components/inbox/InboxNotifier`,
   no shell): notificação do sistema — nativa no app de desktop, a do navegador
-  no site. Não avisa mensagem sua, de conversa silenciada, nem com o Inbox à
-  vista. Ligação fica na tela até o clique; clicar abre a conversa
+  no site. Não avisa mensagem sua, de conversa silenciada, nem a da conversa
+  que está aberta **com a janela em foco** (foco, não "aba visível": no
+  desktop a página sempre se diz visível, e era por isso que o aviso não
+  chegava no PC com o Inbox aberto). Sem permissão do sistema, vira toast. Ligação fica na tela até o clique; clicar abre a conversa
   (`/inbox?conversa=<id>`) e, no desktop, traz a janela da bandeja.
 - **Com tempo real**, o aviso chega pelo evento do Ably (que agora leva autor,
   grupo e um trecho). **Sem tempo real**, por releitura a cada 20s — chega,

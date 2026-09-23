@@ -1,12 +1,15 @@
 import { NextResponse } from "next/server";
 import { createTask, listTasks, ValidationError } from "@/lib/tasks/repository";
-import { requireAgency, unauthorized } from "@/lib/auth/session";
+import { unauthorized } from "@/lib/auth/session";
+import { currentInboxSession } from "@/lib/inbox/viewer";
+import { enterClientFlow } from "@/lib/flows/automation";
+import { notifyTaskChange } from "@/lib/notifications/dispatch";
 
 export const dynamic = "force-dynamic";
 
 export async function GET() {
   // A agência sai da sessão. Não há parâmetro por onde pedir a de outra.
-  const session = await requireAgency();
+  const session = await currentInboxSession();
   if (!session) return unauthorized();
   const tasks = await listTasks(session.scope);
   return NextResponse.json({ tasks });
@@ -14,7 +17,7 @@ export async function GET() {
 
 export async function POST(req: Request) {
   // O criador e a agência vêm da sessão, nunca do corpo da requisição.
-  const session = await requireAgency();
+  const session = await currentInboxSession();
   if (!session) return unauthorized();
 
   let body: unknown;
@@ -35,7 +38,7 @@ export async function POST(req: Request) {
   } = (body ?? {}) as Record<string, unknown>;
 
   try {
-    const task = await createTask(session.scope, {
+    const created = await createTask(session.scope, {
       title: String(title ?? ""),
       client: String(client ?? ""),
       status: status as never,
@@ -46,6 +49,17 @@ export async function POST(req: Request) {
       creator: session.user.name,
       dueDate: dueDate as never,
     });
+    /*
+     * Cliente com fluxo atribuído (Fluxos e Processos → Clientes): a tarefa
+     * já nasce na primeira etapa dele, com quem toca essa etapa — a não ser
+     * que quem criou tenha escolhido o responsável na mão.
+     */
+    const task =
+      (await enterClientFlow(session.scope, created, {
+        by: session.user.name,
+        keepAssignee: typeof assignee === "string" && assignee.trim() !== "",
+      })) ?? created;
+    await notifyTaskChange(session.scope, { id: session.me.id, name: session.me.name }, undefined, task);
     return NextResponse.json({ task }, { status: 201 });
   } catch (err) {
     if (err instanceof ValidationError) {
