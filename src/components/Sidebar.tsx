@@ -11,6 +11,7 @@ import { apiSetPresence } from "@/components/inbox/api";
 import { PresenceDot } from "@/components/inbox/PresenceDot";
 import { useRealtime } from "@/components/realtime/RealtimeProvider";
 import { INBOX_CHANGED, NOTIFICATIONS_CHANGED } from "@/components/inbox/InboxNotifier";
+import { coalesce } from "@/lib/ui/coalesce";
 import { desktopBridge } from "@/lib/desktop";
 import { PRESENCES } from "@/lib/inbox/constants";
 import type { Presence } from "@/lib/inbox/types";
@@ -92,9 +93,9 @@ function useInboxUnread(pathname: string): number {
   const [total, setTotal] = useState(0);
   useEffect(() => {
     let vivo = true;
-    const load = (force = false) => {
-      // Aba escondida não gasta rede — a não ser que chegou mensagem (evento).
-      if (!force && document.visibilityState !== "visible") return;
+    // Uma leitura por vez: cada mensagem de uma rajada avisa, e a contagem
+    // só precisa da última (ver `coalesce`).
+    const ler = coalesce(() =>
       fetch("/api/inbox/nao-lidas", { cache: "no-store" })
         .then((r) => (r.ok ? r.json() : null))
         .then((d) => {
@@ -104,7 +105,12 @@ function useInboxUnread(pathname: string): number {
           // No app de desktop: dica da bandeja e a barra de tarefas piscando.
           desktopBridge()?.setUnread?.(n);
         })
-        .catch(() => undefined);
+        .catch(() => undefined),
+    );
+    const load = (force = false) => {
+      // Aba escondida não gasta rede — a não ser que chegou mensagem (evento).
+      if (!force && document.visibilityState !== "visible") return;
+      void ler();
     };
     const onVisible = () => load();
     const onChanged = () => load(true);
@@ -131,14 +137,17 @@ function useNotificationsUnread(pathname: string): number {
   const [total, setTotal] = useState(0);
   useEffect(() => {
     let vivo = true;
-    const load = (force = false) => {
-      if (!force && document.visibilityState !== "visible") return;
+    const ler = coalesce(() =>
       fetch("/api/notificacoes?resumo=1", { cache: "no-store" })
         .then((r) => (r.ok ? r.json() : null))
         .then((d) => {
           if (vivo && d) setTotal(Number(d.unread) || 0);
         })
-        .catch(() => undefined);
+        .catch(() => undefined),
+    );
+    const load = (force = false) => {
+      if (!force && document.visibilityState !== "visible") return;
+      void ler();
     };
     const onVisible = () => load();
     const onChanged = () => load(true);

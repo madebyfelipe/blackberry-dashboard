@@ -12,6 +12,7 @@ import type {
   Message,
 } from "@/lib/inbox/types";
 import { sortSummaries } from "@/lib/inbox/view";
+import { coalesce } from "@/lib/ui/coalesce";
 import {
   apiAddMember,
   apiConversation,
@@ -193,8 +194,14 @@ export function InboxView({
     [toast],
   );
 
-  /** Relê o estado inteiro — a lista e, se houver, a conversa aberta. */
-  const refresh = useCallback(async () => {
+  /**
+   * Relê o estado inteiro — a lista e, se houver, a conversa aberta.
+   *
+   * Uma releitura por vez (`coalesce`): cada mensagem que chega, o foco e a
+   * aba voltando pedem uma, e numa rajada elas saíam todas juntas — com a
+   * resposta mais velha podendo chegar por último e desfazer a mais nova.
+   */
+  const refresh = useMemo(() => coalesce(async () => {
     try {
       const next = await apiInbox();
       setState(next);
@@ -226,7 +233,7 @@ export function InboxView({
       // Falha de rede não pode derrubar a conversa que está na tela: a
       // próxima rodada tenta de novo, e o histórico continua lá.
     }
-  }, []);
+  }), []);
 
   useEffect(() => {
     const tick = () => {

@@ -158,7 +158,6 @@ export function CallOverlay({
   onClose: (conversation?: ConversationDetail) => void;
 }) {
   const [estado, setEstado] = useState<Estado>("entrando");
-  const [seconds, setSeconds] = useState(0);
   const [mudo, setMudo] = useState(false);
   const [compartilhando, setCompartilhando] = useState(false);
   const [naSala, setNaSala] = useState<string[]>([]);
@@ -233,15 +232,10 @@ export function CallOverlay({
   /** Qual montagem do efeito de entrada é a atual (o modo estrito monta duas). */
   const rodadaRef = useRef(0);
 
-  // Cronômetro. Começa quando a chamada entra em tela, não no render.
+  // Cronômetro. Começa quando a chamada entra em tela, não no render. Quem
+  // conta os segundos é o `<Cronometro>`: só o texto dele muda a cada segundo.
   useEffect(() => {
-    const inicio = Date.now();
-    startedAt.current = inicio;
-    const id = setInterval(
-      () => setSeconds(Math.floor((Date.now() - inicio) / 1000)),
-      1000,
-    );
-    return () => clearInterval(id);
+    startedAt.current = Date.now();
   }, []);
 
   // Entrar: registrar no servidor e, havendo provedor, conectar na sala.
@@ -723,7 +717,10 @@ export function CallOverlay({
       const quadros = v.getVideoPlaybackQuality?.().totalVideoFrames ?? 0;
       const fps = antes < 0 ? 0 : Math.max(0, quadros - antes);
       antes = quadros;
-      setRecebendo({ w: v.videoWidth, h: v.videoHeight, fps });
+      const w = v.videoWidth;
+      const h = v.videoHeight;
+      // Mesmo selo de antes: não re-renderiza a chamada inteira por nada.
+      setRecebendo((r) => (r && r.w === w && r.h === h && r.fps === fps ? r : { w, h, fps }));
     }, 1000);
     return () => clearInterval(id);
   }, [temTela]);
@@ -738,7 +735,13 @@ export function CallOverlay({
 
   const alternarTelaCheia = () => alternarTelaCheiaDe(telaRef.current);
 
-  // Arrastar o canto do popup: cresce para os dois lados, porque ele é centralizado.
+  /*
+   * Arrastar o canto do popup: cresce para os dois lados, porque ele é
+   * centralizado. Durante o arrasto a largura vai direto no elemento — passar
+   * pelo estado re-renderizava a chamada inteira (vídeos, participantes) a
+   * cada movimento do mouse, e o canto ficava para trás do cursor. O estado
+   * só recebe a largura final, ao soltar.
+   */
   function redimensionar(e: React.PointerEvent<HTMLDivElement>) {
     e.preventDefault();
     const painel = e.currentTarget.parentElement;
@@ -746,14 +749,17 @@ export function CallOverlay({
     const inicioX = e.clientX;
     const inicio = painel.getBoundingClientRect().width;
     let final = inicio;
+    let moveu = false;
     const mover = (ev: PointerEvent) => {
       const max = window.innerWidth - 32;
       final = Math.round(Math.min(max, Math.max(LARGURA_MIN, inicio + (ev.clientX - inicioX) * 2)));
-      setLargura(final);
+      moveu = true;
+      painel.style.maxWidth = `${final}px`;
     };
     const soltar = () => {
       window.removeEventListener("pointermove", mover);
       window.removeEventListener("pointerup", soltar);
+      if (moveu) setLargura(final);
       try {
         localStorage.setItem(LARGURA_KEY, String(final));
       } catch {
@@ -806,7 +812,7 @@ export function CallOverlay({
         ? "Chamada interrompida"
         : estado === "outra-aba"
           ? "Chamada em outra aba"
-          : callClock(seconds);
+          : <Cronometro desde={startedAt} />;
 
   return (
     <div
@@ -1343,4 +1349,20 @@ function CallButton({
       {children}
     </button>
   );
+}
+
+/*
+ * O tempo de chamada, num componente só dele. Morando no estado da chamada,
+ * o tique de cada segundo re-renderizava o popup inteiro — vídeos, avatares,
+ * controles — durante a ligação toda, para mudar quatro dígitos.
+ */
+function Cronometro({ desde }: { desde: React.RefObject<number> }) {
+  const segundos = () => (desde.current ? Math.floor((Date.now() - desde.current) / 1000) : 0);
+  const [s, setS] = useState(segundos);
+  useEffect(() => {
+    const id = setInterval(() => setS(segundos()), 1000);
+    return () => clearInterval(id);
+    // `desde` é uma ref: estável durante a chamada toda.
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  return <>{callClock(s)}</>;
 }
