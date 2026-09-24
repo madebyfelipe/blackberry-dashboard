@@ -170,7 +170,8 @@ export async function findClientByName(
   return (await listClients(scope)).find((c) => foldName(c.name) === key);
 }
 
-function foldName(s: string): string {
+/** Nome sem acento, sem caixa e sem pontuação — a mesma dobra usada para comparar clientes. */
+export function foldName(s: string): string {
   return s
     .normalize("NFD")
     .replace(/[̀-ͯ]/g, "")
