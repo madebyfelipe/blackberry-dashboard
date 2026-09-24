@@ -9,7 +9,8 @@
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "test": "node --import ./tests/helpers/register.mjs --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test \"tests/**/*.test.ts\"",
-    "test:watch": "node --import ./tests/helpers/register.mjs --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test --watch \"tests/**/*.test.ts\""
+    "test:watch": "node --import ./tests/helpers/register.mjs --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test --watch \"tests/**/*.test.ts\"",
+    "backfill:client-ids": "node --import ./tests/helpers/register.mjs --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/backfill-client-ids.ts"
   },
   "dependencies": {
     "@vercel/blob": "^2.8.0",
