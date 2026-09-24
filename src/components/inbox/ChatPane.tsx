@@ -1,10 +1,14 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { ActionSheet } from "@/components/ui/ActionSheet";
+import { useIsMobile } from "@/components/ui/useIsMobile";
 import { cn } from "@/lib/cn";
 import {
   ArrowLeftIcon,
+  BellIcon,
   BellOffIcon,
+  InboxIcon,
   EllipsisIcon,
   PhoneIcon,
   PinIcon,
@@ -101,15 +105,15 @@ export function ChatPane({
 
   return (
     <div className={cn("flex min-h-0 min-w-0 flex-1 flex-col", className)}>
-      <header className="flex shrink-0 items-center justify-between gap-3 border-b border-panel-ring px-4 py-3 md:px-5 md:py-3.5">
-        <div className="flex min-w-0 items-center gap-3">
+      <header className="flex shrink-0 items-center justify-between gap-2 border-b border-panel-ring px-2 py-2 md:gap-3 md:px-5 md:py-3.5">
+        <div className="flex min-w-0 items-center gap-2.5 md:gap-3">
           <button
             type="button"
             onClick={onBack}
             aria-label="Voltar para as conversas"
-            className="tap -ml-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-chip text-fg-3 transition-colors hover:bg-surface-2 hover:text-fg-soft md:hidden"
+            className="tap flex h-10 w-10 shrink-0 items-center justify-center rounded-chip text-fg-3 transition-colors active:bg-surface-2 md:hidden"
           >
-            <ArrowLeftIcon size={16} />
+            <ArrowLeftIcon size={20} />
           </button>
 
           <span className="relative h-[34px] w-[34px] shrink-0">
@@ -176,13 +180,14 @@ export function ChatPane({
            */}
           <HeaderButton
             label="Chamada com tela compartilhada"
+            className="hidden md:flex"
             onClick={() => onStartCall(true)}
           >
             <ScreenShareIcon size={15} />
           </HeaderButton>
           <HeaderButton
             label="Fixar mensagem"
-            className="hidden sm:flex"
+            className="hidden md:flex"
             onClick={() => onUndesigned("Fixar mensagem")}
           >
             <PinIcon size={15} />
@@ -200,13 +205,17 @@ export function ChatPane({
           />
           <HeaderButton
             label="Buscar na conversa"
+            className="hidden md:flex"
             pressed={searching}
             onClick={() => setSearching((s) => !s)}
           >
             <SearchIcon size={15} />
           </HeaderButton>
           <ChatMenu
+            title={detail.title}
             muted={detail.muted}
+            onScreenShare={() => onStartCall(true)}
+            onSearch={() => setSearching(true)}
             onAddPerson={() => setAdding(true)}
             onToggleMuted={onToggleMuted}
             onMarkUnread={onMarkUnread}
@@ -224,7 +233,7 @@ export function ChatPane({
             onKeyDown={(e) => e.key === "Escape" && setSearching(false)}
             placeholder="Buscar nesta conversa"
             aria-label="Buscar nesta conversa"
-            className="w-full bg-transparent text-[12px] text-fg-soft outline-none placeholder:text-muted"
+            className="w-full bg-transparent text-[16px] text-fg-soft outline-none placeholder:text-muted md:text-[12px]"
           />
           <span className="shrink-0 text-[11px] text-muted">
             {query ? `${shown.length} de ${detail.messages.length}` : `${detail.messages.length} mensagens`}
@@ -333,7 +342,8 @@ function HeaderButton({
       title={label}
       onClick={onClick}
       className={cn(
-        "tap flex h-[30px] w-[30px] items-center justify-center rounded-chip transition-colors",
+        // 40px no celular (alvo de dedo), 30px no desktop como o export.
+        "tap flex h-10 w-10 items-center justify-center rounded-chip transition-colors md:h-[30px] md:w-[30px]",
         "focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-border-strong",
         pressed
           ? "bg-border text-fg-soft"
@@ -396,7 +406,7 @@ function AddPerson({
     <div className="relative" ref={ref}>
       <HeaderButton
         label={detail.kind === "direta" ? "Criar grupo com mais alguém" : "Adicionar alguém ao grupo"}
-        className="hidden sm:flex"
+        className="hidden md:flex"
         pressed={open}
         onClick={() => onOpenChange(!open)}
       >
@@ -423,21 +433,28 @@ function AddPerson({
 }
 
 function ChatMenu({
+  title,
   muted,
+  onScreenShare,
+  onSearch,
   onAddPerson,
   onToggleMuted,
   onMarkUnread,
 }: {
+  title: string;
   muted: boolean;
+  onScreenShare: () => void;
+  onSearch: () => void;
   onAddPerson: () => void;
   onToggleMuted: () => void;
   onMarkUnread: () => void;
 }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
+  const mobile = useIsMobile();
 
   useEffect(() => {
-    if (!open) return;
+    if (!open || mobile) return;
     function onDown(e: MouseEvent) {
       if (!ref.current?.contains(e.target as Node)) setOpen(false);
     }
@@ -450,7 +467,7 @@ function ChatMenu({
       window.removeEventListener("mousedown", onDown);
       window.removeEventListener("keydown", onKey);
     };
-  }, [open]);
+  }, [open, mobile]);
 
   return (
     <div className="relative" ref={ref}>
@@ -462,38 +479,51 @@ function ChatMenu({
         <EllipsisIcon size={15} />
       </HeaderButton>
 
-      {open && (
-        <div
-          role="menu"
-          className="absolute right-0 top-[calc(100%+6px)] z-50 w-[210px] animate-pop-in overflow-hidden rounded-menu border border-border bg-surface-2 p-1.5 shadow-[0_16px_40px_rgba(0,0,0,0.55)]"
-        >
-          {/* No celular o botão do cabeçalho não cabe: o caminho é este. */}
-          <MenuItem
-            className="sm:hidden"
-            onSelect={() => {
-              setOpen(false);
-              onAddPerson();
-            }}
+      {/*
+       * No celular, folha de baixo com tudo que não coube no cabeçalho
+       * (tela compartilhada, busca, adicionar alguém) além do de sempre.
+       */}
+      {mobile ? (
+        <ActionSheet
+          open={open}
+          onClose={() => setOpen(false)}
+          title={title}
+          actions={[
+            { label: "Chamada com tela compartilhada", icon: <ScreenShareIcon size={18} />, onSelect: onScreenShare },
+            { label: "Buscar na conversa", icon: <SearchIcon size={18} />, onSelect: onSearch },
+            { label: "Adicionar alguém", icon: <UserPlusIcon size={18} />, onSelect: onAddPerson },
+            {
+              label: muted ? "Ativar notificações" : "Silenciar conversa",
+              icon: muted ? <BellIcon size={18} /> : <BellOffIcon size={18} />,
+              onSelect: onToggleMuted,
+            },
+            { label: "Marcar como não lida", icon: <InboxIcon size={18} />, onSelect: onMarkUnread },
+          ]}
+        />
+      ) : (
+        open && (
+          <div
+            role="menu"
+            className="absolute right-0 top-[calc(100%+6px)] z-50 w-[210px] animate-pop-in overflow-hidden rounded-menu border border-border bg-surface-2 p-1.5 shadow-[0_16px_40px_rgba(0,0,0,0.55)]"
           >
-            Adicionar alguém
-          </MenuItem>
-          <MenuItem
-            onSelect={() => {
-              setOpen(false);
-              onToggleMuted();
-            }}
-          >
-            {muted ? "Ativar notificações" : "Silenciar conversa"}
-          </MenuItem>
-          <MenuItem
-            onSelect={() => {
-              setOpen(false);
-              onMarkUnread();
-            }}
-          >
-            Marcar como não lida
-          </MenuItem>
-        </div>
+            <MenuItem
+              onSelect={() => {
+                setOpen(false);
+                onToggleMuted();
+              }}
+            >
+              {muted ? "Ativar notificações" : "Silenciar conversa"}
+            </MenuItem>
+            <MenuItem
+              onSelect={() => {
+                setOpen(false);
+                onMarkUnread();
+              }}
+            >
+              Marcar como não lida
+            </MenuItem>
+          </div>
+        )
       )}
     </div>
   );

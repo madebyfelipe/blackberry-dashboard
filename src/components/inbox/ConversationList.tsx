@@ -60,7 +60,7 @@ export function ConversationList({
     >
       <div className="flex shrink-0 flex-col gap-3 border-b border-panel-ring px-4 pb-3 pt-4">
         <div className="flex items-center justify-between gap-2">
-          <h1 className="text-[15px] font-semibold text-fg">Mensagens</h1>
+          <h1 className="text-[20px] font-semibold text-fg md:text-[15px]">Mensagens</h1>
           <div className="flex shrink-0 items-center gap-1">
             <HeaderAction
               label={onlyUnread ? "Mostrar todas as conversas" : "Só não lidas"}
@@ -73,19 +73,20 @@ export function ConversationList({
           </div>
         </div>
 
-        <label className="flex items-center gap-2 rounded-chip border border-panel-ring bg-surface-2 px-2.5 py-2">
+        <label className="flex items-center gap-2 rounded-chip border border-panel-ring bg-surface-2 px-3 py-1.5 md:px-2.5 md:py-2">
           <SearchIcon size={13} className="text-muted" />
           <input
             value={query}
             onChange={(e) => onQuery(e.target.value)}
             placeholder="Buscar conversas"
             aria-label="Buscar conversas"
-            className="w-full bg-transparent text-[12px] text-fg-soft outline-none placeholder:text-muted"
+            // 16px no celular: abaixo disso o iPhone dá zoom ao focar a busca.
+            className="w-full bg-transparent text-[16px] text-fg-soft outline-none placeholder:text-muted md:text-[12px]"
           />
         </label>
       </div>
 
-      <div className="flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto px-2 pb-4 pt-2">
+      <div className="flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto px-2 pb-[max(16px,env(safe-area-inset-bottom))] pt-2 md:pb-4">
         {empty && (
           <p className="px-2.5 py-6 text-[12px] leading-[18px] text-muted">
             {query || onlyUnread
@@ -237,13 +238,15 @@ function Item({
       aria-current={active ? "true" : undefined}
       style={{ ["--d" as string]: index }}
       className={cn(
-        "stagger-item tap flex w-full items-center gap-2.5 rounded-chip px-2.5 py-2 text-left transition-colors",
+        "stagger-item tap flex w-full items-center gap-3 rounded-chip px-2.5 py-2.5 text-left transition-colors md:gap-2.5 md:py-2",
+        "active:bg-surface-2",
         "focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-border-strong",
         active ? "bg-row-raised" : "hover:bg-surface-2",
       )}
     >
       {item.kind === "grupo" ? (
-        <span className="relative h-8 w-8 shrink-0" aria-hidden="true">
+        // No celular o avatar cresce 25% inteiro (a pilha do grupo junto) — mais fácil de reconhecer.
+        <span className="relative h-8 w-8 shrink-0 max-md:[zoom:1.25]" aria-hidden="true">
           <span
             className={cn(
               "absolute left-2.5 top-2.5 flex h-[22px] w-[22px] items-center justify-center rounded-pill bg-border text-[8px] font-semibold text-fg-3 outline-2",
@@ -262,7 +265,7 @@ function Item({
           </span>
         </span>
       ) : (
-        <span className="relative h-8 w-8 shrink-0">
+        <span className="relative h-8 w-8 shrink-0 max-md:[zoom:1.25]">
           <span
             className="flex h-8 w-8 items-center justify-center rounded-pill bg-border text-[11px] font-semibold text-fg-3"
             aria-hidden="true"
@@ -279,7 +282,7 @@ function Item({
         <span className="flex items-center justify-between gap-2">
           <span
             className={cn(
-              "truncate text-[13px]",
+              "truncate text-[15px] md:text-[13px]",
               unread ? "font-semibold text-fg" : "font-medium text-fg-soft",
             )}
           >
@@ -299,7 +302,7 @@ function Item({
           ) : (
             <span
               className={cn(
-                "shrink-0 text-[10px]",
+                "shrink-0 text-[12px] md:text-[10px]",
                 unread ? "text-fg-3" : "text-muted",
               )}
             >
@@ -310,7 +313,7 @@ function Item({
         <span className="flex items-center justify-between gap-2">
           <span
             className={cn(
-              "truncate text-[12px]",
+              "truncate text-[14px] md:text-[12px]",
               unread ? "text-fg-3" : "text-muted",
             )}
           >
