@@ -513,6 +513,28 @@ body {
   }
 }
 
+/* A conversa entrando por cima da lista, no celular. */
+@keyframes slide-in-right {
+  from {
+    opacity: 0.6;
+    transform: translateX(24px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+/* A folha de ações subindo de baixo, no celular. */
+@keyframes sheet-up {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+
 @keyframes slide-in-left {
   from {
     opacity: 0;
@@ -593,6 +615,17 @@ body {
 .animate-slide-in-left {
   animation: slide-in-left var(--dur-enter) var(--ease-out-soft) both;
 }
+/*
+ * `backwards`, não `both`: guardado o `transform` final, o elemento viraria o
+ * bloco de referência dos `fixed` de dentro — a conversa em tela cheia do
+ * celular ficaria presa na caixa dele.
+ */
+.animate-slide-in-right {
+  animation: slide-in-right 0.22s var(--ease-out-soft) backwards;
+}
+.animate-sheet-up {
+  animation: sheet-up 0.24s var(--ease-out-soft) backwards;
+}
 .animate-scale-in {
   animation: scale-in 0.2s var(--ease-spring) both;
 }
@@ -613,8 +646,13 @@ body {
 }
 
 /* Troca de tela do shell autenticado (app/(app)/template.tsx). */
+/*
+ * `backwards` (e não `both`): o fim da animação é o estado normal, e manter o
+ * `transform` depois dela transformava a tela inteira no bloco de referência
+ * dos `fixed` de dentro — a conversa em tela cheia do celular ficava presa.
+ */
 .animate-page-in {
-  animation: rise-in-sm var(--dur-panel) var(--ease-out-soft) both;
+  animation: rise-in-sm var(--dur-panel) var(--ease-out-soft) backwards;
 }
 
 /*

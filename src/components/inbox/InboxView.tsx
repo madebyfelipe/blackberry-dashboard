@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useToast } from "@/components/ui/Toast";
+import { useIsMobile } from "@/components/ui/useIsMobile";
 import { useRealtime } from "@/components/realtime/RealtimeProvider";
 import { conversationChannel, memberChannel } from "@/lib/realtime/channels";
 import type {
@@ -91,6 +92,7 @@ export function InboxView({
   );
   /** Celular: a conversa cobre a lista. No desktop as duas convivem. */
   const [showChat, setShowChat] = useState(false);
+  const mobile = useIsMobile();
   const [query, setQuery] = useState("");
   const [onlyUnread, setOnlyUnread] = useState(false);
   const [sending, setSending] = useState(false);
@@ -99,6 +101,24 @@ export function InboxView({
 
   const openIdRef = useRef(openId);
   openIdRef.current = openId;
+
+  /*
+   * No celular a conversa cobre a tela como uma página própria — então o
+   * "voltar" do aparelho (gesto do iPhone, botão do Android) tem de voltar
+   * para a lista, e não sair do Inbox. Abrir a conversa empurra uma entrada
+   * no histórico; voltar a tira e fecha a conversa.
+   */
+  useEffect(() => {
+    if (!showChat || !window.matchMedia("(max-width: 767px)").matches) return;
+    window.history.pushState({ ...window.history.state, bbChat: true }, "");
+    const onPop = () => setShowChat(false);
+    window.addEventListener("popstate", onPop);
+    return () => {
+      window.removeEventListener("popstate", onPop);
+      // Fechou pela seta da tela: a entrada que empurramos sai junto.
+      if (window.history.state?.bbChat) window.history.back();
+    };
+  }, [showChat]);
 
   // O notificador do shell não avisa a conversa que está aberta aqui (com a janela em foco).
   useEffect(() => {
@@ -512,7 +532,8 @@ export function InboxView({
         conversations={conversations}
         members={team}
         me={state.me}
-        openId={openId}
+        // No celular a lista só aparece com a conversa fechada: nenhuma linha acesa.
+        openId={mobile && !showChat ? null : openId}
         query={query}
         onQuery={setQuery}
         onlyUnread={onlyUnread}
@@ -546,7 +567,12 @@ export function InboxView({
           onUndesigned={undesigned}
           team={team}
           onAddPerson={addPerson}
-          className={showChat ? "flex" : "hidden md:flex"}
+          className={
+            showChat
+              ? // Celular: por cima de tudo, a tela inteira (com a área segura do iPhone).
+                "flex max-md:fixed max-md:inset-0 max-md:z-40 max-md:animate-slide-in-right max-md:bg-surface max-md:pt-[env(safe-area-inset-top)]"
+              : "hidden md:flex"
+          }
         />
       ) : (
         <div className="hidden min-w-0 flex-1 items-center justify-center p-8 md:flex">

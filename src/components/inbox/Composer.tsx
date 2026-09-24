@@ -16,6 +16,7 @@ import {
   XIcon,
 } from "@/components/icons";
 import { Spinner } from "@/components/ui/Spinner";
+import { useIsMobile } from "@/components/ui/useIsMobile";
 import { ATTACHMENTS_MAX } from "@/lib/inbox/constants";
 import type { Attachment, ConversationDetail, Message } from "@/lib/inbox/types";
 import { memberName, messageText } from "@/lib/inbox/view";
@@ -76,6 +77,7 @@ export function Composer({
   const fileRef = useRef<HTMLInputElement>(null);
   const gifButtonRef = useRef<HTMLSpanElement>(null);
   // Passou dos 5 minutos, o gravador para sozinho e a mensagem vai.
+  const mobile = useIsMobile();
   const recorder = useRecorder(onError, () => void stopAndSend());
   const mentions = useMentionInput({
     value: draft,
@@ -175,7 +177,8 @@ export function Composer({
     : "";
 
   return (
-    <div className="shrink-0 px-4 pb-4 pt-3 md:px-5 md:pb-5">
+    // Celular: encostado embaixo, descontando a barra de gestos do iPhone.
+    <div className="shrink-0 px-2 pb-[max(8px,env(safe-area-inset-bottom))] pt-2 md:px-5 md:pb-5 md:pt-3">
       <form
         onSubmit={(e) => {
           e.preventDefault();
@@ -254,7 +257,7 @@ export function Composer({
           </div>
         )}
 
-        <div className="flex items-end gap-2.5 px-3 py-2.5">
+        <div className="flex items-end gap-1 px-1.5 py-1.5 md:gap-2.5 md:px-3 md:py-2.5">
           {recorder.recording ? (
             <>
               <ComposerIcon label="Descartar gravação" onClick={recorder.cancel}>
@@ -272,7 +275,7 @@ export function Composer({
                 onClick={() => void stopAndSend()}
                 aria-label="Parar e enviar a mensagem de voz"
                 title="Parar e enviar"
-                className="tap flex h-7 w-7 shrink-0 items-center justify-center rounded-chip bg-primary text-on-primary"
+                className="tap flex h-9 w-9 shrink-0 items-center justify-center rounded-chip bg-primary text-on-primary md:h-7 md:w-7"
               >
                 <SquareStopIcon size={13} />
               </button>
@@ -323,12 +326,14 @@ export function Composer({
                     submit();
                   }
                 }}
-                placeholder={`Mensagem em ${detail.kind === "grupo" ? "#" : ""}${detail.title}`}
+                // No celular o nome da conversa já está no topo — e não cabe aqui.
+                placeholder={mobile ? "Mensagem" : `Mensagem em ${detail.kind === "grupo" ? "#" : ""}${detail.title}`}
                 aria-label={`Mensagem em ${detail.title}`}
-                className="max-h-[120px] min-h-[20px] flex-1 resize-none bg-transparent py-[3px] text-[13px] leading-[18px] text-fg-soft outline-none placeholder:text-muted"
+                // 16px no celular: abaixo disso o iPhone dá zoom na página ao focar.
+                className="max-h-[120px] min-h-[20px] flex-1 resize-none bg-transparent px-1 py-[7px] text-[16px] leading-[22px] text-fg-soft outline-none placeholder:text-muted md:px-0 md:py-[3px] md:text-[13px] md:leading-[18px]"
               />
 
-              <ComposerIcon label="Emoji" onClick={() => onUndesigned("Seletor de emoji")}>
+              <ComposerIcon label="Emoji" className="hidden md:flex" onClick={() => onUndesigned("Seletor de emoji")}>
                 <SmileIcon size={16} />
               </ComposerIcon>
               <span ref={gifButtonRef} className="flex">
@@ -344,7 +349,7 @@ export function Composer({
                   aria-label="Enviar mensagem"
                   title={uploading ? "Esperando os anexos subirem" : "Enviar mensagem"}
                   className={cn(
-                    "tap flex h-7 w-7 shrink-0 items-center justify-center rounded-chip bg-primary text-on-primary transition-opacity",
+                    "tap flex h-9 w-9 shrink-0 items-center justify-center rounded-chip bg-primary text-on-primary transition-opacity md:h-7 md:w-7",
                     "focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-fg-3",
                     !canSend && "opacity-40",
                   )}
@@ -472,11 +477,13 @@ function ComposerIcon({
   label,
   pressed,
   onClick,
+  className,
   children,
 }: {
   label: string;
   pressed?: boolean;
   onClick: () => void;
+  className?: string;
   children: React.ReactNode;
 }) {
   return (
@@ -487,8 +494,9 @@ function ComposerIcon({
       title={label}
       onClick={onClick}
       className={cn(
-        "tap flex h-7 w-7 shrink-0 items-center justify-center rounded-chip transition-colors",
+        "tap flex h-9 w-9 shrink-0 items-center justify-center rounded-chip transition-colors md:h-7 md:w-7",
         pressed ? "bg-border text-fg-soft" : "text-fg-3 hover:bg-border hover:text-fg-soft",
+        className,
       )}
     >
       {children}

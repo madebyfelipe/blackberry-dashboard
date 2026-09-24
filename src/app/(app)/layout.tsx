@@ -36,7 +36,8 @@ export default async function AppLayout({
       <CallProvider>
       {/* Mensagem e ligação avisam em qualquer tela (notificação do sistema). */}
       <InboxNotifier />
-      <div className="flex h-screen flex-col gap-3 bg-bg p-3 md:flex-row md:gap-4 md:p-4">
+      {/* `dvh`: no celular, `100vh` passa da tela visível (barra do navegador). */}
+      <div className="flex h-dvh flex-col gap-3 bg-bg p-3 md:flex-row md:gap-4 md:p-4">
         <Sidebar user={user} />
         <main className="flex min-w-0 flex-1 flex-col overflow-hidden">
           {children}

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { MentionText } from "@/components/team/Mentions";
 import { anchorMenu, useCloseOnScroll, type MenuPosition } from "@/components/ui/anchoredMenu";
+import { ActionSheet, type SheetAction } from "@/components/ui/ActionSheet";
 import { cn } from "@/lib/cn";
 import {
   CopyIcon,
@@ -31,6 +32,10 @@ import { formatBytes } from "@/lib/media/constants";
  *
  * A resposta mostra, acima do texto, quem e o quê está sendo respondido;
  * clicar nela leva até a mensagem original.
+ *
+ * No toque não há hover: **segurar** a mensagem abre as mesmas ações numa
+ * folha de baixo, e **arrastar para a direita** responde — os dois gestos
+ * que quem usa WhatsApp e Telegram já tem na mão.
  */
 
 export function MessageRow({
@@ -57,6 +62,13 @@ export function MessageRow({
   onDelete: (message: Message) => void;
 }) {
   const [editing, setEditing] = useState(false);
+  const [sheet, setSheet] = useState(false);
+  const pending = message.id.startsWith("pendente-");
+  const touch = useTouchGestures({
+    enabled: message.kind === "texto" && !pending && !message.deletedAt && !editing,
+    onLongPress: () => setSheet(true),
+    onSwipe: () => onReply(message),
+  });
 
   // Linha de sistema: ícone e frase em cinza, alinhados com o texto das falas.
   if (message.kind !== "texto") {
@@ -75,7 +87,6 @@ export function MessageRow({
   const mine = message.authorId === me.id;
   const author = mine ? "Você" : memberName(members, message.authorId);
   const opens = !!query || startsBlock(message, previous) || !!message.replyToId;
-  const pending = message.id.startsWith("pendente-");
   const reply = message.replyToId ? messages.find((m) => m.id === message.replyToId) : undefined;
 
   const body = (
@@ -96,10 +107,10 @@ export function MessageRow({
           }}
         />
       ) : message.deletedAt ? (
-        <p className="text-[13px] italic leading-[18px] text-muted">Mensagem apagada</p>
+        <p className="text-[15px] italic leading-[21px] text-muted md:text-[13px] md:leading-[18px]">Mensagem apagada</p>
       ) : (
         message.text && (
-          <p className="text-[13px] leading-[18px] text-fg-soft [overflow-wrap:anywhere] whitespace-pre-wrap">
+          <p className="text-[15px] leading-[21px] text-fg-soft [overflow-wrap:anywhere] whitespace-pre-wrap md:text-[13px] md:leading-[18px]">
             <Highlight text={message.text} query={query} />
             {message.editedAt && !opens && <EditedMark />}
           </p>
@@ -111,16 +122,55 @@ export function MessageRow({
     </>
   );
 
+  const changeable = canChangeMessage(message, me.id);
+  const sheetActions: SheetAction[] = [
+    { label: "Responder", icon: <ReplyIcon size={18} />, onSelect: () => onReply(message) },
+    ...(message.text
+      ? [
+          {
+            label: "Copiar texto",
+            icon: <CopyIcon size={18} />,
+            onSelect: () => void navigator.clipboard?.writeText(message.text).catch(() => undefined),
+          },
+        ]
+      : []),
+    ...(changeable && message.text
+      ? [{ label: "Editar", icon: <PencilIcon size={18} />, hint: untilLabel(message), onSelect: () => setEditing(true) }]
+      : []),
+    ...(changeable
+      ? [{ label: "Apagar", icon: <TrashIcon size={18} />, hint: untilLabel(message), danger: true, onSelect: () => onDelete(message) }]
+      : []),
+  ];
+
   return (
     <div
       id={`msg-${message.id}`}
+      {...touch.handlers}
       className={cn(
         "group relative -mx-2 flex w-[calc(100%+16px)] items-start gap-3 rounded-chip px-2 transition-colors",
         "hover:bg-surface-2/50 focus-within:bg-surface-2/50",
+        // Toque: sem seleção nem menu do sistema no "segurar" — as ações vêm da folha.
+        "[@media(hover:none)]:select-none [@media(hover:none)]:[-webkit-touch-callout:none]",
+        (sheet || touch.pressing) && "bg-surface-2/70",
         opens ? "py-1" : "-mt-3 py-0.5",
         pending && "opacity-60",
       )}
+      style={{ touchAction: "pan-y" }}
     >
+      {/* O arrasto para responder: a seta aparece à esquerda enquanto a linha anda. */}
+      {touch.dx > 0 && (
+        <span
+          aria-hidden="true"
+          className="pointer-events-none absolute left-2 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-pill bg-border text-fg-soft"
+          style={{ opacity: Math.min(1, touch.dx / SWIPE_TRIGGER), transform: `translateY(-50%) scale(${0.6 + 0.4 * Math.min(1, touch.dx / SWIPE_TRIGGER)})` }}
+        >
+          <ReplyIcon size={14} />
+        </span>
+      )}
+      <div
+        className="flex min-w-0 flex-1 items-start gap-3"
+        style={touch.dx > 0 ? { transform: `translateX(${touch.dx}px)` } : { transition: "transform 0.18s ease-out" }}
+      >
       {opens ? (
         <span
           className="flex h-[34px] w-[34px] shrink-0 items-center justify-center rounded-pill bg-border text-[12px] font-semibold text-fg-3"
@@ -134,13 +184,25 @@ export function MessageRow({
       <div className="flex min-w-0 flex-1 flex-col gap-1">
         {opens && (
           <div className="flex items-center gap-2">
-            <span className="text-[13px] font-semibold text-fg">{author}</span>
+            <span className="text-[14px] font-semibold text-fg md:text-[13px]">{author}</span>
             <span className="text-[11px] text-muted">{messageTime(message.createdAt)}</span>
             {message.editedAt && !message.deletedAt && <EditedMark />}
           </div>
         )}
         {body}
       </div>
+      </div>
+
+      <ActionSheet
+        open={sheet}
+        onClose={() => setSheet(false)}
+        preview={
+          <p className="line-clamp-3 text-[13px] leading-[18px] text-fg-3">
+            <span className="font-semibold text-fg-soft">{author}</span> · {messageText(message)}
+          </p>
+        }
+        actions={sheetActions}
+      />
 
       {!pending && !message.deletedAt && !editing && (
         <RowActions
@@ -153,6 +215,118 @@ export function MessageRow({
       )}
     </div>
   );
+}
+
+/** "até 23:03" — até quando dá para editar/apagar. */
+function untilLabel(message: Message): string {
+  const until = new Date(Date.parse(message.createdAt) + MESSAGE_EDIT_WINDOW_MS);
+  return `até ${String(until.getHours()).padStart(2, "0")}:${String(until.getMinutes()).padStart(2, "0")}`;
+}
+
+/** Quanto arrastar para a direita responde a mensagem. */
+const SWIPE_TRIGGER = 56;
+/** Quanto segurar abre as ações. */
+const LONG_PRESS_MS = 450;
+
+/**
+ * Os dois gestos de toque da mensagem. A rolagem vertical segue sendo do
+ * navegador (`touch-action: pan-y` na linha); o que começar na horizontal,
+ * para a direita, é arrasto de resposta; parado por 450ms, é "segurar".
+ */
+function useTouchGestures({
+  enabled,
+  onLongPress,
+  onSwipe,
+}: {
+  enabled: boolean;
+  onLongPress: () => void;
+  onSwipe: () => void;
+}) {
+  const [dx, setDx] = useState(0);
+  const [pressing, setPressing] = useState(false);
+  const start = useRef<{ x: number; y: number } | null>(null);
+  const mode = useRef<"parado" | "arrasto" | "rolagem">("parado");
+  const dxRef = useRef(0);
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  /** O "segurar" já disparou: o soltar não pode virar clique (fecharia a folha). */
+  const fired = useRef(false);
+
+  const clear = () => {
+    if (timer.current) clearTimeout(timer.current);
+    timer.current = null;
+  };
+  useEffect(() => clear, []);
+
+  const reset = () => {
+    clear();
+    start.current = null;
+    mode.current = "parado";
+    dxRef.current = 0;
+    setDx(0);
+    setPressing(false);
+  };
+
+  if (!enabled) return { dx: 0, pressing: false, handlers: {} };
+
+  return {
+    dx,
+    pressing,
+    handlers: {
+      onTouchStart(e: React.TouchEvent) {
+        // Toque que veio da folha (portal): no DOM ela não está dentro da linha.
+        if (!(e.currentTarget as Node).contains(e.target as Node)) return;
+        if (e.touches.length !== 1) return reset();
+        const t = e.touches[0];
+        start.current = { x: t.clientX, y: t.clientY };
+        mode.current = "parado";
+        fired.current = false;
+        clear();
+        timer.current = setTimeout(() => {
+          timer.current = null;
+          if (mode.current !== "parado") return;
+          navigator.vibrate?.(10);
+          start.current = null;
+          fired.current = true;
+          setPressing(false);
+          onLongPress();
+        }, LONG_PRESS_MS);
+        setPressing(true);
+      },
+      onTouchMove(e: React.TouchEvent) {
+        const s = start.current;
+        if (!s) return;
+        const t = e.touches[0];
+        const x = t.clientX - s.x;
+        const y = t.clientY - s.y;
+        if (mode.current === "parado" && (Math.abs(x) > 8 || Math.abs(y) > 8)) {
+          clear();
+          setPressing(false);
+          mode.current = x > 0 && Math.abs(x) > Math.abs(y) * 1.5 ? "arrasto" : "rolagem";
+        }
+        if (mode.current === "arrasto") {
+          dxRef.current = Math.max(0, Math.min(SWIPE_TRIGGER + 16, x));
+          setDx(dxRef.current);
+        }
+      },
+      onTouchEnd(e: React.TouchEvent) {
+        const swiped = mode.current === "arrasto" && dxRef.current >= SWIPE_TRIGGER;
+        if (fired.current || swiped) e.preventDefault();
+        fired.current = false;
+        reset();
+        if (swiped) {
+          navigator.vibrate?.(10);
+          onSwipe();
+        }
+      },
+      onTouchCancel() {
+        reset();
+      },
+      onContextMenu(e: React.MouseEvent) {
+        // O "segurar" do Android abriria o menu do sistema por cima da folha.
+        if (window.matchMedia("(hover: none)").matches) e.preventDefault();
+      },
+    },
+  };
 }
 
 function EditedMark() {
@@ -225,14 +399,15 @@ function RowActions({
 
   // Aberto o menu, a janela dos 10 minutos é conferida de novo a cada abertura.
   const changeable = canChangeMessage(message, meId);
-  const until = new Date(Date.parse(message.createdAt) + MESSAGE_EDIT_WINDOW_MS);
-  const untilLabel = `até ${String(until.getHours()).padStart(2, "0")}:${String(until.getMinutes()).padStart(2, "0")}`;
+  const until = untilLabel(message);
 
   return (
     <div
       className={cn(
         "absolute -top-3 right-2 z-10 flex items-center gap-0.5 rounded-chip border border-border bg-surface p-0.5 shadow-[0_4px_12px_rgba(0,0,0,0.4)] transition-opacity",
-        pos ? "opacity-100" : "opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 max-md:opacity-100",
+        // No toque ela não aparece: segurar a mensagem abre a folha de ações.
+        "[@media(hover:none)]:hidden",
+        pos ? "opacity-100" : "opacity-0 group-hover:opacity-100 group-focus-within:opacity-100",
       )}
     >
       <ActionButton label="Responder" onClick={onReply}>
@@ -294,7 +469,7 @@ function RowActions({
                 {message.text && (
                   <MenuAction
                     icon={<PencilIcon size={14} />}
-                    hint={untilLabel}
+                    hint={until}
                     onSelect={() => {
                       setPos(null);
                       onEdit();
@@ -306,7 +481,7 @@ function RowActions({
                 <MenuAction
                   danger
                   icon={<TrashIcon size={14} />}
-                  hint={untilLabel}
+                  hint={until}
                   onSelect={() => {
                     setPos(null);
                     onDelete();
@@ -433,7 +608,7 @@ function EditBox({
           }
         }}
         aria-label="Editar mensagem"
-        className="w-full resize-none rounded-mark border border-panel-ring bg-surface-2 px-2.5 py-1.5 text-[13px] leading-[18px] text-fg-soft outline-none focus:border-border-strong"
+        className="w-full resize-none rounded-mark border border-panel-ring bg-surface-2 px-2.5 py-1.5 text-[16px] leading-[22px] text-fg-soft outline-none focus:border-border-strong md:text-[13px] md:leading-[18px]"
       />
       <p className="text-[11px] text-muted">
         Esc para{" "}
