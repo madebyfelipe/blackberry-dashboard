@@ -1,5 +1,6 @@
 import { LEGACY_AGENCY_ID } from "@/lib/agency/id";
 import { callSummary } from "./view";
+import { normalizeNotifyPrefs } from "./notifyPrefs";
 import type { Conversation, InboxData, InboxMember, Message } from "./types";
 
 /*
@@ -18,16 +19,16 @@ import type { Conversation, InboxData, InboxMember, Message } from "./types";
  *    tela estática); no produto quem abre a tela é ele.
  */
 
-type TeamRow = Pick<InboxMember, "id" | "name" | "email" | "handle" | "presence" | "role">;
+type TeamRow = Pick<InboxMember, "id" | "name" | "email" | "handle" | "presence" | "role" | "title">;
 
 const TEAM_ROWS: TeamRow[] = [
   // O e-mail é o que liga este membro à conta de demonstração (ver README).
-  { id: "felipe", name: "Felipe", email: "felipe@blackberry.app", handle: "felipe", presence: "disponivel", role: "admin" },
-  { id: "marina", name: "Marina", email: "", handle: "marina", presence: "disponivel", role: "editor" },
-  { id: "ana", name: "Ana", email: "", handle: "ana", presence: "ocupado", role: "editor" },
-  { id: "rodrigo", name: "Rodrigo Q.", email: "", handle: "rodrigo", presence: "ausente", role: "editor" },
-  { id: "camila", name: "Camila", email: "", handle: "camila", presence: "offline", role: "gerente" },
-  { id: "pedro", name: "Pedro E.", email: "", handle: "pedro", presence: "disponivel", role: "editor" },
+  { id: "felipe", name: "Felipe", email: "felipe@blackberry.app", handle: "felipe", presence: "disponivel", role: "admin", title: "Coordenação" },
+  { id: "marina", name: "Marina", email: "", handle: "marina", presence: "disponivel", role: "editor", title: "Social media" },
+  { id: "ana", name: "Ana", email: "", handle: "ana", presence: "ocupado", role: "editor", title: "Atendimento" },
+  { id: "rodrigo", name: "Rodrigo Q.", email: "", handle: "rodrigo", presence: "ausente", role: "editor", title: "Designer" },
+  { id: "camila", name: "Camila", email: "", handle: "camila", presence: "offline", role: "gerente", title: "Redação" },
+  { id: "pedro", name: "Pedro E.", email: "", handle: "pedro", presence: "disponivel", role: "editor", title: "Tráfego" },
 ];
 
 const TEAM: Omit<InboxMember, "agencyId">[] = TEAM_ROWS.map((row) => ({
@@ -37,6 +38,8 @@ const TEAM: Omit<InboxMember, "agencyId">[] = TEAM_ROWS.map((row) => ({
   createdAt: "2026-09-01T09:00:00.000Z",
   invite: null,
   joinRequest: false,
+  photoUrl: null,
+  notify: normalizeNotifyPrefs(null),
 }));
 
 /** Minutos atrás — para o que aconteceu "hoje", sem cair no futuro. */

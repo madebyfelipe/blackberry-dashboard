@@ -35,6 +35,11 @@ function copy(a: ClientAccount): ClientAccount {
   return structuredClone(a);
 }
 
+/** Todas as fichas gravadas da agência — o painel da agência soma daqui. */
+export async function listAccounts(scope: AgencyScope): Promise<ClientAccount[]> {
+  return (await read()).filter((a) => a.agencyId === scope.agencyId).map(copy);
+}
+
 export async function getAccount(scope: AgencyScope, clientId: string): Promise<ClientAccount> {
   const found = (await read()).find((a) => a.clientId === clientId && a.agencyId === scope.agencyId);
   return found ? copy(found) : blankAccount(scope.agencyId, clientId);

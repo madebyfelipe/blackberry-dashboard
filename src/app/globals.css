@@ -201,6 +201,46 @@
   --color-field-line: #3b3b3b;
 
   /*
+   * Configurações (exports "Configurações · Pessoal / Agência / Painel da
+   * agência"). O cartão de seção é o `flow-panel` com a régua `rule`; aqui
+   * entram a faixa de subtítulo (`set-sub`) e a linha entre as fileiras
+   * (`set-line`), o cinza das ajudas (`set-hint`) e os três pares de selo com
+   * significado — ok (verde), atenção (âmbar) e perigo (vermelho) — que o
+   * desenho usa para "Configurado", "Não configurado", "Vencido" e a Zona de
+   * perigo. As barras do painel são a escala de cinzas `bar-*`.
+   */
+  --color-set-sub: #121212;
+  --color-set-line: #1c1c1c;
+  --color-set-hint: #6b6b6b;
+  --color-set-track: #1a1a1a;
+  --color-set-ink: #111111;
+  --color-ok: #65d06b;
+  --color-ok-bg: #0f2116;
+  --color-ok-ring: #1f3a28;
+  --color-ok-fg: #8ee29a;
+  --color-ok-dim: #3a5a3e;
+  --color-warn: #e8a93a;
+  --color-warn-bg: #211a0c;
+  --color-warn-ring: #3d3016;
+  --color-warn-fg: #f0c36a;
+  --color-bad: #e05a5a;
+  --color-bad-bg: #240f0f;
+  --color-bad-ring: #4a2222;
+  --color-bad-fg: #f29a9a;
+  --color-bad-line: #3a1d1d;
+  --color-bad-icon: #b35a5a;
+  --color-bad-label: #c46b6b;
+  --color-bar-1: #f0f0f0;
+  --color-bar-2: #c4c4c4;
+  --color-bar-3: #9a9a9a;
+  --color-bar-4: #6e6e6e;
+  --color-bar-5: #4a4a4a;
+  --color-bar-6: #333333;
+  --color-bar-soft: #bdbdbd;
+  --color-bar-mid: #8a8a8a;
+  --color-bar-unit: #d9d9d9;
+
+  /*
    * Ficha do cliente (export "Clientes · Detalhe"). Os selos continuam nos
    * fundos da escala de saúde (`client-*-bg`), com o texto no tom do export
    * — um degrau mais suave que o da lista. Os pares azul, vermelho, roxo e

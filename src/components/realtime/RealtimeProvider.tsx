@@ -1,5 +1,6 @@
 "use client";
 
+import { PROFILE_CHANGED } from "@/components/settings/events";
 import {
   createContext,
   useCallback,
@@ -104,6 +105,16 @@ type AblyClient = {
 
 export function RealtimeProvider({ children }: { children: React.ReactNode }) {
   const [me, setMe] = useState<InboxMember>();
+  // Foto, avisos ou status mudados nas Configurações valem já, sem recarregar.
+  useEffect(() => {
+    const onChange = (e: Event) => {
+      const d = (e as CustomEvent).detail as Partial<InboxMember> | undefined;
+      if (!d) return;
+      setMe((m) => (m ? { ...m, ...d } : m));
+    };
+    window.addEventListener(PROFILE_CHANGED, onChange);
+    return () => window.removeEventListener(PROFILE_CHANGED, onChange);
+  }, []);
   const [flags, setFlags] = useState({ eventos: false, chamada: false });
   const [conectado, setConectado] = useState(false);
   const [presencaPronta, setPresencaPronta] = useState(false);

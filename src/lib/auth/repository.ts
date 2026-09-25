@@ -142,6 +142,42 @@ export async function updateProfile(
 }
 
 /**
+ * Renomeia a agência para todo mundo dela (Configurações › Agência). O nome
+ * mora em cada conta — é de lá que o escopo da sessão tira o rótulo — então
+ * muda em todas de uma vez. O `agencyId` fica: renomear nunca troca de tenant.
+ */
+export async function renameAgency(agencyId: string, name: string): Promise<string> {
+  const clean = name.trim().slice(0, 80);
+  if (!clean) throw new AuthError("O nome da agência não pode ficar vazio.");
+  return transaction((users) => {
+    for (const u of users) if (u.agencyId === agencyId) u.agency = clean;
+    return clean;
+  });
+}
+
+/**
+ * "Sair de todos os aparelhos": derruba toda sessão aberta desta conta,
+ * inclusive a de quem pediu. É a mesma trava da troca de senha — a versão
+ * sobe e todo token emitido antes deixa de valer —, só que sem trocar a senha.
+ */
+export async function revokeSessions(userId: string): Promise<void> {
+  await transaction((users) => {
+    const u = users.find((x) => x.id === userId);
+    if (!u) throw new AuthError("Usuário não encontrado.");
+    u.passwordVersion += 1;
+  });
+}
+
+/** Tira as contas da agência — parte de "Excluir agência". Devolve quantas saíram. */
+export async function dropAgencyUsers(agencyId: string): Promise<number> {
+  return transaction((users) => {
+    const before = users.length;
+    for (let i = users.length - 1; i >= 0; i--) if (users[i].agencyId === agencyId) users.splice(i, 1);
+    return before - users.length;
+  });
+}
+
+/**
  * Troca de senha a partir da senha atual (tela de configurações).
  *
  * Devolve a nova versão da senha: quem chama reemite o cookie com ela, para o

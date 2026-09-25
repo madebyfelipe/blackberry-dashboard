@@ -14,12 +14,13 @@ export async function PATCH(req: Request) {
   } catch {
     return NextResponse.json({ error: "JSON inválido." }, { status: 400 });
   }
-  const { name, agency } = (body ?? {}) as Record<string, unknown>;
+  const { name } = (body ?? {}) as Record<string, unknown>;
   try {
-    // Só o próprio dono edita o próprio perfil: o id vem da sessão.
+    // Só o próprio dono edita o próprio perfil: o id vem da sessão. O nome da
+    // agência não muda mais por aqui — é da agência inteira, e só Admin e
+    // Gerente renomeiam (Configurações › Agência, `renameAgency`).
     const updated = await updateProfile(user.id, {
       name: name === undefined ? undefined : String(name),
-      agency: agency === undefined ? undefined : String(agency),
     });
     return NextResponse.json({ user: updated });
   } catch (err) {

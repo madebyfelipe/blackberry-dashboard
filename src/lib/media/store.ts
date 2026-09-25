@@ -174,6 +174,11 @@ export async function saveMedia(
   return asset;
 }
 
+/** Os ids dos registros que passam no filtro — para faxina (ver `agency/delete.ts`). */
+export async function listMediaIds(match: (asset: MediaAsset) => boolean): Promise<string[]> {
+  return Object.values(await index.read()).filter(match).map((a) => a.id);
+}
+
 export async function getMedia(id: string): Promise<MediaAsset | undefined> {
   return (await index.read())[id];
 }

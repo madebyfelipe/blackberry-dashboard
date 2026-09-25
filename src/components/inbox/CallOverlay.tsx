@@ -1,5 +1,6 @@
 "use client";
 
+import { loadAudioPrefs, saveAudioPrefs } from "@/lib/inbox/audioPrefs";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { cn } from "@/lib/cn";
 import {
@@ -216,7 +217,8 @@ export function CallOverlay({
   const [saidaSuportada, setSaidaSuportada] = useState(false);
   const [camera, setCamera] = useState(false);
   const [semCamera, setSemCamera] = useState(false);
-  const [reduzirRuido, setReduzirRuido] = useState(true);
+  // Começa com o que foi escolhido em Configurações › Chamada e áudio.
+  const [reduzirRuido, setReduzirRuido] = useState(() => loadAudioPrefs().noiseSuppression);
   const lerAparelhosRef = useRef<() => Promise<void>>(async () => {});
 
   /** A qualidade da transmissão e a câmera — preferências guardadas entre chamadas. */
@@ -439,8 +441,10 @@ export function CallOverlay({
         await sala.connect(media.url, media.token);
         if (!vivo) return;
         try {
+          const audio = loadAudioPrefs();
           await sala.localParticipant.setMicrophoneEnabled(true, {
-            noiseSuppression: true,
+            ...(audio.inputId ? { deviceId: audio.inputId } : {}),
+            noiseSuppression: audio.noiseSuppression,
             echoCancellation: true,
             autoGainControl: true,
           });
@@ -456,6 +460,12 @@ export function CallOverlay({
         }
         // A chamada nasce de um clique, então o navegador deixa o áudio tocar.
         await sala.startAudio().catch(() => undefined);
+        // A saída de som escolhida nas Configurações, se este navegador deixa escolher.
+        const saidaSalva = loadAudioPrefs().outputId;
+        if (saidaSalva && escolheSaida()) {
+          const trocou = await sala.switchActiveDevice("audiooutput", saidaSalva).catch(() => false);
+          if (trocou && vivo) setAtivos((a) => ({ ...a, audiooutput: saidaSalva }));
+        }
         atualizar();
         setSaidaSuportada(escolheSaida());
         // Depois do microfone: antes da permissão o navegador esconde os nomes.
@@ -593,6 +603,9 @@ export function CallOverlay({
     try {
       const ok = await sala.switchActiveDevice(kind, id);
       if (!ok) throw new Error("troca recusada");
+      // Microfone e saída trocados aqui valem para a próxima chamada também.
+      if (kind === "audioinput") saveAudioPrefs({ ...loadAudioPrefs(), inputId: id });
+      if (kind === "audiooutput") saveAudioPrefs({ ...loadAudioPrefs(), outputId: id });
     } catch {
       // Aparelho desconectado no meio do caminho: volta a marcar o anterior.
       setAtivos((a) => ({ ...a, [kind]: antes }));
@@ -648,6 +661,7 @@ export function CallOverlay({
     if (!sala) return;
     const proximo = !reduzirRuido;
     setReduzirRuido(proximo);
+    saveAudioPrefs({ ...loadAudioPrefs(), noiseSuppression: proximo });
     // O filtro é do navegador: mudar exige reabrir o microfone com a regra nova.
     const faixa = sala.localParticipant.getTrackPublication(FONTE.microfone)?.track;
     try {
