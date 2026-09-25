@@ -63,6 +63,29 @@ export const ALL_MIME: Record<string, { ext: string; kind: MediaKind }> = {
   ...ATTACHMENT_MIME,
 };
 
+/**
+ * O modo de acesso de **todo** objeto do Blob (issue #39): privado. Vale para
+ * o que o servidor grava (`putBlob`) e para o que o navegador sobe direto
+ * (`upload` de `@vercel/blob/client`) — um store privado recusa objeto
+ * público, e o contrário também. Leitura só por URL assinada.
+ */
+export const BLOB_ACCESS = "private" as const;
+
+/** A mensagem de quando o store ainda é o público antigo (ver README, "Store privado"). */
+export const BLOB_STORE_NOT_PRIVATE =
+  "Envio indisponível: o Blob store precisa ser recriado como privado (issue #39) antes de aceitar arquivos.";
+
+/**
+ * O erro do envio direto, em português. O store público recusa objeto
+ * privado com "Cannot use private access on a public store" — isso vira a
+ * mesma mensagem que o servidor dá, em vez do texto cru da Vercel.
+ */
+export function friendlyBlobError(err: unknown): Error {
+  const message = err instanceof Error ? err.message : String(err ?? "");
+  if (/private access on a public store/i.test(message)) return new Error(BLOB_STORE_NOT_PRIVATE);
+  return err instanceof Error ? err : new Error("Falha ao enviar o arquivo.");
+}
+
 /** Valor do atributo `accept` do <input type="file">. */
 export const ACCEPT_ATTR = Object.keys(ACCEPTED_MIME).join(",");
 
