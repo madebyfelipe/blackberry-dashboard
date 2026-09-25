@@ -55,14 +55,18 @@ export const crmApi = {
   async uploadFile(clientId: string, file: File, folder: FileFolder, blobUploads: boolean): Promise<ClientAccount> {
     const endpoint = `${base(clientId)}/arquivos`;
     if (blobUploads) {
-      const [{ upload }, { blobPathnameFor, BLOB_CLIENT_FILE_PREFIX, BLOB_MULTIPART_THRESHOLD, baseMime }] =
-        await Promise.all([import("@vercel/blob/client"), import("@/lib/media/constants")]);
+      const [
+        { upload },
+        { blobPathnameFor, BLOB_ACCESS, BLOB_CLIENT_FILE_PREFIX, BLOB_MULTIPART_THRESHOLD, baseMime, friendlyBlobError },
+      ] = await Promise.all([import("@vercel/blob/client"), import("@/lib/media/constants")]);
       const type = baseMime(file.type);
       const blob = await upload(blobPathnameFor(file.name, type, BLOB_CLIENT_FILE_PREFIX), file, {
-        access: "public",
+        access: BLOB_ACCESS,
         contentType: type,
         handleUploadUrl: `${endpoint}/token`,
         multipart: file.size > BLOB_MULTIPART_THRESHOLD,
+      }).catch((err: unknown) => {
+        throw friendlyBlobError(err);
       });
       return fetch(endpoint, json("POST", { pathname: blob.pathname, name: file.name, folder })).then(parse);
     }

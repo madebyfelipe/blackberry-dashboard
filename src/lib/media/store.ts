@@ -9,6 +9,8 @@ import {
   baseMime,
   isMediaBlobPathname,
   type MediaPolicy,
+  BLOB_ACCESS,
+  BLOB_STORE_NOT_PRIVATE,
 } from "./constants";
 import type { MediaAsset } from "./types";
 
@@ -30,6 +32,10 @@ const index = createStore<Record<string, MediaAsset>>({
   file: "media.json",
   seed: () => ({}),
 });
+
+/** O índice de mídias, para manutenção (ver `lib/maintenance/migrate-blob-private.ts`). */
+export const readMediaIndex = index.read;
+export const transactionMediaIndex = index.transaction;
 
 /** Reserva para disco somente-leitura. */
 const memoryBytes = new Map<string, Uint8Array>();
@@ -53,7 +59,7 @@ async function putBlob(
   const { put, BlobError } = await import("@vercel/blob");
   try {
     const blob = await put(blobPathFor(asset), Buffer.from(bytes), {
-      access: "private",
+      access: BLOB_ACCESS,
       contentType: asset.mime,
       addRandomSuffix: false,
     });
@@ -63,9 +69,7 @@ async function putBlob(
     // plataforma exige um store criado como privado. Mensagem clara em vez
     // de 500 cru, até o store trocar.
     if (err instanceof BlobError && /private access on a public store/i.test(err.message)) {
-      throw new MediaError(
-        "Envio indisponível: o Blob store precisa ser recriado como privado (issue #39) antes de aceitar artes.",
-      );
+      throw new MediaError(BLOB_STORE_NOT_PRIVATE);
     }
     throw err;
   }

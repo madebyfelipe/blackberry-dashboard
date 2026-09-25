@@ -241,7 +241,11 @@ bytes vão para o disco, como sempre foi em dev.
 
 ### Store privado, e por que a arte não é mais pública por URL (issue #39)
 
-`putBlob` grava com `access: "private"`: o store não serve mais nenhum objeto
+Todo objeto do Blob é privado (`BLOB_ACCESS`, em `lib/media/constants.ts`):
+o que o servidor grava (`putBlob`) **e** o que o navegador sobe direto
+(`upload` nas artes do lote, nos arquivos da ficha e nos anexos do Inbox —
+um store privado recusa objeto público, então os dois lados precisam pedir o
+mesmo; `tests/media-blob-access.test.ts` trava isso). O store não serve mais nenhum objeto
 só por quem tiver a `blobUrl` — toda leitura passa por `get()`/`presignUrl()`
 com o `BLOB_READ_WRITE_TOKEN` do servidor. Isso fecha o buraco que a issue #39
 descreveu (arte de cliente acessível para sempre a quem vazasse a URL, sem
@@ -251,22 +255,34 @@ sessão nem revogação).
 store depois de criado.** O store atual (`ragick-artes`, criado pela issue
 #11 como público) continua público enquanto for esse store — `put(...,
 { access: "private" })` nele responde com o erro "Cannot use private access
-on a public store", que `putBlob` transforma num `MediaError` claro em vez de
-um 500 cru. Até então **novos uploads ficam bloqueados**, não inseguros: o
+on a public store", que `putBlob` (e `friendlyBlobError`, no envio direto do
+navegador) transforma na mensagem "o Blob store precisa ser recriado como
+privado" em vez de um 500 cru. Até então **novos uploads ficam bloqueados**, não inseguros: o
 código não volta sozinho a gravar público.
 
 Para ligar de verdade, alguém com acesso ao dashboard da Vercel precisa:
 
 1. Criar um **novo** Blob store com acesso **Private** (Storage → Create
    Database → Blob → Private) — não dá para converter o existente.
-2. Conectar o novo store ao projeto e migrar (copiar) os objetos do store
-   público antigo para o novo, ou aceitar que artes já enviadas param de
-   abrir (`blobPathname` delas aponta para o store velho).
-3. Atualizar `BLOB_READ_WRITE_TOKEN` para o token do novo store, nos
-   ambientes de produção e preview.
+2. Conectar o novo store ao projeto e atualizar `BLOB_READ_WRITE_TOKEN` para
+   o token dele, nos ambientes de produção e preview.
+3. Copiar as mídias do store antigo para o novo — é um comando:
 
-Esse é um passo manual, fora do que este PR consegue fazer sozinho — ver a
-issue #39 para o estado disso.
+   ```bash
+   BLOB_READ_WRITE_TOKEN=<token do store novo> DATABASE_URL=<o de produção> \
+     npm run migrate:blob-private -- --dry-run   # só lista o que copiaria
+   BLOB_READ_WRITE_TOKEN=<...> DATABASE_URL=<...> npm run migrate:blob-private
+   ```
+
+   Ele baixa cada arquivo pela URL pública do store antigo, grava no novo com
+   o mesmo caminho (privado) e troca o registro da mídia
+   (`src/lib/maintenance/migrate-blob-private.ts`, testado). Pula o que já
+   está no store novo, então dá para rodar de novo se cair no meio. Sem ele,
+   o que já foi enviado para de abrir. Só depois de conferir as artes abrindo,
+   apague o store antigo.
+
+Criar o store é o único passo que o código não faz — é no painel da Vercel.
+Ver a issue #39 para o estado disso.
 
 ## Inbox: a conversa do time, e o que ainda não é tempo real
 

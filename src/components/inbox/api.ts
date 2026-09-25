@@ -106,14 +106,18 @@ export async function apiUploadAttachment(
     : {};
   let res: Response;
   if (blobUploads) {
-    const [{ upload }, { blobPathnameFor, BLOB_ATTACHMENT_PREFIX, BLOB_MULTIPART_THRESHOLD, baseMime }] =
-      await Promise.all([import("@vercel/blob/client"), import("@/lib/media/constants")]);
+    const [
+      { upload },
+      { blobPathnameFor, BLOB_ACCESS, BLOB_ATTACHMENT_PREFIX, BLOB_MULTIPART_THRESHOLD, baseMime, friendlyBlobError },
+    ] = await Promise.all([import("@vercel/blob/client"), import("@/lib/media/constants")]);
     const type = baseMime(file.type);
     const blob = await upload(blobPathnameFor(file.name, type, BLOB_ATTACHMENT_PREFIX), file, {
-      access: "public",
+      access: BLOB_ACCESS,
       contentType: type,
       handleUploadUrl: `${endpoint}/token`,
       multipart: file.size > BLOB_MULTIPART_THRESHOLD,
+    }).catch((err: unknown) => {
+      throw friendlyBlobError(err);
     });
     res = await fetch(endpoint, {
       method: "POST",

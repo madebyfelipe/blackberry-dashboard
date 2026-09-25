@@ -11,7 +11,9 @@ import { useToast } from "@/components/ui/Toast";
 import { Spinner } from "@/components/ui/Spinner";
 import { ActionMenu } from "@/components/tasks/ActionMenu";
 import {
+  BLOB_ACCESS,
   BLOB_MULTIPART_THRESHOLD,
+  friendlyBlobError,
   MAX_UPLOAD_BYTES,
   blobPathnameFor,
 } from "@/lib/media/constants";
@@ -259,10 +261,12 @@ export function CreativeComposer({
     if (blobUploads) {
       const { upload } = await import("@vercel/blob/client");
       const blob = await upload(blobPathnameFor(file.name, file.type), file, {
-        access: "public",
+        access: BLOB_ACCESS,
         contentType: file.type,
         handleUploadUrl: `${endpoint}/token`,
         multipart: file.size > BLOB_MULTIPART_THRESHOLD,
+      }).catch((err: unknown) => {
+        throw friendlyBlobError(err);
       });
       res = await fetch(endpoint, {
         method: "POST",
