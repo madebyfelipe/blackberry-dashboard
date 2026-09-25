@@ -7,6 +7,11 @@ import { useRealtime } from "@/components/realtime/RealtimeProvider";
 import { conversationChannel, memberChannel, type RealtimeEvent } from "@/lib/realtime/channels";
 import { desktopBridge } from "@/lib/desktop";
 import { initialsOf } from "@/lib/inbox/view";
+import { alertRoute, DEFAULT_NOTIFY_PREFS, normalizeNotifyPrefs, type AlertRoute, type NotifyPrefs } from "@/lib/inbox/notifyPrefs";
+import { isPresence } from "@/lib/inbox/constants";
+import type { Presence } from "@/lib/inbox/types";
+import { playAlertSound } from "@/components/settings/sounds";
+import { PROFILE_CHANGED } from "@/components/settings/events";
 
 /*
  * Notificações de mensagem e de ligação, em qualquer tela do produto.
@@ -62,6 +67,31 @@ export const INBOX_CHANGED = "bb:inbox-mudou";
 /** Chegou ou foi lida uma notificação — a lateral e a tela de Notificações releem. */
 export const NOTIFICATIONS_CHANGED = "bb:notificacoes-mudou";
 
+export { PROFILE_CHANGED };
+
+/** O que a pessoa escolheu em Configurações › Notificações, e como está agora. */
+let alertPrefs: NotifyPrefs = DEFAULT_NOTIFY_PREFS;
+let myPresence: Presence = "disponivel";
+
+function applyProfile(detail: { notify?: unknown; presence?: unknown } | null | undefined) {
+  if (!detail) return;
+  if (detail.notify !== undefined) alertPrefs = normalizeNotifyPrefs(detail.notify);
+  if (isPresence(detail.presence)) myPresence = detail.presence;
+}
+
+/**
+ * Ligação que começa não é um dos quatro "o que avisar": avisa sempre no app.
+ * Ocupado tira o sistema e o som, como nos outros avisos.
+ */
+function callRoute(): AlertRoute {
+  const busy = myPresence === "ocupado";
+  return {
+    inApp: true,
+    system: !busy && alertPrefs.system,
+    sound: !busy && alertPrefs.sound !== "nenhum",
+  };
+}
+
 /**
  * A conversa aberta agora no Inbox (a tela avisa ao trocar). É ela, e só
  * ela, que não precisa de aviso enquanto a janela está em foco.
@@ -96,6 +126,28 @@ export function InboxNotifier() {
   const toastRef = useRef(toast);
   toastRef.current = toast;
 
+  // Os avisos e a disponibilidade de quem está logado: na entrada, quando a
+  // janela volta ao foco e na hora em que Configurações salva.
+  useEffect(() => {
+    let vivo = true;
+    const load = () =>
+      fetch("/api/inbox/presence", { cache: "no-store" })
+        .then((r) => (r.ok ? r.json() : null))
+        .then((data) => {
+          if (vivo && data?.me) applyProfile(data.me);
+        })
+        .catch(() => undefined);
+    const onChange = (e: Event) => applyProfile((e as CustomEvent).detail);
+    void load();
+    window.addEventListener(PROFILE_CHANGED, onChange);
+    window.addEventListener("focus", load);
+    return () => {
+      vivo = false;
+      window.removeEventListener(PROFILE_CHANGED, onChange);
+      window.removeEventListener("focus", load);
+    };
+  }, []);
+
   /** Está olhando exatamente esta conversa, com a janela em foco. */
   const lookingAt = (conversationId: string) =>
     pathRef.current.startsWith("/inbox") && openConversation === conversationId && watching();
@@ -112,6 +164,7 @@ export function InboxNotifier() {
     if (kind === "conversa" && lookingAt(refId)) return;
     if (kind === "tarefa" && pathRef.current === `/tarefas/${refId}` && watching()) return;
     showNotification({
+      route: alertRoute(alertPrefs, myPresence, n.kind),
       router,
       toast: toastRef.current,
       href: n.href,
@@ -185,6 +238,7 @@ export function InboxNotifier() {
           if (newMessage) changed = true;
           if (newMessage && !c.muted && !lookingAtRef.current(c.id)) {
             showNotification({
+              route: alertRoute(alertPrefs, myPresence, "mensagem"),
               router,
               toast: toastRef.current,
               href: conversationHref(c.id),
@@ -199,6 +253,7 @@ export function InboxNotifier() {
             (prev?.callMemberIds.length ?? 0) === 0 && c.callMemberIds.length > 0 && !c.callMemberIds.includes(me);
           if (callStarted) {
             showNotification({
+              route: callRoute(),
               router,
               toast: toastRef.current,
               href: conversationHref(c.id),
@@ -231,6 +286,7 @@ export function InboxNotifier() {
 
     const notify = (id: string, title: string, body: string, call: boolean, from: string) =>
       showNotification({
+        route: call ? callRoute() : alertRoute(alertPrefs, myPresence, "mensagem"),
         router,
         toast: toastRef.current,
         href: conversationHref(id),
@@ -325,6 +381,7 @@ function conversationHref(id: string): string {
  * aviso vira toast dentro do app, com "Abrir".
  */
 function showNotification({
+  route,
   router,
   toast,
   href,
@@ -334,6 +391,8 @@ function showNotification({
   call,
   from,
 }: {
+  /** Por onde este aviso pode sair (ver `alertRoute`). */
+  route: AlertRoute;
   router: ReturnType<typeof useRouter>;
   toast: ReturnType<typeof useToast>["toast"];
   href: string;
@@ -344,8 +403,9 @@ function showNotification({
   /** De quem é o avatar: a pessoa que mandou ou ligou (ou o grupo, sem saber quem). */
   from: string;
 }) {
+  if (!route.inApp && !route.system) return;
   // O som toca mesmo sem permissão de notificação: é o aviso que sobra.
-  tocarSom();
+  if (route.sound) tocarSom();
   const open = () => {
     desktopBridge()?.show?.();
     window.focus();
@@ -356,7 +416,8 @@ function showNotification({
       action: { label: "Abrir", onClick: open },
       duration: call ? 15_000 : 6_000,
     });
-  if (typeof Notification === "undefined" || Notification.permission !== "granted") {
+  // Só no app, ou o sistema não deixa (sem permissão, sem suporte): toast.
+  if (!route.system || typeof Notification === "undefined" || Notification.permission !== "granted") {
     inApp();
     return;
   }
@@ -419,7 +480,6 @@ function avatarIcon(name: string): string | undefined {
   }
 }
 
-let som: HTMLAudioElement | null = null;
 let ultimoSom = 0;
 
 /** O somzinho do black berry. Várias mensagens de uma vez tocam uma vez só. */
@@ -427,13 +487,34 @@ function tocarSom() {
   const agora = Date.now();
   if (agora - ultimoSom < 1500) return;
   ultimoSom = agora;
-  try {
-    som ??= new Audio("/sounds/notificacao.wav");
-    som.volume = 0.6;
-    som.currentTime = 0;
-    // Navegador que ainda não viu um clique na página recusa o som: segue calado.
-    void som.play().catch(() => undefined);
-  } catch {
-    // Sem áudio no ambiente: a notificação vai sem som.
+  // O som escolhido em Configurações. Navegador que ainda não viu um clique
+  // na página recusa o som: segue calado.
+  playAlertSound(alertPrefs.sound);
+}
+
+/**
+ * "Enviar teste" (Configurações › Notificações): um aviso de mentira pelo
+ * mesmo caminho dos de verdade, com as escolhas que estão na tela agora.
+ */
+export function sendTestNotification(
+  toast: ReturnType<typeof useToast>["toast"],
+  prefs: NotifyPrefs,
+): "sistema" | "app" {
+  const granted = typeof Notification !== "undefined" && Notification.permission === "granted";
+  if (prefs.sound !== "nenhum") playAlertSound(prefs.sound);
+  if (prefs.system && granted) {
+    try {
+      new Notification("Aviso de teste", {
+        body: "É assim que o black berry te avisa.",
+        icon: "/brand/notificacao.png",
+        tag: "teste",
+        silent: true,
+      } as NotificationOptions);
+      return "sistema";
+    } catch {
+      // Cai no toast abaixo.
+    }
   }
+  toast("Aviso de teste — é assim que o black berry te avisa.", "info");
+  return "app";
 }

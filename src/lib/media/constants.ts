@@ -160,6 +160,22 @@ export const ATTACHMENT_POLICY: MediaPolicy = {
   tooBig: "Anexo acima de 20 MB.",
 };
 
+/**
+ * Foto de perfil e logo da agência: imagem parada, até 2 MB. **Sem SVG** — o
+ * arquivo é servido pelo próprio app, e SVG pode carregar script.
+ */
+export const PROFILE_IMAGE_POLICY: MediaPolicy = {
+  accepted: {
+    "image/png": { ext: "png", kind: "image" },
+    "image/jpeg": { ext: "jpg", kind: "image" },
+    "image/webp": { ext: "webp", kind: "image" },
+  },
+  maxBytes: 2 * 1024 * 1024,
+  prefix: "perfil/",
+  notAccepted: "Envie uma imagem PNG, JPG ou WebP.",
+  tooBig: "Imagem acima de 2 MB.",
+};
+
 /** Pasta dos arquivos da ficha do cliente dentro do store do Blob. */
 export const BLOB_CLIENT_FILE_PREFIX = "clientes/";
 

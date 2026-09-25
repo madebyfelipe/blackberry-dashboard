@@ -53,9 +53,12 @@ const STATUS_LABEL: Record<Piece["status"], string> = {
 
 export function ApprovalIntro({
   batch,
+  agencyLogoUrl = null,
   onStart,
 }: {
   batch: Batch;
+  /** O logo da agência (Configurações › Agência). Sem ele, o do black berry. */
+  agencyLogoUrl?: string | null;
   onStart: () => void;
 }) {
   const pieces = batch.pieces;
@@ -75,7 +78,12 @@ export function ApprovalIntro({
     <main className="flex min-h-screen flex-col bg-bg">
       {/* Top bar — o export mobile ("Aprovação (Mobile)") não tem: no celular a tela abre direto no lote. */}
       <header className="hidden flex-wrap items-center justify-between gap-3 px-5 py-5 sm:flex sm:px-8">
-        <Logo className="h-7" />
+        {agencyLogoUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={agencyLogoUrl} alt="" className="h-9 w-auto max-w-[160px] rounded-chip object-contain" />
+        ) : (
+          <Logo className="h-7" />
+        )}
         <span className="flex items-center gap-2 rounded-pill border border-border bg-surface-2 px-4 py-2 text-[13px] text-fg-2">
           <LockIcon size={14} className="text-fg-3" />
           Link privado · {batch.client}

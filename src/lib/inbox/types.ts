@@ -1,4 +1,5 @@
 import type { AgencyId } from "@/lib/agency/types";
+import type { NotifyPrefs } from "./notifyPrefs";
 
 /*
  * Inbox — a comunicação do time dentro do produto (issue #30).
@@ -70,6 +71,16 @@ export type InboxMember = {
    * `memberAccess` e `lib/inbox/domain.ts`.
    */
   joinRequest: boolean;
+  /**
+   * O cargo, em texto livre ("Designer", "Social media", "Atendimento"). É o
+   * que a ficha do cliente e o painel da agência mostram debaixo do nome. A
+   * função (`role`) decide o acesso; o cargo só descreve o trabalho.
+   */
+  title: string;
+  /** A foto (`/api/media/<id>`), ou `null` — sem foto, as iniciais. */
+  photoUrl: string | null;
+  /** O que avisa, por onde e com que som (Configurações › Pessoal). */
+  notify: NotifyPrefs;
 };
 
 /** Ajustes do time de uma agência — hoje, o domínio do convite automático. */

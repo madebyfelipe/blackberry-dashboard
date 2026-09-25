@@ -5,6 +5,9 @@ import {
   ValidationError,
 } from "@/lib/clients/repository";
 import { requireAgency, unauthorized } from "@/lib/auth/session";
+import { getAgencySettings } from "@/lib/agency/repository";
+import { contractFromDefaults, withClientDefaults } from "@/lib/agency/settings";
+import { updateContract } from "@/lib/crm/repository";
 
 export const dynamic = "force-dynamic";
 
@@ -26,8 +29,10 @@ export async function POST(req: Request) {
   } catch {
     return NextResponse.json({ error: "JSON inválido." }, { status: 400 });
   }
+  // O que a pessoa deixou em branco sai dos padrões da agência (Configurações › Agência).
+  const defaults = (await getAgencySettings(session.scope)).clientDefaults;
   const { name, segment, services, owner, billingDay, status, city, email, phone, contactName, nps, squad, flowId } =
-    (body ?? {}) as Record<string, unknown>;
+    withClientDefaults((body ?? {}) as Record<string, unknown>, defaults);
 
   try {
     const client = await createClient(session.scope, {
@@ -45,6 +50,9 @@ export async function POST(req: Request) {
       squad: squad as never,
       flowId: flowId ? String(flowId) : null,
     });
+    // Contrato e pagamento padrão já entram na ficha do cliente novo.
+    const account = contractFromDefaults(defaults);
+    if (account) await updateContract(session.scope, client.id, account).catch(() => undefined);
     return NextResponse.json({ client }, { status: 201 });
   } catch (err) {
     if (err instanceof ValidationError) {

@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import { getBatchByToken } from "@/lib/approval/repository";
 import { isBatchLinkActive } from "@/lib/approval/constants";
 import { ApprovalFlow } from "@/components/approval/ApprovalFlow";
+import { getAgencySettings } from "@/lib/agency/repository";
 
 export const dynamic = "force-dynamic";
 
@@ -28,7 +29,9 @@ export default async function ApprovalLinkPage({
     ...batch,
     pieces: batch.pieces.map(({ briefing: _briefing, ...piece }) => piece),
   };
-  return <ApprovalFlow batch={publicBatch} />;
+  // O logo da agência dona do lote — o lote diz de quem é, o token autoriza.
+  const { logoUrl } = await getAgencySettings({ agencyId: batch.agencyId, agencyName: "" });
+  return <ApprovalFlow batch={publicBatch} agencyLogoUrl={logoUrl} />;
 }
 
 function ExpiredLink({ client }: { client: string }) {

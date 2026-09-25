@@ -1590,3 +1590,363 @@ export function ChevronUpIcon(p: IconProps) {
     </Svg>
   );
 }
+
+/* ---- Configurações (export "Configurações · Pessoal / Agência / Painel da agência") ---- */
+
+export function ActivityIcon(p: IconProps) {
+  return (
+    <Svg {...p}>
+      <path d="M22 12h-2.48a2 2 0 0 0-1.93 1.46l-2.35 8.36a.25.25 0 0 1-.48 0L9.24 2.18a.25.25 0 0 0-.48 0l-2.35 8.36A2 2 0 0 1 4.49 12H2" />
+    </Svg>
+  );
+}
+
+export function ArrowUpRightIcon(p: IconProps) {
+  return (
+    <Svg {...p}>
+      <path d="M7 7h10v10" />
+      <path d="M7 17 17 7" />
+    </Svg>
+  );
+}
+
+export function AudioLinesIcon(p: IconProps) {
+  return (
+    <Svg {...p}>
+      <path d="M2 10v3" />
+      <path d="M6 6v11" />
+      <path d="M10 3v18" />
+      <path d="M14 8v7" />
+      <path d="M18 5v13" />
+      <path d="M22 10v3" />
+    </Svg>
+  );
+}
+
+export function BellRingIcon(p: IconProps) {
+  return (
+    <Svg {...p}>
+      <path d="M10.268 21a2 2 0 0 0 3.464 0" />
+      <path d="M22 8c0-2.3-.8-4.3-2-6" />
+      <path d="M3.262 15.326A1 1 0 0 0 4 17h16a1 1 0 0 0 .74-1.673C19.41 13.956 18 12.499 18 8A6 6 0 0 0 6 8c0 4.499-1.411 5.956-2.738 7.326" />
+      <path d="M4 2C2.8 3.7 2 5.7 2 8" />
+    </Svg>
+  );
+}
+
+export function BriefcaseIcon(p: IconProps) {
+  return (
+    <Svg {...p}>
+      <path d="M16 20V4a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16" />
+      <rect width="20" height="14" x="2" y="6" rx="2" />
+    </Svg>
+  );
+}
+
+export function CircleCheckIcon(p: IconProps) {
+  return (
+    <Svg {...p}>
+      <circle cx="12" cy="12" r="10" />
+      <path d="m16 9-5.5 5.5L8 12" />
+    </Svg>
+  );
+}
+
+export function CircleDotIcon(p: IconProps) {
+  return (
+    <Svg {...p}>
+      <circle cx="12" cy="12" r="1" />
+      <circle cx="12" cy="12" r="10" />
+    </Svg>
+  );
+}
+
+export function ClockAlertIcon(p: IconProps) {
+  return (
+    <Svg {...p}>
+      <path d="M12 6v6l4 2" />
+      <path d="M20 12v5" />
+      <path d="M20 21h.01" />
+      <path d="M21.25 8.2A10 10 0 1 0 16 21.16" />
+    </Svg>
+  );
+}
+
+export function DatabaseIcon(p: IconProps) {
+  return (
+    <Svg {...p}>
+      <ellipse cx="12" cy="5" rx="9" ry="3" />
+      <path d="M3 5V19A9 3 0 0 0 21 19V5" />
+      <path d="M3 12A9 3 0 0 0 21 12" />
+    </Svg>
+  );
+}
+
+export function EyeIcon(p: IconProps) {
+  return (
+    <Svg {...p}>
+      <path d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0" />
+      <circle cx="12" cy="12" r="3" />
+    </Svg>
+  );
+}
+
+export function FlipHorizontal2Icon(p: IconProps) {
+  return (
+    <Svg {...p}>
+      <path d="M10 12H8" />
+      <path d="M16 12h-2" />
+      <path d="M22 12h-2" />
+      <path d="M4 12H2" />
+      <path d="M7.298 20.288A1 1 0 008 22h8a1 1 0 00.703-1.712l-3.991-3.99a1 1 0 00-1.424-.001z" />
+      <path d="M7.298 3.712A1 1 0 018 2h8a1 1 0 01.703 1.712l-3.991 3.99a1 1 0 01-1.424.001z" />
+    </Svg>
+  );
+}
+
+export function GaugeIcon(p: IconProps) {
+  return (
+    <Svg {...p}>
+      <path d="m12 14 4-4" />
+      <path d="M3.34 19a10 10 0 1 1 17.32 0" />
+    </Svg>
+  );
+}
+
+export function HandshakeIcon(p: IconProps) {
+  return (
+    <Svg {...p}>
+      <path d="m11 17 2 2a1 1 0 1 0 3-3" />
+      <path d="m14 14 2.5 2.5a1 1 0 1 0 3-3l-3.88-3.88a3 3 0 0 0-4.24 0l-.88.88a1 1 0 1 1-3-3l2.81-2.81a5.79 5.79 0 0 1 7.06-.87l.47.28a2 2 0 0 0 1.42.25L21 4" />
+      <path d="m21 3 1 11h-2" />
+      <path d="M3 3 2 14l6.5 6.5a1 1 0 1 0 3-3" />
+      <path d="M3 4h8" />
+    </Svg>
+  );
+}
+
+export function HardDriveIcon(p: IconProps) {
+  return (
+    <Svg {...p}>
+      <path d="M10 16h.01" />
+      <path d="M2.212 11.577a2 2 0 0 0-.212.896V18a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-5.527a2 2 0 0 0-.212-.896L18.55 5.11A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z" />
+      <path d="M21.946 12.013H2.054" />
+      <path d="M6 16h.01" />
+    </Svg>
+  );
+}
+
+export function HeadphonesIcon(p: IconProps) {
+  return (
+    <Svg {...p}>
+      <path d="M3 14h3a2 2 0 0 1 2 2v3a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-7a9 9 0 0 1 18 0v7a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3" />
+    </Svg>
+  );
+}
+
+export function HourglassIcon(p: IconProps) {
+  return (
+    <Svg {...p}>
+      <path d="M5 22h14" />
+      <path d="M5 2h14" />
+      <path d="M17 22v-4.172a2 2 0 0 0-.586-1.414L12 12l-4.414 4.414A2 2 0 0 0 7 17.828V22" />
+      <path d="M7 2v4.172a2 2 0 0 0 .586 1.414L12 12l4.414-4.414A2 2 0 0 0 17 6.172V2" />
+    </Svg>
+  );
+}
+
+export function ImagePlayIcon(p: IconProps) {
+  return (
+    <Svg {...p}>
+      <path d="M15 15.003a1 1 0 0 1 1.517-.859l4.997 2.997a1 1 0 0 1 0 1.718l-4.997 2.997a1 1 0 0 1-1.517-.86z" />
+      <path d="M21 12.17V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h6" />
+      <path d="m6 21 5-5" />
+      <circle cx="9" cy="9" r="2" />
+    </Svg>
+  );
+}
+
+export function KeyboardIcon(p: IconProps) {
+  return (
+    <Svg {...p}>
+      <path d="M10 8h.01" />
+      <path d="M12 12h.01" />
+      <path d="M14 8h.01" />
+      <path d="M16 12h.01" />
+      <path d="M18 8h.01" />
+      <path d="M6 8h.01" />
+      <path d="M7 16h10" />
+      <path d="M8 12h.01" />
+      <rect width="20" height="16" x="2" y="4" rx="2" />
+    </Svg>
+  );
+}
+
+export function LaptopIcon(p: IconProps) {
+  return (
+    <Svg {...p}>
+      <path d="M18 5a2 2 0 0 1 2 2v8.526a2 2 0 0 0 .212.897l1.068 2.127a1 1 0 0 1-.9 1.45H3.62a1 1 0 0 1-.9-1.45l1.068-2.127A2 2 0 0 0 4 15.526V7a2 2 0 0 1 2-2z" />
+      <path d="M20.054 15.987H3.946" />
+    </Svg>
+  );
+}
+
+export function ListTodoIcon(p: IconProps) {
+  return (
+    <Svg {...p}>
+      <path d="M13 5h8" />
+      <path d="M13 12h8" />
+      <path d="M13 19h8" />
+      <path d="m3 17 2 2 4-4" />
+      <rect x="3" y="4" width="6" height="6" rx="1" />
+    </Svg>
+  );
+}
+
+export function LockKeyholeIcon(p: IconProps) {
+  return (
+    <Svg {...p}>
+      <circle cx="12" cy="16" r="1" />
+      <rect x="3" y="10" width="18" height="12" rx="2" />
+      <path d="M7 10V7a5 5 0 0 1 10 0v3" />
+    </Svg>
+  );
+}
+
+export function MessagesSquareIcon(p: IconProps) {
+  return (
+    <Svg {...p}>
+      <path d="M16 10a2 2 0 0 1-2 2H6.828a2 2 0 0 0-1.414.586l-2.202 2.202A.71.71 0 0 1 2 14.286V4a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" />
+      <path d="M20 9a2 2 0 0 1 2 2v10.286a.71.71 0 0 1-1.212.502l-2.202-2.202A2 2 0 0 0 17.172 19H10a2 2 0 0 1-2-2v-1" />
+    </Svg>
+  );
+}
+
+export function MonitorSmartphoneIcon(p: IconProps) {
+  return (
+    <Svg {...p}>
+      <path d="M18 8V6a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h8" />
+      <path d="M10 19v-3.96 3.15" />
+      <path d="M7 19h5" />
+      <rect width="6" height="10" x="16" y="12" rx="2" />
+    </Svg>
+  );
+}
+
+export function MonitorUpIcon(p: IconProps) {
+  return (
+    <Svg {...p}>
+      <path d="m9 10 3-3 3 3" />
+      <path d="M12 13V7" />
+      <rect width="20" height="14" x="2" y="3" rx="2" />
+      <path d="M12 17v4" />
+      <path d="M8 21h8" />
+    </Svg>
+  );
+}
+
+export function PhoneCallIcon(p: IconProps) {
+  return (
+    <Svg {...p}>
+      <path d="M13 2a9 9 0 0 1 9 9" />
+      <path d="M13 6a5 5 0 0 1 5 5" />
+      <path d="M13.832 16.568a1 1 0 0 0 1.213-.303l.355-.465A2 2 0 0 1 17 15h3a2 2 0 0 1 2 2v3a2 2 0 0 1-2 2A18 18 0 0 1 2 4a2 2 0 0 1 2-2h3a2 2 0 0 1 2 2v3a2 2 0 0 1-.8 1.6l-.468.351a1 1 0 0 0-.292 1.233 14 14 0 0 0 6.392 6.384" />
+    </Svg>
+  );
+}
+
+export function PlugIcon(p: IconProps) {
+  return (
+    <Svg {...p}>
+      <path d="M12 22v-5" />
+      <path d="M15 8V2" />
+      <path d="M17 8a1 1 0 0 1 1 1v4a4 4 0 0 1-4 4h-4a4 4 0 0 1-4-4V9a1 1 0 0 1 1-1z" />
+      <path d="M9 8V2" />
+    </Svg>
+  );
+}
+
+export function RotateCcwIcon(p: IconProps) {
+  return (
+    <Svg {...p}>
+      <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
+      <path d="M3 3v5h5" />
+    </Svg>
+  );
+}
+
+export function SpeakerIcon(p: IconProps) {
+  return (
+    <Svg {...p}>
+      <rect width="16" height="20" x="4" y="2" rx="2" />
+      <path d="M12 6h.01" />
+      <circle cx="12" cy="14" r="4" />
+      <path d="M12 14h.01" />
+    </Svg>
+  );
+}
+
+export function Trash2Icon(p: IconProps) {
+  return (
+    <Svg {...p}>
+      <path d="M10 11v6" />
+      <path d="M14 11v6" />
+      <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" />
+      <path d="M3 6h18" />
+      <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+    </Svg>
+  );
+}
+
+export function TriangleAlertIcon(p: IconProps) {
+  return (
+    <Svg {...p}>
+      <path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3" />
+      <path d="M12 9v4" />
+      <path d="M12 17h.01" />
+    </Svg>
+  );
+}
+
+export function Volume2Icon(p: IconProps) {
+  return (
+    <Svg {...p}>
+      <path d="M11 4.702a.705.705 0 0 0-1.203-.498L6.413 7.587A1.4 1.4 0 0 1 5.416 8H3a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h2.416a1.4 1.4 0 0 1 .997.413l3.383 3.384A.705.705 0 0 0 11 19.298z" />
+      <path d="M16 9a5 5 0 0 1 0 6" />
+      <path d="M19.364 18.364a9 9 0 0 0 0-12.728" />
+    </Svg>
+  );
+}
+
+export function WorkflowIcon(p: IconProps) {
+  return (
+    <Svg {...p}>
+      <rect width="8" height="8" x="3" y="3" rx="2" />
+      <path d="M7 11v4a2 2 0 0 0 2 2h4" />
+      <rect width="8" height="8" x="13" y="13" rx="2" />
+    </Svg>
+  );
+}
+
+export function EyeOffIcon(p: IconProps) {
+  return (
+    <Svg {...p}>
+      <path d="M10.733 5.076a10.744 10.744 0 0 1 11.205 6.575 1 1 0 0 1 0 .696 10.747 10.747 0 0 1-1.444 2.49" />
+      <path d="M14.084 14.158a3 3 0 0 1-4.242-4.242" />
+      <path d="M17.479 17.499a10.75 10.75 0 0 1-15.417-5.151 1 1 0 0 1 0-.696 10.75 10.75 0 0 1 4.446-5.143" />
+      <path d="m2 2 20 20" />
+    </Svg>
+  );
+}
+
+export function PackageCheckIcon(p: IconProps) {
+  return (
+    <Svg {...p}>
+      <path d="M12 22V12" />
+      <path d="m16 17 2 2 4-4" />
+      <path d="M21 11.127V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.729l7 4a2 2 0 0 0 2 .001l1.32-.753" />
+      <path d="M3.29 7 12 12l8.71-5" />
+      <path d="m7.5 4.27 8.997 5.148" />
+    </Svg>
+  );
+}

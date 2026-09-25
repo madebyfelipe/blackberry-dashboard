@@ -1,9 +1,10 @@
 import type { AgencyScope } from "@/lib/agency/types";
 import { ATTACHMENTS_MAX, MESSAGE_MAX, canChangeMessage, isPresence } from "./constants";
 import { handleProblem, normalizeHandle, suggestHandle } from "./handle";
-import { canManageTeam, isMemberRole, isMemberStatus } from "./users";
+import { TITLE_MAX, canManageTeam, isMemberRole, isMemberStatus } from "./users";
 import { domainProblem, emailDomain, normalizeDomain } from "./domain";
 import { read, transaction } from "./store";
+import { normalizeNotifyPrefs } from "./notifyPrefs";
 import type {
   Attachment,
   Conversation,
@@ -39,6 +40,11 @@ import { callSummary, memberName, summarize } from "./view";
  */
 
 export class ValidationError extends Error {}
+
+/** O que todo membro novo traz de perfil: sem cargo, sem foto, avisos no padrão. */
+function blankProfile(): Pick<InboxMember, "title" | "photoUrl" | "notify"> {
+  return { title: "", photoUrl: null, notify: normalizeNotifyPrefs(null) };
+}
 
 function membersOf(data: InboxData, scope: AgencyScope): InboxMember[] {
   return data.members.filter((m) => m.agencyId === scope.agencyId);
@@ -150,6 +156,7 @@ export async function ensureMember(
       createdAt: stamp,
       invite: null,
       joinRequest: false,
+      ...blankProfile(),
     };
     data.members.push(created);
     return { ...created };
@@ -219,6 +226,7 @@ export async function inviteMember(
         invitedBy: inviter?.name ?? "",
       },
       joinRequest: false,
+      ...blankProfile(),
     };
     data.members.push(created);
     return { ...created };
@@ -412,6 +420,7 @@ export async function requestJoin(
       createdAt: new Date().toISOString(),
       invite: null,
       joinRequest: true,
+      ...blankProfile(),
     };
     data.members.push(created);
     return { ...created };
@@ -502,6 +511,44 @@ export async function setPresence(
     if (!member) return undefined;
     member.presence = presence;
     return { ...member };
+  });
+}
+
+export type MyProfilePatch = {
+  title?: string;
+  photoUrl?: string | null;
+  notify?: unknown;
+  presence?: Presence;
+};
+
+/**
+ * O que a própria pessoa muda em Configurações › Pessoal: cargo, foto, avisos
+ * e disponibilidade. Sempre em si mesma — o id vem da sessão, nunca do corpo.
+ * A foto só entra se for um endereço de mídia do próprio app.
+ */
+export async function updateMyProfile(
+  scope: AgencyScope,
+  viewerId: string,
+  patch: MyProfilePatch,
+): Promise<InboxMember | undefined> {
+  if (patch.presence !== undefined && !isPresence(patch.presence)) {
+    throw new ValidationError("Status inválido.");
+  }
+  if (
+    patch.photoUrl !== undefined &&
+    patch.photoUrl !== null &&
+    !/^\/api\/media\/[a-f0-9]{32}$/.test(String(patch.photoUrl))
+  ) {
+    throw new ValidationError("Foto inválida.");
+  }
+  return transaction((data) => {
+    const me = membersOf(data, scope).find((m) => m.id === viewerId);
+    if (!me) return undefined;
+    if (patch.title !== undefined) me.title = String(patch.title).trim().slice(0, TITLE_MAX);
+    if (patch.photoUrl !== undefined) me.photoUrl = patch.photoUrl;
+    if (patch.notify !== undefined) me.notify = normalizeNotifyPrefs(patch.notify);
+    if (patch.presence !== undefined) me.presence = patch.presence;
+    return { ...me };
   });
 }
 

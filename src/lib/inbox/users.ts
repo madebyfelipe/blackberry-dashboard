@@ -66,6 +66,37 @@ export function canManageTeam(m: Pick<InboxMember, "role">): boolean {
   return m.role === "admin" || m.role === "gerente";
 }
 
+/** Quem vê dinheiro no painel da agência: receita, faturas, fidelidade. */
+export function canSeeFinance(m: Pick<InboxMember, "role">): boolean {
+  return m.role === "admin" || m.role === "financeiro";
+}
+
+/** Quem abre o painel da agência — quem administra e quem cuida do dinheiro. */
+export function canSeeDashboard(m: Pick<InboxMember, "role">): boolean {
+  return canManageTeam(m) || canSeeFinance(m);
+}
+
+/** O que só um Admin faz: apagar a agência inteira. */
+export function isAdmin(m: Pick<InboxMember, "role">): boolean {
+  return m.role === "admin";
+}
+
+/** Teto do cargo — é rótulo de uma linha, não biografia. */
+export const TITLE_MAX = 40;
+
+/** As sugestões do campo Cargo. Texto livre: a agência escreve o que usa. */
+export const TITLE_SUGGESTIONS = [
+  "Atendimento",
+  "Designer",
+  "Social media",
+  "Redação",
+  "Tráfego",
+  "Vídeo",
+  "Coordenação",
+  "Direção de arte",
+  "Financeiro",
+];
+
 /** "há 2 min", "há 1 h", "há 3 dias", "há 2 sem" — ou "—" para quem nunca entrou. */
 export function lastSeenLabel(iso: string | null, now = Date.now()): string {
   if (!iso) return "—";

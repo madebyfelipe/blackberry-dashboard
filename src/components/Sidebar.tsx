@@ -8,6 +8,7 @@ import { cn } from "@/lib/cn";
 import { useToast } from "@/components/ui/Toast";
 import { Logo } from "@/components/brand/Logo";
 import { apiSetPresence } from "@/components/inbox/api";
+import { PROFILE_CHANGED } from "@/components/inbox/InboxNotifier";
 import { PresenceDot } from "@/components/inbox/PresenceDot";
 import { useRealtime } from "@/components/realtime/RealtimeProvider";
 import { INBOX_CHANGED, NOTIFICATIONS_CHANGED } from "@/components/inbox/InboxNotifier";
@@ -184,6 +185,7 @@ const ROLE_LABEL: Record<PublicUser["role"], string> = {
 export function Sidebar({ user }: { user: PublicUser }) {
   const pathname = usePathname();
   const [drawer, setDrawer] = useState(false);
+  const { me: member } = useRealtime();
 
   // Trocar de tela fecha a gaveta — senão ela fica por cima do destino.
   useEffect(() => setDrawer(false), [pathname]);
@@ -218,9 +220,14 @@ export function Sidebar({ user }: { user: PublicUser }) {
         <Link
           href="/configuracoes"
           aria-label="Sua conta"
-          className="tap flex h-9 w-9 items-center justify-center rounded-pill bg-border-strong text-[13px] font-medium text-fg"
+          className="tap flex h-9 w-9 items-center justify-center overflow-hidden rounded-pill bg-border-strong text-[13px] font-medium text-fg"
         >
-          {initial}
+          {member?.photoUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={member.photoUrl} alt="" className="h-full w-full object-cover" />
+          ) : (
+            initial
+          )}
         </Link>
       </div>
 
@@ -469,8 +476,13 @@ function SidebarPanel({
           aria-haspopup="menu"
           className="tap flex min-w-0 flex-1 items-center gap-3 rounded-field p-1 text-left transition-colors hover:bg-surface-2/70"
         >
-          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-pill bg-border-strong text-[14px] font-medium text-fg">
-            {initial}
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-pill bg-border-strong text-[14px] font-medium text-fg">
+            {me?.photoUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={me.photoUrl} alt="" className="h-full w-full object-cover" />
+            ) : (
+              initial
+            )}
           </span>
           <span className="flex min-w-0 flex-col gap-0.5">
             <span className="truncate text-[11px] font-semibold text-fg-soft">
@@ -530,6 +542,8 @@ function SidebarPanel({
                       // Para o time, agora; gravado logo em seguida, para
                       // continuar valendo na próxima vez que você abrir.
                       anunciar(option.id);
+                      // O notificador aplica a regra do "Ocupado" na hora.
+                      window.dispatchEvent(new CustomEvent(PROFILE_CHANGED, { detail: { presence: option.id } }));
                       try {
                         await apiSetPresence(option.id);
                       } catch {

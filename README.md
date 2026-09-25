@@ -77,7 +77,9 @@ Dá para criar outra conta em `/criar-conta` — o cadastro já entra logado.
 | `/social/[cliente]/[lote]` | Detalhe do lote — grade de peças + painel de decisão + link público |
 | `/social/[cliente]/[lote]/editor` | **Editor de lote** — peças, detalhes da peça (data, formato, canal, legenda, hashtags), preview do post e as ações do link (enviar, gerar, desativar) |
 | `/a/[token]` | **Aprovação pública** (cliente, sem login): tela de início + swipe para aprovar/pedir ajuste |
-| `/configuracoes` | Conta: perfil (com o seu @), troca de senha e sessão |
+| `/configuracoes` | **Configurações › Pessoal** (todo mundo): perfil e foto, disponibilidade, avisos, chamada e áudio, senha e sessão |
+| `/configuracoes/agencia` | **Configurações › Agência** (Admin e Gerente): logo, nome, domínio do convite, padrões para cliente novo, integrações, excluir agência (só Admin) |
+| `/configuracoes/painel` | **Painel da agência** (Admin, Gerente e Financeiro): operação, aprovação, financeiro (só Admin e Financeiro), carteira, entregas, equipe e agenda; filtros `?mes=&cliente=&pessoa=` |
 | `/configuracoes/fluxos` | **Fluxos e Processos** — a esteira de trabalho: etapas, quem toca cada uma, prazo, próxima etapa, aprovadores e automações |
 | `/configuracoes/fluxos/novo` | **Novo fluxo** (export "Novo Fluxo") — modelo → detalhes → revisão; cria o fluxo ativo, inativo ou como rascunho |
 | `/configuracoes/fluxos/[id]/editar` | O passo "Detalhes" do Novo fluxo com o fluxo preenchido — o "Editar" do cabeçalho do fluxo |
@@ -185,7 +187,8 @@ têm de ser `var(--token)` de um token que exista no `@theme`.
 
 O app só conversa com `repository.ts`, que só conversa com `store.ts`. Trocar o armazenamento é um drop-in em `store.ts` sem tocar no resto.
 
-- Agência (tenant): `src/lib/agency/{types,id}.ts` — ver "Multi-tenant" abaixo.
+- Agência (tenant): `src/lib/agency/{types,id}.ts` — ver "Multi-tenant" abaixo. Os ajustes da agência (logo, padrões para cliente novo) moram em `src/lib/agency/{settings,store,repository}.ts` (`agency.json`, por `agencyId`); o nome continua em cada conta e muda para todas de uma vez (`renameAgency`). "Excluir agência" é `src/lib/agency/delete.ts`: passa por **todas** as áreas filtrando pelo `agencyId` da sessão e só no fim apaga os arquivos — área nova com dado de agência precisa entrar ali (o teste `agency-settings-repository` prova que a agência vizinha fica inteira).
+- Painel da agência: `src/lib/dashboard/metrics.ts` — funções puras sobre tarefas, lotes, clientes, fichas e time; nenhum número do painel é gravado.
 - Tarefas: `src/lib/tasks/{types,constants,priority,seed,store,repository}.ts` — o pipeline de status vive **só** em `constants.ts`; a régua de prioridade, **só** em `priority.ts`. A conversa da tarefa (`Task.comments`) entra por `POST /api/tasks/<id>/comments`, com o autor vindo da sessão — nunca do corpo.
 - Clientes: `src/lib/clients/{types,constants,seed,store,repository,view}.ts` — mesma forma das tarefas; a régua de saúde do cliente (e os pares fundo/texto do selo) vive **só** em `constants.ts`, e o que a tela filtra/ordena, **só** em `view.ts`. **O vínculo com tarefa e lote**: `Task.clientId`/`Batch.clientId` guardam o `Client.id` cujo nome bate com o texto livre gravado (`resolveClientId`, sem acento/caixa, escopado por agência) — resolvido de novo a cada gravação, `null` quando não bate com nenhuma ficha. `client` continua sendo o texto de registro; `clientId` é para quem precisa do id de verdade (`listTasksForClient`, futura ficha do cliente e Health Score). Registro gravado antes deste vínculo fica com `clientId: null` até ser salvo de novo, **ou até rodar `npm run backfill:client-ids`** (`src/lib/maintenance/backfill-client-ids.ts`): backfill manual, idempotente, que resolve `client` contra a ficha cadastrada da mesma agência sem tocar em quem já tem vínculo — não é migração de leitura porque essa é síncrona e não pode consultar a lista de clientes.
 - Aprovação: `src/lib/approval/{types,constants,seed,store,repository}.ts`. Todo evento novo do histórico da peça grava `at` (ISO) — é o que a linha do tempo da ficha do cliente lê.
@@ -399,6 +402,13 @@ desfaz nada):
 | `mencao` | Seu @ **novo** no briefing, num comentário ou numa mensagem (a menção fura o silêncio da conversa) |
 | `comentario` | Comentaram numa tarefa que é sua |
 | `mensagem` | Mensagem nova numa conversa sua não silenciada; várias da mesma conversa, até você ler, viram um aviso só |
+
+**Cada pessoa escolhe o que interrompe** (Configurações › Pessoal ›
+Notificações, gravado no membro: `InboxMember.notify`): os quatro tipos, os
+dois canais (toast no app, notificação do sistema) e o som. A régua é
+`alertRoute` (`lib/inbox/notifyPrefs.ts`, testada) e vale só para o **aviso**
+— a notificação continua registrada na tela. **Ocupado** tira o sistema e o
+som; só a menção ainda aparece no app. Ligação que começa avisa sempre no app.
 
 Quem recebe o quê é função pura (`rules.ts`, testada): ninguém é avisado do
 que ele mesmo fez, só quem está ativo no time recebe, e é um aviso por pessoa

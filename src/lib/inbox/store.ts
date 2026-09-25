@@ -6,6 +6,8 @@ import { isMemberRole, isMemberStatus } from "./users";
 import { normalizeDomain } from "./domain";
 import { seedInbox } from "./seed";
 import { voiceMeta } from "./voice";
+import { normalizeNotifyPrefs } from "./notifyPrefs";
+import { TITLE_MAX } from "./users";
 import type { Attachment, Conversation, InboxData, InboxMember, Message } from "./types";
 
 /*
@@ -42,6 +44,9 @@ function normalizeMember(raw: Partial<InboxMember> & { id: string }): InboxMembe
           }
         : null,
     joinRequest: raw.joinRequest === true,
+    title: String(raw.title ?? "").trim().slice(0, TITLE_MAX),
+    photoUrl: typeof raw.photoUrl === "string" && raw.photoUrl.startsWith("/api/media/") ? raw.photoUrl : null,
+    notify: normalizeNotifyPrefs(raw.notify),
   };
 }
 
