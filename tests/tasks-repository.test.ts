@@ -20,7 +20,9 @@ const {
   getTask,
   listTasks,
   listTasksForClient,
+  moveTaskToStep,
   updateTask,
+  updateTaskAtStep,
 } = await import("../src/lib/tasks/repository");
 const { createClient } = await import("../src/lib/clients/repository");
 
@@ -351,5 +353,72 @@ describe("completedAt — quando a tarefa foi concluída", () => {
     assert.ok(t.completedAt);
     const patched = await updateTask(AGENCIA_A, t.id, { completedAt: "2000-01-01T00:00:00.000Z" } as never);
     assert.equal(patched?.completedAt, t.completedAt);
+  });
+});
+
+/*
+ * Issue #79: duas conclusões quase simultâneas (clique duplo, duas abas) liam
+ * a tarefa na mesma etapa e andavam o fluxo duas vezes — Briefing → Redação →
+ * Design, com Redação pulada. Aqui se reproduz a ordem da rota: as duas leem
+ * antes, e cada uma grava e move em sequência.
+ */
+describe("concluir a etapa duas vezes", () => {
+  const naEtapa = (stepId: string) => criar({ flowId: "f1", stepId });
+  const mover = (id: string, from: string, to: string) =>
+    moveTaskToStep(AGENCIA_A, id, {
+      flowId: "f1",
+      stepId: to,
+      status: "a-fazer",
+      dueDate: null,
+      note: { author: "black berry", text: `${from} → ${to}` },
+      expect: { stepId: from, status: "concluido" },
+    });
+
+  test("só a primeira conclusão conta; a segunda não pula a etapa seguinte", async () => {
+    const t = await naEtapa("briefing");
+    const lidaA = await getTask(AGENCIA_A, t.id);
+    const lidaB = await getTask(AGENCIA_A, t.id);
+
+    const a = await updateTaskAtStep(AGENCIA_A, t.id, { status: "concluido" }, { expectStepId: lidaA!.stepId });
+    assert.equal(a?.completedNow, true);
+    await mover(t.id, "briefing", "redacao");
+
+    const b = await updateTaskAtStep(AGENCIA_A, t.id, { status: "concluido" }, { expectStepId: lidaB!.stepId });
+    assert.equal(b?.completedNow, false, "a segunda viu Briefing, que já ficou para trás");
+    assert.equal(b?.task.stepId, "redacao");
+    assert.equal(b?.task.status, "a-fazer", "Redação não é concluída por quem nem a abriu");
+
+    const final = await getTask(AGENCIA_A, t.id);
+    assert.equal(final?.stepId, "redacao");
+    assert.equal(final?.comments.length, 1, "uma nota só");
+  });
+
+  test("gravações intercaladas: só um movimento grava", async () => {
+    const t = await naEtapa("briefing");
+    const a = await updateTaskAtStep(AGENCIA_A, t.id, { status: "concluido" }, { expectStepId: "briefing" });
+    const b = await updateTaskAtStep(AGENCIA_A, t.id, { status: "concluido" }, { expectStepId: "briefing" });
+    assert.equal(a?.completedNow, true);
+    assert.equal(b?.completedNow, false, "a transação vê que já estava concluída");
+
+    // Mesmo se as duas chegassem a pedir o avanço, o segundo não grava.
+    assert.ok(await mover(t.id, "briefing", "redacao"));
+    assert.equal(await mover(t.id, "briefing", "redacao"), undefined);
+    const final = await getTask(AGENCIA_A, t.id);
+    assert.equal(final?.stepId, "redacao");
+    assert.equal(final?.comments.length, 1);
+  });
+
+  test("etapa que andou não impede editar o resto", async () => {
+    const t = await naEtapa("briefing");
+    await updateTaskAtStep(AGENCIA_A, t.id, { status: "concluido" }, { expectStepId: "briefing" });
+    await mover(t.id, "briefing", "redacao");
+    const r = await updateTaskAtStep(
+      AGENCIA_A,
+      t.id,
+      { status: "concluido", title: "Novo título" },
+      { expectStepId: "briefing" },
+    );
+    assert.equal(r?.task.title, "Novo título");
+    assert.equal(r?.task.status, "a-fazer");
   });
 });

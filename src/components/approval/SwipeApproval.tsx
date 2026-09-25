@@ -1,12 +1,14 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import type { Batch, Piece, PieceStatus } from "@/lib/approval/types";
 import { PieceThumb } from "./PieceThumb";
 import { StatusBadge } from "./StatusBadge";
 import { CheckIcon, XIcon } from "@/components/icons";
 
 const THRESHOLD = 120;
+const FLING_MS = 260;
 
 export function SwipeApproval({ batch }: { batch: Batch }) {
   const [pieces, setPieces] = useState<Piece[]>(batch.pieces);
@@ -17,7 +19,12 @@ export function SwipeApproval({ batch }: { batch: Batch }) {
     open: false,
     text: "",
   });
+  const [error, setError] = useState<string | null>(null);
   const startRef = useRef<{ x: number; y: number } | null>(null);
+  // Trava síncrona: dois toques no mesmo frame chegam antes de `fling` virar
+  // estado, e cada um mandaria sua decisão e somaria +1 ao índice.
+  const busyRef = useRef(false);
+  const router = useRouter();
 
   const current = pieces[index];
   const next = pieces[index + 1];
@@ -46,7 +53,7 @@ export function SwipeApproval({ batch }: { batch: Batch }) {
     const { dx } = drag;
     startRef.current = null;
     if (dx > THRESHOLD) {
-      commit("aprovado");
+      void commit("aprovado");
     } else if (dx < -THRESHOLD) {
       // Reproval requires a reason.
       setDrag({ dx: 0, dy: 0, active: false });
@@ -56,43 +63,70 @@ export function SwipeApproval({ batch }: { batch: Batch }) {
     }
   }
 
-  function commit(status: PieceStatus, reasonText?: string) {
-    if (!current) return;
-    const dir = status === "aprovado" ? "right" : "left";
-    setFling(dir);
+  async function commit(status: PieceStatus, reasonText?: string) {
+    if (!current || busyRef.current) return;
+    busyRef.current = true;
+    const piece = current;
+    const at = index;
+    setError(null);
+    setFling(status === "aprovado" ? "right" : "left");
     // Optimistic local update.
     setPieces((ps) =>
       ps.map((p) =>
-        p.id === current.id
+        p.id === piece.id
           ? { ...p, status, reason: status === "ajuste" ? reasonText : p.reason }
           : p,
       ),
     );
-    // Persist.
-    void fetch(`/api/approve/${batch.token}`, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        pieceId: current.id,
-        decision: status,
-        reason: reasonText,
-        who: "Cliente",
-      }),
-    }).catch(() => {});
 
-    // Advance after the fling animation.
-    setTimeout(() => {
-      setIndex((i) => i + 1);
-      setDrag({ dx: 0, dy: 0, active: false });
-      setFling(null);
-    }, 260);
+    const animation = new Promise((r) => setTimeout(r, FLING_MS));
+    let failure: { message: string; inactive: boolean } | null = null;
+    try {
+      const res = await fetch(`/api/approve/${batch.token}`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          pieceId: piece.id,
+          decision: status,
+          reason: reasonText,
+          who: "Cliente",
+        }),
+      });
+      if (!res.ok) {
+        const data = (await res.json().catch(() => null)) as { error?: string } | null;
+        failure = {
+          message: data?.error ?? "Não foi possível enviar sua decisão. Tente de novo.",
+          inactive: res.status === 410,
+        };
+      }
+    } catch {
+      failure = {
+        message: "Sem conexão. Sua decisão não foi enviada — tente de novo.",
+        inactive: false,
+      };
+    }
+    await animation;
+
+    setDrag({ dx: 0, dy: 0, active: false });
+    setFling(null);
+    busyRef.current = false;
+    if (failure) {
+      // Desfaz o otimista: a peça volta como estava e o cliente fica nela.
+      setPieces((ps) => ps.map((p) => (p.id === piece.id ? piece : p)));
+      setError(failure.message);
+      // Link expirado ou revogado no meio: o servidor já tem a tela certa.
+      if (failure.inactive) router.refresh();
+      return;
+    }
+    // Avança a partir da peça decidida, não do índice do momento.
+    setIndex(at + 1);
   }
 
   function submitReason() {
     const text = reason.text.trim();
     if (!text) return;
     setReason({ open: false, text: "" });
-    commit("ajuste", text);
+    void commit("ajuste", text);
   }
 
   // Keyboard: → aprovar, ← pedir ajuste (desktop engagement).
@@ -100,7 +134,7 @@ export function SwipeApproval({ batch }: { batch: Batch }) {
     if (done) return;
     const onKey = (e: KeyboardEvent) => {
       if (reason.open || fling) return;
-      if (e.key === "ArrowRight") commit("aprovado");
+      if (e.key === "ArrowRight") void commit("aprovado");
       else if (e.key === "ArrowLeft") setReason({ open: true, text: "" });
     };
     window.addEventListener("keydown", onKey);
@@ -198,20 +232,27 @@ export function SwipeApproval({ batch }: { batch: Batch }) {
                 type="button"
                 aria-label="Pedir ajuste"
                 onClick={() => setReason({ open: true, text: "" })}
-                className="flex h-16 w-16 items-center justify-center rounded-full border border-border bg-surface text-fg-soft transition-transform hover:scale-105 active:scale-95"
+                disabled={!!fling}
+                className="flex h-16 w-16 items-center justify-center rounded-full border border-border bg-surface text-fg-soft transition-transform hover:scale-105 active:scale-95 disabled:pointer-events-none"
               >
                 <XIcon size={26} />
               </button>
               <button
                 type="button"
                 aria-label="Aprovar"
-                onClick={() => commit("aprovado")}
-                className="flex h-16 w-16 items-center justify-center rounded-full bg-primary text-on-primary transition-transform hover:scale-105 active:scale-95"
+                onClick={() => void commit("aprovado")}
+                disabled={!!fling}
+                className="flex h-16 w-16 items-center justify-center rounded-full bg-primary text-on-primary transition-transform hover:scale-105 active:scale-95 disabled:pointer-events-none"
               >
                 <CheckIcon size={26} />
               </button>
             </div>
 
+            {error && (
+              <p role="alert" className="mt-4 text-center text-[13px] font-medium text-fg-soft">
+                {error}
+              </p>
+            )}
             <p className="mt-4 text-center text-[12px] text-muted">
               Arraste para a direita para aprovar · esquerda para pedir ajuste
             </p>

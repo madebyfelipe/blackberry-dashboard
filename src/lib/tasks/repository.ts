@@ -139,6 +139,25 @@ export async function updateTask(
   id: string,
   patch: TaskPatch,
 ): Promise<Task | undefined> {
+  return (await updateTaskAtStep(scope, id, patch))?.task;
+}
+
+/**
+ * `updateTask` para quem conclui pela tela: diz se **esta** gravação levou a
+ * tarefa para "Concluído" (`completedNow`) — é isso que autoriza o fluxo a
+ * andar uma etapa. A resposta sai de dentro da transação, então duas
+ * conclusões simultâneas (clique duplo, duas abas) não podem as duas dizer sim.
+ *
+ * `expectStepId` é a etapa em que quem pediu viu a tarefa. Se ela já andou
+ * (outra conclusão chegou antes), a troca de status é ignorada: concluir
+ * "Briefing" não pode virar concluir "Redação", que ninguém nem abriu.
+ */
+export async function updateTaskAtStep(
+  scope: AgencyScope,
+  id: string,
+  patch: TaskPatch,
+  opts: { expectStepId?: string | null } = {},
+): Promise<{ task: Task; completedNow: boolean } | undefined> {
   if (patch.status !== undefined && !isTaskStatus(patch.status)) {
     throw new ValidationError("Status inválido.");
   }
@@ -167,7 +186,11 @@ export async function updateTask(
     if (patch.title !== undefined) t.title = patch.title.trim();
     if (patch.client !== undefined) t.client = patch.client.trim();
     if (clientId !== undefined) t.clientId = clientId;
-    if (patch.status !== undefined) {
+    const stale =
+      opts.expectStepId !== undefined && (t.stepId ?? null) !== opts.expectStepId;
+    let completedNow = false;
+    if (patch.status !== undefined && !stale) {
+      completedNow = patch.status === "concluido" && t.status !== "concluido";
       t.completedAt = completedAtFor(t, patch.status);
       t.status = patch.status;
     }
@@ -177,7 +200,7 @@ export async function updateTask(
     if (patch.labels !== undefined) t.labels = cleanLabels(patch.labels);
     if (patch.creator !== undefined) t.creator = patch.creator.trim() || "—";
     if (dueDate !== undefined) t.dueDate = dueDate;
-    return { ...t, labels: [...t.labels], comments: [...t.comments] };
+    return { task: { ...t, labels: [...t.labels], comments: [...t.comments] }, completedNow };
   });
 }
 
@@ -237,11 +260,21 @@ export async function moveTaskToStep(
     assignee?: string;
     dueDate: string | null;
     note: { author: string; text: string };
+    /**
+     * Onde o motor leu a tarefa antes de decidir o movimento. Se ela já não
+     * está lá (outra conclusão, a decisão do cliente), nada é gravado: o
+     * movimento foi decidido em cima de um retrato velho.
+     */
+    expect?: { stepId: string; status?: Task["status"] };
   },
 ): Promise<Task | undefined> {
   return transaction((tasks) => {
     const t = tasks.find((x) => x.id === id && x.agencyId === scope.agencyId);
     if (!t) return undefined;
+    if (move.expect) {
+      if (t.stepId !== move.expect.stepId) return undefined;
+      if (move.expect.status !== undefined && t.status !== move.expect.status) return undefined;
+    }
     t.flowId = move.flowId;
     t.stepId = move.stepId;
     t.completedAt = completedAtFor(t, move.status);

@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import {
   deleteTask,
   getTask,
-  updateTask,
+  updateTaskAtStep,
   ValidationError,
 } from "@/lib/tasks/repository";
 import type { TaskPatch } from "@/lib/tasks/types";
@@ -50,9 +50,14 @@ export async function PATCH(req: Request, { params }: Ctx) {
     const patch = pickPatch(body);
     // Só uma passagem de verdade para "concluído" anda a etapa: repetir o
     // status (clique duplo, dois abertos) não pode pular etapa nem duplicar nota.
+    // Quem diz se a passagem é de verdade é a transação (`completedNow`); e a
+    // etapa lida aqui tem de continuar lá para o status valer.
     const before = await getTask(session.scope, id);
-    const task = await updateTask(session.scope, id, patch);
-    if (!task) {
+    const result = await updateTaskAtStep(session.scope, id, patch, {
+      expectStepId: before ? (before.stepId ?? null) : undefined,
+    });
+    const task = result?.task;
+    if (!result || !task) {
       /*
        * Mesma resposta para "não existe" e "é de outra agência": um 403 aqui
        * confirmaria que o id existe em algum lugar.
@@ -64,10 +69,15 @@ export async function PATCH(req: Request, { params }: Ctx) {
      * com quem toca essa etapa. A resposta já traz a tarefa como ficou, para
      * a tela não mostrar "concluída" algo que acabou de ir para outra pessoa.
      */
-    if (patch.status === "concluido" && before && before.status !== "concluido") {
+    if (result.completedNow && task.stepId) {
       // Quem recebe a próxima etapa é avisado pelo próprio motor do fluxo.
-      const advanced = await advanceTask(session.scope, id, session.user.name);
+      const advanced = await advanceTask(session.scope, id, session.user.name, task.stepId);
       if (advanced) return NextResponse.json({ task: advanced });
+    }
+    // A tarefa mudou de etapa entre a leitura e a gravação (outra conclusão
+    // chegou antes): o aviso dessa mudança já saiu por quem a fez.
+    if (before && (before.stepId ?? null) !== (task.stepId ?? null)) {
+      return NextResponse.json({ task });
     }
     // Responsável novo e quem foi marcado agora no briefing.
     await notifyTaskChange(session.scope, { id: session.me.id, name: session.me.name }, before, task);

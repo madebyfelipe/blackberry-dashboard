@@ -76,6 +76,19 @@ export function ClientDetail(props: DetailProps) {
   const [savingClient, setSavingClient] = useState(false);
   const [creatingTask, setCreatingTask] = useState(false);
   const [savingTask, setSavingTask] = useState(false);
+  /*
+   * Os modais zeram o formulário quando `state` muda de identidade. Um objeto
+   * novo a cada render — e o relógio abaixo re-renderiza de minuto em minuto —
+   * apagava o que a pessoa estava digitando.
+   */
+  const editState = useMemo(
+    () => (editing ? ({ mode: "edit", client } as const) : null),
+    [editing, client],
+  );
+  const taskState = useMemo(
+    () => (creatingTask ? ({ mode: "create", client: client.name } as const) : null),
+    [creatingTask, client.name],
+  );
 
   // Relógio da tela: monta no navegador e anda de minuto em minuto ("há 5 min").
   useEffect(() => {
@@ -281,13 +294,13 @@ export function ClientDetail(props: DetailProps) {
       </div>
 
       <ClientModal
-        state={editing ? { mode: "edit", client } : null}
+        state={editState}
         onClose={() => setEditing(false)}
         onSubmit={(v) => void saveClient(v)}
         saving={savingClient}
       />
       <TaskModal
-        state={creatingTask ? { mode: "create", client: client.name } : null}
+        state={taskState}
         onClose={() => setCreatingTask(false)}
         onSubmit={(v) => void createTask(v)}
         saving={savingTask}

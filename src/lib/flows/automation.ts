@@ -193,7 +193,12 @@ export async function syncPieceTask(scope: AgencyScope, batch: Batch, piece: Pie
 }
 
 /** Deixa um registro na conversa sem mexer na etapa. */
-async function noteOnly(scope: AgencyScope, task: Task, text: string): Promise<Task | undefined> {
+async function noteOnly(
+  scope: AgencyScope,
+  task: Task,
+  text: string,
+  expect?: Expect,
+): Promise<Task | undefined> {
   if (!task.flowId || !task.stepId) {
     return addTaskComment(scope, task.id, { author: SYSTEM, text });
   }
@@ -203,8 +208,12 @@ async function noteOnly(scope: AgencyScope, task: Task, text: string): Promise<T
     status: task.status,
     dueDate: task.dueDate,
     note: { author: SYSTEM, text },
+    expect,
   });
 }
+
+/** Onde a tarefa tem de estar, na hora de gravar, para o movimento valer. */
+type Expect = { stepId: string; status?: Task["status"] };
 
 async function enter(
   scope: AgencyScope,
@@ -212,6 +221,7 @@ async function enter(
   flow: Flow,
   step: FlowStep,
   text: (quem: string) => string,
+  expect?: Expect,
 ): Promise<Task | undefined> {
   const ctx = await contextFor(scope, task.client);
   const { member, name } = receiver(step, ctx);
@@ -224,6 +234,7 @@ async function enter(
     // Tarefa de criativo mantém o dia planejado; as outras ganham o prazo da etapa.
     dueDate: task.source ? task.dueDate : dueFor(step),
     note: { author: SYSTEM, text: note },
+    expect,
   });
   // Quem recebe a etapa é avisado — mesmo que já fosse o responsável, porque
   // a tarefa voltou para a mão dele com trabalho novo.
@@ -236,22 +247,32 @@ async function enter(
  * quem toca essa etapa, prazo novo e o registro na conversa. Na última etapa
  * ela fica concluída — é o fim do fluxo.
  *
- * Devolve a tarefa como ficou (ou `undefined` quando não era de fluxo).
+ * `fromStepId` é a etapa que foi concluída. Se a tarefa já saiu dela (outra
+ * conclusão andou primeiro), nada acontece — é assim que duas conclusões
+ * seguidas andam uma etapa só, com uma nota só.
+ *
+ * Devolve a tarefa como ficou (ou `undefined` quando não era de fluxo ou
+ * quando outra conclusão já a moveu).
  */
 export async function advanceTask(
   scope: AgencyScope,
   taskId: string,
   by: string,
+  fromStepId: string,
 ): Promise<Task | undefined> {
   const task = await getTask(scope, taskId);
   if (!task?.flowId || !task.stepId || task.status !== "concluido") return undefined;
+  if (task.stepId !== fromStepId) return undefined;
   const flow = await getFlow(scope, task.flowId);
   const current = flow?.steps.find((s) => s.id === task.stepId);
   if (!flow || !current) return undefined;
+  // Entre a leitura acima e a gravação há outras leituras (fluxo, time): o
+  // movimento só grava se a tarefa ainda estiver concluída nesta etapa.
+  const expect: Expect = { stepId: current.id, status: "concluido" };
 
   const next = nextStep(flow, current.id);
   if (!next) {
-    return noteOnly(scope, task, `${current.name} concluída por ${by} — fim do fluxo ${flow.name}.`);
+    return noteOnly(scope, task, `${current.name} concluída por ${by} — fim do fluxo ${flow.name}.`, expect);
   }
   return enter(
     scope,
@@ -259,6 +280,7 @@ export async function advanceTask(
     flow,
     next,
     (quem) => `${current.name} concluída por ${by} → encaminhada para ${next.name}, com ${quem}.`,
+    expect,
   );
 }
 
@@ -290,6 +312,9 @@ export async function onClientDecision(
   const flow = await getFlow(scope, task.flowId);
   const current = flow?.steps.find((s) => s.id === task.stepId);
   if (!flow || !current) return;
+  // A decisão vale para a etapa lida aqui. Se a tarefa andou no meio (a
+  // agência concluiu, ou a mesma decisão chegou duas vezes), nada é gravado.
+  const expect: Expect = { stepId: current.id };
 
   if (decision === "aprovado" && current.assignee.kind === "cliente") {
     const next = nextStep(flow, current.id);
@@ -300,10 +325,11 @@ export async function onClientDecision(
         status: "concluido",
         dueDate: null,
         note: { author: SYSTEM, text: `Aprovada pelo cliente — fim do fluxo ${flow.name}.` },
+        expect: { stepId: current.id, status: task.status },
       });
       return;
     }
-    await enter(scope, task, flow, next, (quem) => `Aprovada pelo cliente → encaminhada para ${next.name}, com ${quem}.`);
+    await enter(scope, task, flow, next, (quem) => `Aprovada pelo cliente → encaminhada para ${next.name}, com ${quem}.`, expect);
     return;
   }
 
@@ -311,7 +337,7 @@ export async function onClientDecision(
     const back = current.assignee.kind === "cliente" ? previousStep(flow, current.id) : current;
     if (!back) return;
     const motivo = reason?.trim() ? `: "${reason.trim()}"` : "";
-    await enter(scope, task, flow, back, (quem) => `O cliente pediu ajuste${motivo} → de volta para ${back.name}, com ${quem}.`);
+    await enter(scope, task, flow, back, (quem) => `O cliente pediu ajuste${motivo} → de volta para ${back.name}, com ${quem}.`, expect);
   }
 }
 
