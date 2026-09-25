@@ -28,7 +28,7 @@ import type { ConversationDetail, InboxMember } from "@/lib/inbox/types";
 import { callClock, initialsOf } from "@/lib/inbox/view";
 import { apiJoinCall, apiLeaveCall, apiTouchCall, leaveCallOnExit } from "./api";
 import { CALL_HEARTBEAT_MS } from "@/lib/inbox/call";
-import { desktopBridge } from "@/lib/desktop";
+import { desktopBridge, hasSharePicker } from "@/lib/desktop";
 import {
   toDeviceOptions,
   type ActiveDevices,
@@ -147,6 +147,35 @@ function alternarTelaCheiaDe(el: HTMLElement | null) {
 function ligarTela(sala: Sala, q: ScreenQuality) {
   const o = screenShareOptions(q);
   return sala.localParticipant.setScreenShareEnabled(true, o.capture, o.publish);
+}
+
+/**
+ * Reajusta a tela que já está no ar para a qualidade `q`: resolução e
+ * quadros na captura, teto de banda e quadros no codificador — sem abrir o
+ * seletor de novo.
+ */
+async function aplicarQualidade(sala: Sala, q: ScreenQuality) {
+  const faixa = sala.localParticipant.getTrackPublication(FONTE.tela)?.track;
+  const o = screenShareOptions(q);
+  try {
+    const mst = faixa?.mediaStreamTrack;
+    if (mst) {
+      await mst.applyConstraints(o.constraints);
+      mst.contentHint = o.capture.contentHint;
+    }
+    const sender = faixa?.sender;
+    if (sender) {
+      const params = sender.getParameters();
+      for (const enc of params.encodings ?? []) {
+        enc.maxBitrate = o.publish.screenShareEncoding.maxBitrate;
+        enc.maxFramerate = o.publish.screenShareEncoding.maxFramerate;
+      }
+      (params as { degradationPreference?: string }).degradationPreference = o.publish.degradationPreference;
+      await sender.setParameters(params);
+    }
+  } catch {
+    // Tela que não aceita a resolução pedida segue na que tinha.
+  }
 }
 
 /** O Chrome e o Edge deixam a página escolher o alto-falante; o Safari não. */
@@ -714,27 +743,46 @@ export function CallOverlay({
     saveScreenQuality(q);
     const sala = salaRef.current;
     if (!sala || !compartilhando) return;
-    const faixa = sala.localParticipant.getTrackPublication(FONTE.tela)?.track;
-    const o = screenShareOptions(q);
+    await aplicarQualidade(sala, q);
+  }
+
+  /*
+   * No app de desktop (0.0.7+) o seletor do próprio app já é o modal
+   * "Compartilhar tela" do desenho — fonte, resolução, quadros e som numa
+   * janela só. Então a página não abre o modal dela: conta ao app a
+   * qualidade de hoje, pede a tela e, com ela no ar, ajusta para o que foi
+   * escolhido lá.
+   */
+  async function compartilharNoDesktop() {
+    const desktop = desktopBridge();
+    const sala = salaRef.current;
+    if (!sala || !hasSharePicker(desktop)) return;
+    setModal(null);
+    desktop.setShareQuality({ resolution: qualidade.resolution, fps: qualidade.fps, systemAudio: qualidade.systemAudio });
     try {
-      const mst = faixa?.mediaStreamTrack;
-      if (mst) {
-        await mst.applyConstraints(o.constraints);
-        mst.contentHint = o.capture.contentHint;
-      }
-      const sender = faixa?.sender;
-      if (sender) {
-        const params = sender.getParameters();
-        for (const enc of params.encodings ?? []) {
-          enc.maxBitrate = o.publish.screenShareEncoding.maxBitrate;
-          enc.maxFramerate = o.publish.screenShareEncoding.maxFramerate;
-        }
-        (params as { degradationPreference?: string }).degradationPreference = o.publish.degradationPreference;
-        await sender.setParameters(params);
-      }
+      if (compartilhando) await sala.localParticipant.setScreenShareEnabled(false);
+      // Captura no teto e desce para a escolha: subir a resolução depois não
+      // funciona com toda captura. O som vai pedido — quem decide é a chave
+      // do seletor.
+      await ligarTela(sala, { ...qualidade, resolution: "original", fps: 60, systemAudio: true });
+      const escolhida = await desktop.takeShareQuality().catch(() => null);
+      const q: ScreenQuality = escolhida ? { ...qualidade, ...escolhida } : qualidade;
+      setQualidade(q);
+      saveScreenQuality(q);
+      await aplicarQualidade(sala, q);
+      setCompartilhando(true);
+      setMinhaTela(sala.localParticipant.getTrackPublication(FONTE.tela)?.track ?? null);
     } catch {
-      // Tela que não aceita a resolução pedida segue na que tinha.
+      // Cancelou no seletor: se já transmitia, a anterior parou.
+      setCompartilhando(false);
+      setMinhaTela(null);
     }
+  }
+
+  /** "Apresentar": no app de desktop novo, direto no seletor dele; senão, o modal. */
+  function abrirCompartilhar() {
+    if (hasSharePicker(desktopBridge())) void compartilharNoDesktop();
+    else setModal("tela");
   }
 
   async function reagir(emoji: Reaction) {
@@ -1150,10 +1198,10 @@ export function CallOverlay({
               }
               tone={compartilhando ? "on" : "neutral"}
               disabled={!ativo || !podeTela}
-              onClick={() => (compartilhando ? void pararTela() : setModal("tela"))}
+              onClick={() => (compartilhando ? void pararTela() : abrirCompartilhar())}
               chevron={
                 podeTela
-                  ? { label: compartilhando ? "Trocar o que estou apresentando" : "Opções de compartilhamento", onClick: () => setModal("tela") }
+                  ? { label: compartilhando ? "Trocar o que estou apresentando" : "Opções de compartilhamento", onClick: abrirCompartilhar }
                   : undefined
               }
             >

@@ -12,7 +12,7 @@ O que o desktop acrescenta ao navegador:
 | Fechar a janela | encerra o Inbox e a chamada | fica na **bandeja** (Windows e macOS) e continua recebendo mensagem e chamada |
 | Mudo na chamada | só com a aba em foco | **Ctrl/Cmd+Shift+M** funciona com qualquer janela na frente, ligado só durante a chamada |
 | Microfone, câmera, tela | pergunta a cada site | liberados para o black berry, e **só** para ele; o resto (localização, USB…) é recusado |
-| Compartilhar tela | seletor do navegador | seletor próprio com **Janelas** e **Telas** (miniaturas) e "Compartilhar o som" no Windows; no macOS 15+ o do sistema |
+| Compartilhar tela | modal do site + seletor do navegador | **uma janela só**, o modal "Compartilhar tela" do desenho: **Telas** e **Janelas** com miniatura, resolução, quadros e "Compartilhar áudio do sistema" (Windows); no macOS 15+ o do sistema |
 | Barra de título | a do navegador | **preta**, a cor do fundo do app |
 | Link externo (WhatsApp, e-mail) | abre outra aba | abre no navegador/app do sistema |
 | Abrir o app duas vezes | duas abas | traz a janela que já existe |
@@ -52,15 +52,21 @@ Privacidade e Segurança). Para distribuir para a equipe sem esse aviso é preci
 
 `src/preload.js` expõe `window.blackberryDesktop` (tipado em
 `src/lib/desktop.ts` do app web) — e mais nada: a página não enxerga Node nem
-Electron. Hoje são duas funções: `setInCall(bool)`, que a chamada
-(`CallOverlay`) chama ao conectar e ao sair, e `onToggleMute(cb)`, o atalho
-global. No navegador comum a ponte não existe e a página segue igual.
+Electron:
+
+- `setInCall(bool)` e `onToggleMute(cb)` — a chamada (`CallOverlay`) avisa quando entra e sai; enquanto dura, o atalho de mudo é global.
+- `show()` e `setUnread(n)` (0.0.5+) — trazer a janela pelo clique na notificação; não lidas na bandeja.
+- `sharePicker`, `setShareQuality(q)` e `takeShareQuality()` (0.0.7+) — a página conta a qualidade de tela que usa, o seletor abre com ela marcada, e depois a página busca o que foi escolhido lá (validado em `src/share-quality.js`). Com isso o desktop mostra só o modal do seletor, sem o do site antes.
+
+No navegador comum a ponte não existe e a página segue igual. O site sempre
+checa se a função existe antes de usar: um app antigo continua funcionando
+com o site novo.
 
 ## Arquivos
 
 - `src/main.js` — janela, bandeja, permissões, tela compartilhada, atalho.
 - `src/titlebar.html` — a barra de título preta (o site fica numa `WebContentsView` abaixo dela).
-- `src/screen-picker.js` e `src/picker/` — o seletor de tela compartilhada.
+- `src/screen-picker.js` e `src/picker/` — o seletor de tela compartilhada (o modal "Compartilhar tela" do export "Chamada · Call View"); `src/share-quality.js` valida a qualidade que vem dele e da página.
 - `src/policy.js` — as regras (qual endereço é do app, o que abre fora, quais permissões) — testadas em `tests/`.
 - `src/preload.js` — a ponte com a página.
 - `src/tray.png` / `tray@2x.png` e `build/icon.png` — o símbolo do logo oficial (`public/brand/`), na bandeja e no ícone do app. Gerados do `src/app/icon.svg` da raiz; se o logo mudar, gere de novo.

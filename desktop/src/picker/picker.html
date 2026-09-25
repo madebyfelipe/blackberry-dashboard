@@ -9,35 +9,100 @@
     <title>Compartilhar tela</title>
     <link rel="stylesheet" href="picker.css" />
   </head>
+  <!--
+    O modal "Compartilhar tela" do export "Chamada · Call View" (3b. Call
+    Modais), agora com as janelas e telas de verdade no lugar dos exemplos.
+    A aba "Aba" do desenho fica de fora: aba de navegador não existe no app
+    de desktop — o que dá para mostrar são telas e janelas.
+  -->
   <body>
-    <header class="topo">
-      <h1>Compartilhar tela</h1>
-      <button class="fechar" id="fechar" type="button" aria-label="Cancelar">
-        <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true">
-          <path d="M3.5 3.5l9 9m0-9l-9 9" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" />
-        </svg>
-      </button>
-    </header>
+    <div class="modal">
+      <header class="topo">
+        <div class="titulo">
+          <svg class="icone" viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M13 3H4a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-3" />
+            <path d="M8 21h8" />
+            <path d="M12 17v4" />
+            <path d="m17 8 5-5" />
+            <path d="M17 3h5v5" />
+          </svg>
+          <h1>Compartilhar tela</h1>
+        </div>
+        <button class="fechar" id="fechar" type="button" aria-label="Cancelar">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M18 6 6 18" />
+            <path d="m6 6 12 12" />
+          </svg>
+        </button>
+      </header>
 
-    <nav class="abas" role="tablist">
-      <button type="button" role="tab" data-aba="window" aria-selected="true">Janelas</button>
-      <button type="button" role="tab" data-aba="screen" aria-selected="false">Telas</button>
-    </nav>
+      <main class="corpo">
+        <nav class="abas" role="tablist" aria-label="O que compartilhar">
+          <button type="button" role="tab" data-aba="screen" aria-selected="true">Telas</button>
+          <button type="button" role="tab" data-aba="window" aria-selected="false">Janelas</button>
+        </nav>
 
-    <main class="grade" id="grade" role="listbox" aria-label="O que compartilhar"></main>
-    <p class="vazio" id="vazio" hidden>Nada para compartilhar aqui.</p>
+        <div class="fontes" id="grade" role="listbox" aria-label="Fontes"></div>
+        <p class="vazio" id="vazio" hidden>Nada para compartilhar aqui.</p>
 
-    <footer class="rodape">
-      <label class="som" id="som-rotulo" hidden>
-        <input type="checkbox" id="som" />
-        <span class="caixa" aria-hidden="true"></span>
-        Compartilhar o som
-      </label>
-      <div class="acoes">
+        <section class="qualidade" id="qualidade" hidden>
+          <div class="rotulo">Resolução</div>
+          <div class="chips" id="resolucao" role="radiogroup" aria-label="Resolução">
+            <button type="button" role="radio" data-valor="720p">720p</button>
+            <button type="button" role="radio" data-valor="1080p">1080p</button>
+            <button type="button" role="radio" data-valor="1440p">1440p</button>
+            <button type="button" role="radio" data-valor="original">Fonte</button>
+          </div>
+          <div class="rotulo">Taxa de quadros</div>
+          <div class="chips" id="quadros" role="radiogroup" aria-label="Taxa de quadros">
+            <button type="button" role="radio" data-valor="15">15 fps</button>
+            <button type="button" role="radio" data-valor="30">30 fps</button>
+            <button type="button" role="radio" data-valor="60">60 fps</button>
+          </div>
+        </section>
+
+        <div class="som" id="som-linha">
+          <div class="som-texto">
+            <span class="som-titulo">Compartilhar áudio do sistema</span>
+            <span class="som-dica" id="som-dica">Transmite o som do computador</span>
+          </div>
+          <button type="button" class="chave" id="som" role="switch" aria-checked="true" aria-label="Compartilhar áudio do sistema">
+            <span class="bolinha"></span>
+          </button>
+        </div>
+      </main>
+
+      <footer class="rodape">
         <button type="button" class="secundario" id="cancelar">Cancelar</button>
-        <button type="button" class="primario" id="compartilhar" disabled>Compartilhar</button>
-      </div>
-    </footer>
+        <button type="button" class="primario" id="compartilhar" disabled>
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M16.247 7.761a6 6 0 0 1 0 8.478" />
+            <path d="M19.075 4.933a10 10 0 0 1 0 14.134" />
+            <path d="M4.925 19.067a10 10 0 0 1 0-14.134" />
+            <path d="M7.753 16.239a6 6 0 0 1 0-8.478" />
+            <circle cx="12" cy="12" r="2" />
+          </svg>
+          Compartilhar
+        </button>
+      </footer>
+    </div>
+
+    <!-- Os ícones do cartão sem miniatura: tela e janela (lucide). -->
+    <template id="icone-screen">
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <rect width="20" height="14" x="2" y="3" rx="2" />
+        <line x1="8" x2="16" y1="21" y2="21" />
+        <line x1="12" x2="12" y1="17" y2="21" />
+      </svg>
+    </template>
+    <template id="icone-window">
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <rect x="2" y="4" width="20" height="16" rx="2" />
+        <path d="M10 4v4" />
+        <path d="M2 8h20" />
+        <path d="M6 4v4" />
+      </svg>
+    </template>
 
     <script src="picker.js"></script>
   </body>

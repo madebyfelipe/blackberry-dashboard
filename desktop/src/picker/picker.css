@@ -1,15 +1,18 @@
-/* As cores são os tokens do app web (src/app/globals.css). */
+/*
+ * O modal "Compartilhar tela" do export "Chamada · Call View" — mesmas
+ * medidas e as cores dos tokens do app web (src/app/globals.css).
+ */
 :root {
-  --bg: #000000;
   --surface: #141414;
   --surface-2: #1b1b1b;
   --border: #2b2b2b;
-  --border-strong: #414141;
+  --ring: #ffffff14;
   --fg: #ffffff;
-  --fg-2: #c9c9c9;
+  --fg-soft: #e8e8e8;
   --muted: #898989;
   --primary: #e8e8e8;
-  --on-primary: #141414;
+  --thumb-from: #26262f;
+  --thumb-to: #14141a;
   color-scheme: dark;
 }
 
@@ -21,15 +24,12 @@ html,
 body {
   margin: 0;
   height: 100%;
+  background: transparent;
 }
 
 body {
-  display: flex;
-  flex-direction: column;
-  background: var(--surface);
   color: var(--fg);
-  font: 13px/1.4 "Inter", "Segoe UI", system-ui, -apple-system, sans-serif;
-  border: 1px solid var(--border);
+  font: 13px/normal "Inter", "Segoe UI", system-ui, -apple-system, sans-serif;
   user-select: none;
   overflow: hidden;
 }
@@ -38,20 +38,65 @@ button {
   font: inherit;
   color: inherit;
   cursor: pointer;
+  border: 0;
+  background: none;
+  padding: 0;
+}
+
+button:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+svg {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* A janela é o próprio modal: 480px, raio 16, contorno de 8% de branco. */
+.modal {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: var(--surface-2);
+  border: 1px solid var(--ring);
+  border-radius: 16px;
+  overflow: hidden;
+}
+
+/* Linux sem compositor não tem janela transparente: sem cantos. */
+.sem-transparencia .modal {
+  border-radius: 0;
 }
 
 .topo {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 16px 16px 12px 20px;
+  padding: 16px 18px;
+  border-bottom: 1px solid var(--ring);
   -webkit-app-region: drag;
 }
 
-.topo h1 {
+.titulo {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.titulo .icone {
+  width: 18px;
+  height: 18px;
+  color: var(--fg);
+}
+
+.titulo h1 {
   margin: 0;
   font-size: 15px;
-  font-weight: 600;
+  font-weight: 700;
 }
 
 .fechar {
@@ -60,84 +105,112 @@ button {
   place-items: center;
   width: 28px;
   height: 28px;
-  border: 0;
   border-radius: 8px;
-  background: transparent;
-  color: var(--muted);
+  background: var(--border);
+  color: var(--fg-soft);
+}
+
+.fechar svg {
+  width: 15px;
+  height: 15px;
 }
 
 .fechar:hover {
-  background: var(--surface-2);
-  color: var(--fg);
+  background: #414141;
 }
 
+.corpo {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  flex-direction: column;
+  gap: 16px;
+  padding: 18px;
+}
+
+/* Abas: a tira de 3px de respiro, a ativa em `border`. */
 .abas {
   display: flex;
-  gap: 4px;
-  padding: 0 20px 12px;
-  border-bottom: 1px solid var(--border);
+  gap: 2px;
+  padding: 3px;
+  border-radius: 8px;
+  background: var(--surface);
 }
 
 .abas button {
-  border: 0;
-  border-radius: 8px;
-  padding: 6px 12px;
-  background: transparent;
-  color: var(--muted);
+  flex: 1;
+  padding: 7px 0;
+  border-radius: 6px;
+  font-size: 12px;
   font-weight: 500;
+  color: var(--muted);
 }
 
 .abas button:hover {
-  color: var(--fg);
+  color: var(--fg-soft);
 }
 
 .abas button[aria-selected="true"] {
-  background: var(--surface-2);
+  background: var(--border);
   color: var(--fg);
+  font-weight: 600;
 }
 
-.grade {
-  flex: 1;
+/* As fontes: duas por linha; rola quando passa de duas linhas. */
+.fontes {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
-  align-content: start;
+  grid-template-columns: 1fr 1fr;
   gap: 12px;
-  padding: 16px 20px;
+  flex: 1;
+  min-height: 0;
   overflow-y: auto;
+  align-content: start;
+  grid-auto-rows: max-content;
+  padding: 2px;
+  margin: -2px;
+}
+
+.fontes::-webkit-scrollbar {
+  width: 8px;
+}
+
+.fontes::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 8px;
 }
 
 .fonte {
   display: flex;
   flex-direction: column;
   gap: 8px;
+  min-width: 0;
   padding: 8px;
-  border: 1px solid transparent;
-  border-radius: 12px;
-  background: transparent;
+  border-radius: 10px;
+  background: var(--surface);
+  border: 1px solid var(--ring);
   text-align: left;
 }
 
 .fonte:hover {
-  background: var(--surface-2);
+  border-color: #ffffff33;
 }
 
+/* A escolhida: contorno de 2px claro e o fundo com 8% do claro, como no desenho. */
 .fonte[aria-selected="true"] {
-  border-color: var(--primary);
-  background: var(--surface-2);
-}
-
-.fonte:focus-visible {
-  outline: 2px solid var(--primary);
-  outline-offset: 2px;
+  background: #e8e8e814;
+  border: 2px solid var(--primary);
+  padding: 7px;
 }
 
 .miniatura {
+  position: relative;
   display: grid;
   place-items: center;
-  aspect-ratio: 16 / 9;
-  border-radius: 8px;
-  background: var(--bg);
+  height: 88px;
+  border-radius: 6px;
   overflow: hidden;
+  background: linear-gradient(-110deg, var(--thumb-from) 12.5%, var(--thumb-to) 87.5%);
+  color: var(--muted);
 }
 
 .miniatura img {
@@ -146,104 +219,197 @@ button {
   object-fit: contain;
 }
 
+.miniatura svg {
+  width: 26px;
+  height: 26px;
+}
+
 .nome {
   display: flex;
   align-items: center;
   gap: 6px;
   min-width: 0;
-  color: var(--fg-2);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--fg-soft);
+}
+
+.fonte[aria-selected="true"] .nome {
+  color: var(--fg);
 }
 
 .nome img {
-  flex: none;
-  width: 16px;
-  height: 16px;
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
 }
 
 .nome span {
   overflow: hidden;
-  white-space: nowrap;
   text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.vazio[hidden],
+.fontes[hidden] {
+  display: none;
 }
 
 .vazio {
   flex: 1;
   margin: 0;
-  padding: 40px 20px;
-  text-align: center;
+  display: grid;
+  place-items: center;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.qualidade {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.qualidade[hidden] {
+  display: none;
+}
+
+.rotulo {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
   color: var(--muted);
 }
 
-.rodape {
+.chips {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 12px 20px 16px;
-  border-top: 1px solid var(--border);
+  gap: 8px;
+}
+
+.chips button {
+  padding: 7px 13px;
+  border-radius: 8px;
+  background: var(--border);
+  border: 1px solid var(--ring);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--fg-soft);
+}
+
+.chips button:hover {
+  background: #414141;
+}
+
+.chips button[aria-checked="true"] {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: #000;
 }
 
 .som {
   display: flex;
   align-items: center;
-  gap: 8px;
-  color: var(--fg-2);
-  cursor: pointer;
+  justify-content: space-between;
+  gap: 12px;
 }
 
-.som input {
-  position: absolute;
-  opacity: 0;
-  pointer-events: none;
-}
-
-.caixa {
-  width: 16px;
-  height: 16px;
-  border: 1px solid var(--border-strong);
-  border-radius: 4px;
-}
-
-.som input:checked + .caixa {
-  border-color: var(--primary);
-  background: var(--primary)
-    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M4 8.5l2.5 2.5L12 5.5' fill='none' stroke='%23141414' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E")
-    center / 14px no-repeat;
-}
-
-.som input:focus-visible + .caixa {
-  outline: 2px solid var(--primary);
-  outline-offset: 2px;
-}
-
-.acoes {
+.som-texto {
   display: flex;
-  gap: 8px;
-  margin-left: auto;
+  flex-direction: column;
+  gap: 2px;
 }
 
-.acoes button {
+.som-titulo {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--fg);
+}
+
+.som-dica {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+/* A chave de 40×24 do desenho. */
+.chave {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  flex-shrink: 0;
+  width: 40px;
+  height: 24px;
+  padding: 3px;
   border-radius: 999px;
-  padding: 8px 16px;
-  font-weight: 500;
+  background: var(--border);
+  transition: background 0.15s;
+}
+
+.chave .bolinha {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--muted);
+  transition: background 0.15s;
+}
+
+.chave[aria-checked="true"] {
+  justify-content: flex-end;
+  background: var(--primary);
+}
+
+.chave[aria-checked="true"] .bolinha {
+  background: #000;
+}
+
+.chave:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.rodape {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 14px 18px;
+  border-top: 1px solid var(--ring);
+}
+
+.rodape button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 16px;
+  border-radius: 8px;
+  font-size: 13px;
 }
 
 .secundario {
-  border: 1px solid var(--border);
-  background: transparent;
+  background: var(--border);
+  color: var(--fg-soft);
+  font-weight: 600;
 }
 
 .secundario:hover {
-  background: var(--surface-2);
+  background: #414141;
 }
 
 .primario {
-  border: 1px solid var(--primary);
   background: var(--primary);
-  color: var(--on-primary);
+  color: #000;
+  font-weight: 700;
+}
+
+.primario:hover:not(:disabled) {
+  background: #fff;
+}
+
+.primario svg {
+  width: 15px;
+  height: 15px;
 }
 
 .primario:disabled {
-  opacity: 0.4;
-  cursor: default;
+  cursor: not-allowed;
+  opacity: 0.45;
 }
