@@ -60,7 +60,7 @@ Dá para criar outra conta em `/criar-conta` — o cadastro já entra logado.
 | `AUTH_SECRET` | Chave que assina o cookie de sessão. **Obrigatória em produção** (mín. 16 caracteres): sem ela o servidor recusa subir e qualquer assinatura/conferência de cookie lança. Gere com `openssl rand -base64 32` e defina em Vercel → Settings → Environment Variables. Fora de produção o app cai num segredo de desenvolvimento, que não protege nada e invalida as sessões a cada deploy. |
 | `DEMO_PASSWORD` | Senha da conta semeada, para instalações compartilhadas. |
 | `DATABASE_URL` | String de conexão do Postgres (Neon, criado pelo marketplace da Vercel — Storage → Marketplace Database Providers → Neon). Presente, os cinco stores (tarefas, clientes, lotes, contas, índice de mídia — e o Inbox) passam a gravar lá. Ausente, o app usa arquivo JSON local (dev) — nunca em produção sem disco gravável. |
-| `TENOR_API_KEY` · `GIPHY_API_KEY` | A biblioteca de GIFs do Inbox (uma das duas basta; com as duas vale o Tenor). A chave fica no servidor — o navegador busca por `/api/inbox/gifs`. Sem nenhuma, o botão de GIF diz o que configurar. |
+| `TENOR_API_KEY` · `GIPHY_API_KEY` | A biblioteca de GIFs do Inbox (uma das duas basta; com as duas vale o Giphy — o Tenor anunciou o fim da API). A chave fica no servidor — o navegador busca por `/api/inbox/gifs`. Sem nenhuma, o botão de GIF diz o que configurar. |
 | `BLOB_READ_WRITE_TOKEN` | Token do Vercel Blob (Storage → Create Database → Blob), injetado automaticamente ao conectar o projeto. Presente, a arte vai do navegador **direto** para o Blob (sem passar pela função, ver "O teto de 4,5 MB") e sobrevive a redeploy. Ausente, o editor volta ao upload multipart e os bytes ficam em `data/uploads/`, com fallback em memória em disco somente-leitura. **O store precisa ser criado com acesso "Private"** — ver "Store privado" abaixo; a Vercel não deixa trocar o modo de acesso depois de criado. |
 
 ## Rotas principais
@@ -421,6 +421,14 @@ Ably (`{ tipo: "notificacao" }`); sem tempo real, o notificador relê a cada
   que veio do navegador.
 - **GIF** é o único anexo que aponta para fora: só entra endereço do CDN do
   Tenor ou do Giphy (`isGifUrl`).
+- **Mensagem de voz** toca no player do export "Inbox · Áudio"
+  (`components/inbox/VoicePlayer`). Duração e forma de onda são medidas no
+  navegador de quem manda (`audioAnalysis.ts`, decodificando a 8 kHz) e
+  sobem junto com o registro do anexo; o servidor limpa os números em
+  `voiceMeta` (`lib/inbox/voice.ts`) e só os guarda em arquivo de áudio.
+  Medir na origem resolve duas coisas: o WebM do gravador do Chrome chega sem
+  duração no cabeçalho, e quem ouve não precisa baixar o áudio inteiro para
+  ver as barras. Anexo antigo, sem as medidas, é medido por quem ouve.
 
 ## Notificações e a chave do Ably
 

@@ -105,6 +105,10 @@ export type Attachment = {
   size: number;
   width?: number;
   height?: number;
+  /** Só áudio: segundos, medidos no navegador de quem mandou (ver `voice.ts`). */
+  duration?: number;
+  /** Só áudio: as barras da forma de onda, de 0 a 100. */
+  waveform?: number[];
 };
 
 export type Message = {

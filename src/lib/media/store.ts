@@ -116,6 +116,12 @@ async function fetchBlobBytes(
 }
 
 /**
+ * Duração e forma de onda de um áudio, medidas no navegador e já limpas por
+ * `voiceMeta` — só entram no registro quando o arquivo é áudio mesmo.
+ */
+type AudioMeta = Pick<MediaAsset, "duration" | "waveform">;
+
+/**
  * Grava uma arte e devolve o registro.
  *
  * O id é aleatório e longo porque a URL da mídia é servida sem sessão — é o
@@ -123,7 +129,7 @@ async function fetchBlobBytes(
  */
 export async function saveMedia(
   bytes: Uint8Array,
-  meta: { mime: string; name: string; owner?: MediaAsset["owner"] },
+  meta: { mime: string; name: string; owner?: MediaAsset["owner"]; audio?: AudioMeta },
   policy: MediaPolicy = ART_POLICY,
 ): Promise<MediaAsset> {
   const mime = baseMime(meta.mime);
@@ -143,6 +149,7 @@ export async function saveMedia(
     size: bytes.byteLength,
     width: dims?.width,
     height: dims?.height,
+    ...(accepted.kind === "audio" ? meta.audio : {}),
     createdAt: new Date().toISOString(),
     ...(meta.owner ? { owner: meta.owner } : {}),
   };
@@ -261,6 +268,7 @@ export async function saveBlobMedia(
     pathname: string;
     name: string;
     owner?: MediaAsset["owner"];
+    audio?: AudioMeta;
   },
   policy: MediaPolicy = ART_POLICY,
 ): Promise<MediaAsset> {
@@ -297,6 +305,7 @@ export async function saveBlobMedia(
     size: found.size,
     width: dims?.width,
     height: dims?.height,
+    ...(accepted.kind === "audio" ? meta.audio : {}),
     createdAt: new Date().toISOString(),
     blobUrl: found.url,
     blobPathname: found.pathname,

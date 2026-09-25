@@ -14,6 +14,12 @@ export type MediaAsset = {
   /** Dimensões, quando dá para ler do cabeçalho do arquivo. */
   width?: number;
   height?: number;
+  /**
+   * Só áudio de conversa: duração (s) e forma de onda, que o navegador de
+   * quem subiu mede antes de mandar — ver `src/lib/inbox/voice.ts`.
+   */
+  duration?: number;
+  waveform?: number[];
   createdAt: string;
   /** URL do objeto no Vercel Blob, quando `BLOB_READ_WRITE_TOKEN` está configurado. */
   blobUrl?: string;

@@ -5,6 +5,7 @@ import { handleProblem, normalizeHandle, suggestHandle } from "./handle";
 import { isMemberRole, isMemberStatus } from "./users";
 import { normalizeDomain } from "./domain";
 import { seedInbox } from "./seed";
+import { voiceMeta } from "./voice";
 import type { Attachment, Conversation, InboxData, InboxMember, Message } from "./types";
 
 /*
@@ -79,6 +80,7 @@ function normalizeAttachment(raw: unknown): Attachment | null {
     size: Number.isFinite(a.size) ? Number(a.size) : 0,
     ...(Number.isFinite(a.width) ? { width: Number(a.width) } : {}),
     ...(Number.isFinite(a.height) ? { height: Number(a.height) } : {}),
+    ...(a.kind === "audio" ? voiceMeta(a) : {}),
   };
 }
 
