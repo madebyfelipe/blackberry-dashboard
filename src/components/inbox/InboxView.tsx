@@ -326,6 +326,8 @@ export function InboxView({
   }
 
   async function open(id: string) {
+    // Abrir outra conversa com a chamada aberta a recolhe no cartão do canto — ela segue.
+    if (call.activeId && !call.minimized && id !== call.activeId) call.minimize();
     setOpenId(id);
     setShowChat(true);
     markReadLocally(id);
@@ -489,6 +491,22 @@ export function InboxView({
     [call],
   );
 
+  /*
+   * Abrir a chamada (o cartão do canto, o "voltar" de outra tela) mostra a
+   * conversa dela: é no lugar dessa conversa que a chamada se desenha.
+   */
+  const openRef = useRef(open);
+  openRef.current = open;
+  useEffect(() => {
+    if (call.activeId && !call.minimized && openIdRef.current !== call.activeId) {
+      void openRef.current(call.activeId);
+    }
+  }, [call.activeId, call.minimized]);
+
+  /** No desktop a chamada aberta toma o lugar da conversa dela; no celular ela cobre a tela. */
+  // Pelo `openId` (e não pelo `detail`, que chega depois da rede): o lugar já existe no clique.
+  const callHere = !!openId && call.activeId === openId && !call.minimized && !mobile;
+
   async function toggleMuted() {
     if (!detail) return;
     const muted = !detail.muted;
@@ -550,7 +568,9 @@ export function InboxView({
         className={showChat ? "hidden md:flex" : "flex"}
       />
 
-      {detail ? (
+      {callHere ? (
+        <div ref={call.setSlot} className="hidden min-w-0 flex-1 md:block" />
+      ) : detail ? (
         <ChatPane
           detail={{ ...detail, ...aoVivo(detail) }}
           me={state.me}

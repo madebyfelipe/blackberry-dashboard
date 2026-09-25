@@ -182,3 +182,15 @@ describe("deleteClient", () => {
     assert.equal(await deleteClient(AGENCIA_A, c.id), false);
   });
 });
+
+describe("contato principal e NPS (ficha do cliente)", () => {
+  test("NPS de 0 a 10 com uma casa; fora disso é erro", async () => {
+    const c = await criar({ contactName: " Dra. Helena Rocha ", nps: 9.24 });
+    assert.equal(c.contactName, "Dra. Helena Rocha");
+    assert.equal(c.nps, 9.2);
+    assert.equal((await updateClient(AGENCIA_A, c.id, { nps: "8,5" as never }))?.nps, 8.5);
+    assert.equal((await updateClient(AGENCIA_A, c.id, { nps: null }))?.nps, null);
+    await assert.rejects(() => updateClient(AGENCIA_A, c.id, { nps: 11 }), ValidationError);
+    await assert.rejects(() => criar({ nps: -1 }), ValidationError);
+  });
+});

@@ -1,26 +1,32 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { cn } from "@/lib/cn";
 import {
-  FullscreenIcon,
+  ChevronUpIcon,
+  EllipsisIcon,
+  LayoutGridIcon,
   Maximize2Icon,
-  MaximizeIcon,
+  MessageSquareIcon,
   MicIcon,
   MicOffIcon,
   Minimize2Icon,
-  MinimizeIcon,
-  ReplaceIcon,
   PhoneOffIcon,
   ScreenShareIcon,
-  Settings2Icon,
+  SettingsIcon,
+  SignalHighIcon,
+  SmilePlusIcon,
+  UsersIcon,
+  VideoIcon,
+  VideoOffIcon,
+  XIcon,
 } from "@/components/icons";
 import { Popover } from "@/components/ui/Popover";
+import { MenuDropdown, MenuPanel, MenuRow, MenuTitle, MenuToggle } from "@/components/ui/MenuPanel";
 import type { ConversationDetail, InboxMember } from "@/lib/inbox/types";
 import { callClock, initialsOf } from "@/lib/inbox/view";
 import { apiJoinCall, apiLeaveCall, apiTouchCall, leaveCallOnExit } from "./api";
 import { CALL_HEARTBEAT_MS } from "@/lib/inbox/call";
-import { CallSettingsMenu } from "./CallSettingsMenu";
 import { desktopBridge } from "@/lib/desktop";
 import {
   toDeviceOptions,
@@ -35,16 +41,33 @@ import {
   screenShareOptions,
   type ScreenQuality,
 } from "@/lib/inbox/screenQuality";
+import {
+  DEFAULT_CAMERA_PREFS,
+  REACTIONS,
+  REACTION_MS,
+  cameraCapture,
+  cameraEffects,
+  decodeReaction,
+  encodeReaction,
+  loadCameraPrefs,
+  saveCameraPrefs,
+  supportsEffect,
+  type CameraPrefs,
+  type Reaction,
+} from "@/lib/inbox/callPrefs";
+import { CameraModal, ShareScreenModal, StreamQualityModal } from "./CallModals";
 
 /*
- * A chamada, no popup que o Felipe pediu: os dois avatares frente a frente, o
- * cronômetro e os controles embaixo. Ela vive **dentro** da conversa — sai
- * daqui e o chat continua exatamente onde estava.
+ * A chamada — export "Call View (Discord)" e "Modais de controle da
+ * chamada". Aberta, ela ocupa o lugar da conversa no Inbox: cabeçalho com a
+ * sala e o tempo, os quadros de quem está na chamada, o palco de quem
+ * apresenta e a barra de controles embaixo. Minimizada, vira o cartão do
+ * canto e a sala segue de pé enquanto a pessoa usa o resto do produto.
  *
- * O áudio e a tela passam pelo LiveKit, e a sala é a da conversa: o crachá é
- * emitido pelo servidor, vale para uma sala só e leva a identidade do membro
- * (ver `/api/inbox/conversations/[id]/call`). O navegador nunca escolhe em que
- * sala entra.
+ * O áudio, a câmera e a tela passam pelo LiveKit, e a sala é a da conversa:
+ * o crachá é emitido pelo servidor, vale para uma sala só e leva a
+ * identidade do membro (ver `/api/inbox/conversations/[id]/call`). O
+ * navegador nunca escolhe em que sala entra.
  *
  * Sem provedor de mídia configurado no ambiente, a chamada ainda abre: conta o
  * tempo e deixa o registro no histórico, com os controles desligados dizendo
@@ -64,14 +87,15 @@ type Faixa = {
   kind: string;
   source: string;
   attach: (el?: HTMLMediaElement) => HTMLMediaElement;
-  detach: () => HTMLMediaElement[];
+  detach: (el?: HTMLMediaElement) => unknown;
+  attachedElements?: HTMLMediaElement[];
+  mediaStreamTrack?: MediaStreamTrack;
 };
 type Publicacao = {
   isMuted: boolean;
   source?: string;
   track?: Faixa & {
     restartTrack?: (opcoes: unknown) => Promise<void>;
-    mediaStreamTrack?: MediaStreamTrack;
     sender?: RTCRtpSender;
   };
 };
@@ -81,6 +105,10 @@ type Captura = {
   echoCancellation?: boolean;
   autoGainControl?: boolean;
 };
+type Participante = {
+  identity: string;
+  getTrackPublication: (source: string) => Publicacao | undefined;
+};
 type Sala = {
   connect: (url: string, token: string) => Promise<void>;
   disconnect: () => Promise<void>;
@@ -88,39 +116,33 @@ type Sala = {
   switchActiveDevice: (kind: DeviceKind, deviceId: string) => Promise<boolean>;
   getActiveDevice: (kind: DeviceKind) => string | undefined;
   localParticipant: {
+    identity: string;
     setMicrophoneEnabled: (on: boolean, opcoes?: Captura) => Promise<unknown>;
-    setCameraEnabled: (
-      on: boolean,
-      opcoes?: { deviceId?: string },
-    ) => Promise<Publicacao | undefined>;
+    setCameraEnabled: (on: boolean, opcoes?: ReturnType<typeof cameraCapture>) => Promise<Publicacao | undefined>;
     setScreenShareEnabled: (on: boolean, captura?: unknown, publicacao?: unknown) => Promise<unknown>;
     getTrackPublication: (source: string) => Publicacao | undefined;
+    publishData: (data: Uint8Array, opcoes?: { reliable?: boolean }) => Promise<void>;
   };
-  remoteParticipants: Map<
-    string,
-    {
-      identity: string;
-      name?: string;
-      getTrackPublication: (source: string) => Publicacao | undefined;
-    }
-  >;
+  remoteParticipants: Map<string, Participante>;
   on: (evento: string, handler: (...args: never[]) => void) => Sala;
 };
 
+/** Quem está do outro lado, do jeito que a tela desenha. */
+type Remoto = { id: string; camera: Faixa | null; tela: Faixa | null; mudo: boolean };
+
 const SEM_APARELHOS: CallDevices = { audioinput: [], audiooutput: [], videoinput: [] };
 
-/** Largura mínima do popup redimensionado — a do desenho sem tela. */
-const LARGURA_MIN = 380;
-const LARGURA_KEY = "bb:largura-chamada";
+/** Os nomes que o LiveKit dá às fontes — fixos, para não importar a biblioteca no render. */
+const FONTE = { camera: "camera", tela: "screen_share", microfone: "microphone" } as const;
 
-/** Tela cheia da transmissão: entra, ou sai se já estiver nela. */
+/** Tela cheia de um elemento: entra, ou sai se já estiver nela. */
 function alternarTelaCheiaDe(el: HTMLElement | null) {
   if (!el) return;
   if (document.fullscreenElement) void document.exitFullscreen().catch(() => undefined);
   else void el.requestFullscreen?.().catch(() => undefined);
 }
 
-/** Liga a tela com a qualidade escolhida (resolução, quadros, nitidez/fluidez). */
+/** Liga a tela com a escolha do modal (tipo, resolução, quadros, som). */
 function ligarTela(sala: Sala, q: ScreenQuality) {
   const o = screenShareOptions(q);
   return sala.localParticipant.setScreenShareEnabled(true, o.capture, o.publish);
@@ -128,10 +150,19 @@ function ligarTela(sala: Sala, q: ScreenQuality) {
 
 /** O Chrome e o Edge deixam a página escolher o alto-falante; o Safari não. */
 function escolheSaida(): boolean {
-  return (
-    typeof HTMLMediaElement !== "undefined" &&
-    "setSinkId" in HTMLMediaElement.prototype
+  return typeof HTMLMediaElement !== "undefined" && "setSinkId" in HTMLMediaElement.prototype;
+}
+
+/** Os efeitos da câmera (desfoque, iluminação) que o aparelho oferece. */
+function aplicarEfeitos(faixa: Faixa | undefined, prefs: CameraPrefs) {
+  const mst = faixa?.mediaStreamTrack;
+  if (!mst) return;
+  const caps = (mst.getCapabilities?.() as Record<string, unknown>) ?? {};
+  const pedidos = cameraEffects(prefs, caps);
+  const valem = Object.fromEntries(
+    Object.entries(pedidos).filter(([k]) => supportsEffect(caps, k === "backgroundBlur" ? "blur" : "lighting")),
   );
+  if (Object.keys(valem).length) void mst.applyConstraints(valem as MediaTrackConstraints).catch(() => undefined);
 }
 
 export function CallOverlay({
@@ -139,6 +170,7 @@ export function CallOverlay({
   me,
   withScreen,
   minimized,
+  slot,
   onMinimize,
   onExpand,
   onClose,
@@ -147,11 +179,10 @@ export function CallOverlay({
   me: InboxMember;
   /** Chamada aberta pelo botão de tela compartilhada. */
   withScreen: boolean;
-  /**
-   * Recolhida no cartão do canto, como a do Discord: a sala segue de pé e a
-   * pessoa continua usando o resto do produto.
-   */
+  /** Recolhida no cartão do canto: a sala segue de pé. */
   minimized: boolean;
+  /** O lugar da conversa no Inbox; sem ele, a chamada ocupa a tela inteira. */
+  slot: HTMLElement | null;
   onMinimize: () => void;
   onExpand: () => void;
   /** Fecha a chamada. Vem com a conversa atualizada quando o servidor respondeu. */
@@ -161,68 +192,56 @@ export function CallOverlay({
   const [mudo, setMudo] = useState(false);
   const [compartilhando, setCompartilhando] = useState(false);
   const [naSala, setNaSala] = useState<string[]>([]);
+  const [remotos, setRemotos] = useState<Remoto[]>([]);
+  const [falando, setFalando] = useState<Set<string>>(new Set());
+  const [meuVideo, setMeuVideo] = useState<Faixa | null>(null);
+  const [minhaTela, setMinhaTela] = useState<Faixa | null>(null);
+  const [reacoes, setReacoes] = useState<Record<string, { emoji: Reaction; key: number }>>({});
 
   const salaRef = useRef<Sala | null>(null);
   const startedAt = useRef(0);
   /** Onde os <audio> das outras pessoas são pendurados — não aparecem na tela. */
   const audioRef = useRef<HTMLDivElement>(null);
-  /** A tela compartilhada, quando alguém está compartilhando. */
-  const videoRef = useRef<HTMLVideoElement>(null);
-  const [temTela, setTemTela] = useState(false);
+  /** O vídeo do palco (quem apresenta) — de onde sai o selo de resolução. */
+  const palcoBoxRef = useRef<HTMLDivElement>(null);
+  /** A chamada inteira — o que vai para a tela cheia pelo botão do cabeçalho. */
+  const vistaRef = useRef<HTMLDivElement>(null);
   /** O navegador recusou o microfone: a chamada segue, ouvindo e mostrando tela. */
   const [semMicrofone, setSemMicrofone] = useState(false);
 
-  /*
-   * O menu de ajustes: aparelhos do computador, qual está em uso, câmera e
-   * redução de ruído. Tudo isso só existe com a sala conectada.
-   */
-  const [menuAberto, setMenuAberto] = useState(false);
-  const menuAbertoRef = useRef(menuAberto);
-  menuAbertoRef.current = menuAberto;
   const [aparelhos, setAparelhos] = useState<CallDevices>(SEM_APARELHOS);
   const [ativos, setAtivos] = useState<ActiveDevices>({});
   const ativosRef = useRef(ativos);
   ativosRef.current = ativos;
   const [saidaSuportada, setSaidaSuportada] = useState(false);
   const [camera, setCamera] = useState(false);
-  const [cameraRemota, setCameraRemota] = useState(false);
   const [semCamera, setSemCamera] = useState(false);
   const [reduzirRuido, setReduzirRuido] = useState(true);
-  /** A sua câmera (espelhada, como um espelho) e a do outro lado. */
-  const cameraLocalRef = useRef<HTMLVideoElement>(null);
-  const cameraRemotaRef = useRef<HTMLVideoElement>(null);
-  /** Relê a lista de aparelhos — preenchida quando a sala conecta. */
   const lerAparelhosRef = useRef<() => Promise<void>>(async () => {});
-  /** A qualidade da transmissão — preferência guardada entre chamadas. */
+
+  /** A qualidade da transmissão e a câmera — preferências guardadas entre chamadas. */
   const [qualidade, setQualidade] = useState<ScreenQuality>(DEFAULT_SCREEN_QUALITY);
   const qualidadeRef = useRef(qualidade);
   qualidadeRef.current = qualidade;
-  useEffect(() => setQualidade(loadScreenQuality()), []);
-  /** Ver a própria tela enquanto transmite (desligado: poupa processamento). */
-  const [previa, setPrevia] = useState(false);
-  const previaRef = useRef<HTMLVideoElement>(null);
-  /** O popup ocupando a janela inteira, para ver a tela grande. */
-  const [maximizado, setMaximizado] = useState(false);
-  /** A largura escolhida arrastando o canto; `null` é a do desenho. */
-  const [largura, setLargura] = useState<number | null>(null);
+  const [cameraPrefs, setCameraPrefs] = useState<CameraPrefs>(DEFAULT_CAMERA_PREFS);
   useEffect(() => {
-    try {
-      const salvo = Number(localStorage.getItem(LARGURA_KEY));
-      if (salvo >= LARGURA_MIN) setLargura(salvo);
-    } catch {
-      // Sem armazenamento: começa na largura do desenho.
-    }
+    setQualidade(loadScreenQuality());
+    setCameraPrefs(loadCameraPrefs());
   }, []);
-  /** Onde a tela compartilhada mora — é ele que vai para a tela cheia. */
-  const telaRef = useRef<HTMLDivElement>(null);
+
+  const [modal, setModal] = useState<"tela" | "camera" | "qualidade" | null>(null);
+  const [menu, setMenu] = useState<"audio" | "reagir" | "mais" | null>(null);
+  const [painel, setPainel] = useState(false);
+  const [layout, setLayout] = useState<"palco" | "grade">("palco");
   const [telaCheia, setTelaCheia] = useState(false);
-  /** Resolução e quadros que estão chegando de verdade, para o selo da tela. */
+  /** Resolução e quadros que estão chegando de verdade, para o selo do palco. */
   const [recebendo, setRecebendo] = useState<{ w: number; h: number; fps: number } | null>(null);
   /** Celular não compartilha tela pelo navegador — o botão não promete. */
   const [podeTela, setPodeTela] = useState(true);
   useEffect(() => {
     setPodeTela(typeof navigator.mediaDevices?.getDisplayMedia === "function");
   }, []);
+
   /**
    * Já avisamos o servidor que saímos? A saída tem três portas (o botão, a
    * aba fechando, a tela desmontando) e só a primeira que passar avisa.
@@ -232,8 +251,41 @@ export function CallOverlay({
   /** Qual montagem do efeito de entrada é a atual (o modo estrito monta duas). */
   const rodadaRef = useRef(0);
 
-  // Cronômetro. Começa quando a chamada entra em tela, não no render. Quem
-  // conta os segundos é o `<Cronometro>`: só o texto dele muda a cada segundo.
+  // Onde desenhar: em cima do lugar da conversa no Inbox, acompanhando o tamanho dele.
+  const [lugar, setLugar] = useState<{ top: number; left: number; width: number; height: number } | null>(null);
+  useLayoutEffect(() => {
+    if (!slot) {
+      setLugar(null);
+      return;
+    }
+    const medir = () => {
+      const r = slot.getBoundingClientRect();
+      setLugar({ top: r.top, left: r.left, width: r.width, height: r.height });
+    };
+    medir();
+    const ro = new ResizeObserver(medir);
+    ro.observe(slot);
+    window.addEventListener("resize", medir);
+    return () => {
+      ro.disconnect();
+      window.removeEventListener("resize", medir);
+    };
+  }, [slot]);
+
+  const mostrarReacao = useCallback((id: string, emoji: Reaction) => {
+    const key = Date.now() + Math.random();
+    setReacoes((r) => ({ ...r, [id]: { emoji, key } }));
+    setTimeout(() => {
+      setReacoes((r) => {
+        if (r[id]?.key !== key) return r;
+        const { [id]: _saiu, ...resto } = r;
+        void _saiu;
+        return resto;
+      });
+    }, REACTION_MS);
+  }, []);
+
+  // Cronômetro. Começa quando a chamada entra em tela, não no render.
   useEffect(() => {
     startedAt.current = Date.now();
   }, []);
@@ -281,35 +333,34 @@ export function CallOverlay({
         sala = new Room({ adaptiveStream: true, dynacast: true }) as unknown as Sala;
         salaRef.current = sala;
 
-        const anotarQuemEsta = () => {
-          if (!vivo || !sala) return;
-          setNaSala([...sala.remoteParticipants.values()].map((p) => p.identity));
-        };
-
         /*
-         * A câmera do outro lado. Desligar a câmera no LiveKit silencia a
-         * faixa em vez de tirá-la da sala, então a pergunta é sempre "alguém
-         * tem câmera acesa agora?", refeita a cada evento que pode mudar isso.
+         * Quem está do outro lado e o que cada um mostra, relido da sala a
+         * cada evento que pode mudar isso. Desligar a câmera no LiveKit
+         * silencia a faixa em vez de tirá-la, então a pergunta é sempre
+         * "está acesa agora?".
          */
-        const conferirCameraRemota = () => {
+        const atualizar = () => {
           if (!vivo || !sala) return;
+          const lista: Remoto[] = [];
           for (const p of sala.remoteParticipants.values()) {
-            const pub = p.getTrackPublication(Track.Source.Camera);
-            if (pub?.track && !pub.isMuted && cameraRemotaRef.current) {
-              pub.track.attach(cameraRemotaRef.current);
-              setCameraRemota(true);
-              return;
-            }
+            const cam = p.getTrackPublication(Track.Source.Camera);
+            const tela = p.getTrackPublication(Track.Source.ScreenShare);
+            const mic = p.getTrackPublication(Track.Source.Microphone);
+            lista.push({
+              id: p.identity,
+              camera: cam?.track && !cam.isMuted ? cam.track : null,
+              tela: tela?.track && !tela.isMuted ? tela.track : null,
+              mudo: !mic || mic.isMuted,
+            });
           }
-          setCameraRemota(false);
+          setRemotos(lista);
+          setNaSala(lista.map((r) => r.id));
         };
 
         const lerAparelhos = async () => {
           const kinds: DeviceKind[] = ["audioinput", "audiooutput", "videoinput"];
           try {
-            const listas = await Promise.all(
-              kinds.map((k) => Room.getLocalDevices(k, false)),
-            );
+            const listas = await Promise.all(kinds.map((k) => Room.getLocalDevices(k, false)));
             if (!vivo || !sala) return;
             const atual = sala;
             setAparelhos({
@@ -329,11 +380,8 @@ export function CallOverlay({
         lerAparelhosRef.current = lerAparelhos;
 
         sala
-          .on(RoomEvent.ParticipantConnected, anotarQuemEsta)
-          .on(RoomEvent.ParticipantDisconnected, (() => {
-            anotarQuemEsta();
-            conferirCameraRemota();
-          }) as never)
+          .on(RoomEvent.ParticipantConnected, atualizar)
+          .on(RoomEvent.ParticipantDisconnected, atualizar)
           .on(RoomEvent.TrackSubscribed, ((faixa: Faixa) => {
             if (!vivo) return;
             if (faixa.kind === Track.Kind.Audio) {
@@ -343,33 +391,32 @@ export function CallOverlay({
               // A saída escolhida no menu vale também para quem entra depois.
               const saida = ativosRef.current.audiooutput;
               if (saida) void sala?.switchActiveDevice("audiooutput", saida);
-              return;
             }
-            if (faixa.source === Track.Source.ScreenShare && videoRef.current) {
-              faixa.attach(videoRef.current);
-              setTemTela(true);
-              return;
-            }
-            if (faixa.source === Track.Source.Camera) conferirCameraRemota();
+            atualizar();
           }) as never)
           .on(RoomEvent.TrackUnsubscribed, ((faixa: Faixa) => {
-            const els = faixa.detach();
+            // Só os <audio> fomos nós que criamos; os <video> são da tela e se soltam sozinhos.
             if (faixa.kind === Track.Kind.Audio) {
-              // Só os <audio> fomos nós que criamos. Os <video> da tela e da
-              // câmera são da página: tirá-los do DOM faria o próximo
-              // compartilhamento não ter onde aparecer.
+              const els = faixa.detach() as HTMLMediaElement[];
               els.forEach((el) => el.remove());
-              return;
             }
-            if (faixa.source === Track.Source.ScreenShare) setTemTela(false);
-            if (faixa.source === Track.Source.Camera) conferirCameraRemota();
+            atualizar();
           }) as never)
+          .on(RoomEvent.TrackMuted, atualizar)
+          .on(RoomEvent.TrackUnmuted, atualizar)
           // "Parar de compartilhar" na barra do navegador também desliga o botão.
           .on(RoomEvent.LocalTrackUnpublished, ((pub: Publicacao) => {
-            if (vivo && pub.source === Track.Source.ScreenShare) setCompartilhando(false);
+            if (!vivo || pub.source !== Track.Source.ScreenShare) return;
+            setCompartilhando(false);
+            setMinhaTela(null);
           }) as never)
-          .on(RoomEvent.TrackMuted, conferirCameraRemota)
-          .on(RoomEvent.TrackUnmuted, conferirCameraRemota)
+          .on(RoomEvent.ActiveSpeakersChanged, ((quem: { identity: string }[]) => {
+            if (vivo) setFalando(new Set(quem.map((p) => p.identity)));
+          }) as never)
+          .on(RoomEvent.DataReceived, ((dados: Uint8Array, de?: { identity: string }) => {
+            const emoji = decodeReaction(dados);
+            if (vivo && emoji && de) mostrarReacao(de.identity, emoji);
+          }) as never)
           .on(RoomEvent.MediaDevicesChanged, (() => void lerAparelhos()) as never)
           // Só é interrupção se não fomos nós que desligamos.
           .on(RoomEvent.Disconnected, ((motivo?: number) => {
@@ -409,7 +456,7 @@ export function CallOverlay({
         }
         // A chamada nasce de um clique, então o navegador deixa o áudio tocar.
         await sala.startAudio().catch(() => undefined);
-        anotarQuemEsta();
+        atualizar();
         setSaidaSuportada(escolheSaida());
         // Depois do microfone: antes da permissão o navegador esconde os nomes.
         await lerAparelhos();
@@ -419,10 +466,12 @@ export function CallOverlay({
         if (withScreen) {
           try {
             await ligarTela(sala, qualidadeRef.current);
-            if (vivo) setCompartilhando(true);
+            if (!vivo) return;
+            setCompartilhando(true);
+            setMinhaTela(sala.localParticipant.getTrackPublication(Track.Source.ScreenShare)?.track ?? null);
           } catch {
-            // Escolher a tela é decisão de quem está na frente do
-            // computador: recusar não derruba a chamada.
+            // Escolher a tela é decisão de quem está na frente do computador:
+            // recusar não derruba a chamada.
           }
         }
       } catch {
@@ -444,7 +493,7 @@ export function CallOverlay({
         leaveCallOnExit(detail.id);
       }
     };
-  }, [detail.id, withScreen]);
+  }, [detail.id, withScreen, mostrarReacao]);
 
   /*
    * O "ainda estou aqui". Quem para de mandar sai da chamada sozinho (ver
@@ -479,8 +528,7 @@ export function CallOverlay({
   /*
    * Aba fechando, recarregando ou o celular matando a página: nada de
    * `await` chega a rodar aqui, então a saída vai num pedido que o navegador
-   * termina de mandar sozinho. Sem isso a pessoa ficava presa na chamada até
-   * o registro envelhecer (4h), e o "Chamada em andamento" mentia esse tempo.
+   * termina de mandar sozinho.
    */
   useEffect(() => {
     function onPageHide() {
@@ -504,38 +552,6 @@ export function CallOverlay({
       onClose();
     }
   }
-
-  // Esc encerra, como fecha qualquer sobreposição do produto.
-  const minimizedRef = useRef(minimized);
-  minimizedRef.current = minimized;
-  const maximizadoRef = useRef(maximizado);
-  maximizadoRef.current = maximizado;
-  const temTelaRef = useRef(temTela);
-  temTelaRef.current = temTela;
-  useEffect(() => {
-    function onKey(e: KeyboardEvent) {
-      // Recolhida no canto ela não é sobreposição: o teclado é de quem está na tela.
-      if (minimizedRef.current) return;
-      const alvo = e.target instanceof Element ? e.target : null;
-      const digitando = alvo?.closest("input, textarea, [contenteditable='true']");
-      // F: tela cheia da transmissão, quando há uma na tela.
-      if ((e.key === "f" || e.key === "F") && !digitando && !e.ctrlKey && !e.metaKey && !e.altKey) {
-        if (temTelaRef.current) alternarTelaCheiaDe(telaRef.current);
-        return;
-      }
-      if (e.key !== "Escape") return;
-      // Na tela cheia, o Esc é do navegador (sai dela) — não derruba a chamada.
-      if (document.fullscreenElement) return;
-      // Com o menu aberto, o Esc fecha o menu — não derruba a chamada.
-      if (menuAbertoRef.current) return setMenuAberto(false);
-      // Maximizada, o Esc seguinte só devolve o popup ao tamanho normal.
-      if (maximizadoRef.current) return setMaximizado(false);
-      void encerrar();
-    }
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-    // `encerrar` só depende de refs e do id da conversa.
-  }, [detail.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   /*
    * No app de desktop, Ctrl/Cmd+Shift+M liga e desliga o microfone mesmo com
@@ -583,25 +599,48 @@ export function CallOverlay({
     }
   }
 
+  /** Liga a câmera com as preferências do modal (aparelho, resolução, efeitos). */
+  async function ligarCamera(prefs: CameraPrefs): Promise<boolean> {
+    const sala = salaRef.current;
+    if (!sala) return false;
+    try {
+      const pub = await sala.localParticipant.setCameraEnabled(true, cameraCapture(prefs));
+      aplicarEfeitos(pub?.track, prefs);
+      setMeuVideo(pub?.track ?? null);
+      setCamera(true);
+      setSemCamera(false);
+      // A primeira permissão de câmera é o que libera o nome delas na lista.
+      void lerAparelhosRef.current();
+      return true;
+    } catch {
+      setCamera(false);
+      setMeuVideo(null);
+      setSemCamera(true);
+      return false;
+    }
+  }
+
   async function alternarCamera() {
     const sala = salaRef.current;
     if (!sala) return;
-    const proximo = !camera;
-    try {
-      const pub = await sala.localParticipant.setCameraEnabled(proximo, {
-        deviceId: ativos.videoinput,
-      });
-      setCamera(proximo);
-      setSemCamera(false);
-      if (proximo && pub?.track && cameraLocalRef.current) {
-        pub.track.attach(cameraLocalRef.current);
-      }
-      // A primeira permissão de câmera é o que libera o nome delas na lista.
-      if (proximo) void lerAparelhosRef.current();
-    } catch {
+    if (camera) {
+      await sala.localParticipant.setCameraEnabled(false).catch(() => undefined);
       setCamera(false);
-      setSemCamera(true);
+      setMeuVideo(null);
+      return;
     }
+    await ligarCamera(cameraPrefs);
+  }
+
+  /** "Aplicar" do modal Câmera: guarda e, com a câmera acesa, reabre com a escolha nova. */
+  async function aplicarCamera(prefs: CameraPrefs) {
+    setCameraPrefs(prefs);
+    saveCameraPrefs(prefs);
+    setModal(null);
+    const sala = salaRef.current;
+    if (!sala || !camera) return;
+    await sala.localParticipant.setCameraEnabled(false).catch(() => undefined);
+    await ligarCamera(prefs);
   }
 
   async function alternarReduzirRuido() {
@@ -610,8 +649,7 @@ export function CallOverlay({
     const proximo = !reduzirRuido;
     setReduzirRuido(proximo);
     // O filtro é do navegador: mudar exige reabrir o microfone com a regra nova.
-    const { Track } = await import("livekit-client");
-    const faixa = sala.localParticipant.getTrackPublication(Track.Source.Microphone)?.track;
+    const faixa = sala.localParticipant.getTrackPublication(FONTE.microfone)?.track;
     try {
       await faixa?.restartTrack?.({
         deviceId: ativos.audioinput,
@@ -624,45 +662,45 @@ export function CallOverlay({
     }
   }
 
-  async function alternarTela() {
+  /** "Compartilhar" do modal: guarda a escolha e liga (ou troca) a transmissão. */
+  async function compartilhar(q: ScreenQuality) {
+    setModal(null);
+    setQualidade(q);
+    saveScreenQuality(q);
     const sala = salaRef.current;
     if (!sala) return;
-    const proximo = !compartilhando;
     try {
-      if (proximo) await ligarTela(sala, qualidade);
-      else await sala.localParticipant.setScreenShareEnabled(false);
-      setCompartilhando(proximo);
+      if (compartilhando) await sala.localParticipant.setScreenShareEnabled(false);
+      await ligarTela(sala, q);
+      setCompartilhando(true);
+      setMinhaTela(sala.localParticipant.getTrackPublication(FONTE.tela)?.track ?? null);
     } catch {
-      // Cancelar o seletor de tela do navegador não é erro.
+      // Cancelou o seletor do navegador: se já transmitia, a anterior parou.
+      setCompartilhando(false);
+      setMinhaTela(null);
     }
   }
 
-  /** Trocar o que está sendo mostrado sem sair da chamada: abre o seletor de novo. */
-  async function trocarTela() {
+  async function pararTela() {
     const sala = salaRef.current;
-    if (!sala || !compartilhando) return;
-    try {
-      await sala.localParticipant.setScreenShareEnabled(false);
-      await ligarTela(sala, qualidade);
-      setCompartilhando(true);
-    } catch {
-      // Cancelou o seletor: a transmissão anterior já parou, o botão acompanha.
-      setCompartilhando(false);
-    }
+    if (!sala) return;
+    await sala.localParticipant.setScreenShareEnabled(false).catch(() => undefined);
+    setCompartilhando(false);
+    setMinhaTela(null);
   }
 
   /*
-   * Trocar a qualidade no meio da transmissão vale na hora: a captura é
-   * reajustada e o codificador recebe o novo teto de banda e de quadros —
-   * sem abrir o seletor de tela de novo.
+   * "Salvar" da Qualidade da transmissão no meio da transmissão vale na
+   * hora: a captura é reajustada e o codificador recebe o novo teto de banda
+   * e de quadros — sem abrir o seletor de tela de novo.
    */
   async function mudarQualidade(q: ScreenQuality) {
+    setModal(null);
     setQualidade(q);
     saveScreenQuality(q);
     const sala = salaRef.current;
     if (!sala || !compartilhando) return;
-    const { Track } = await import("livekit-client");
-    const faixa = sala.localParticipant.getTrackPublication(Track.Source.ScreenShare)?.track;
+    const faixa = sala.localParticipant.getTrackPublication(FONTE.tela)?.track;
     const o = screenShareOptions(q);
     try {
       const mst = faixa?.mediaStreamTrack;
@@ -677,8 +715,7 @@ export function CallOverlay({
           enc.maxBitrate = o.publish.screenShareEncoding.maxBitrate;
           enc.maxFramerate = o.publish.screenShareEncoding.maxFramerate;
         }
-        (params as { degradationPreference?: string }).degradationPreference =
-          o.publish.degradationPreference;
+        (params as { degradationPreference?: string }).degradationPreference = o.publish.degradationPreference;
         await sender.setParameters(params);
       }
     } catch {
@@ -686,98 +723,69 @@ export function CallOverlay({
     }
   }
 
-  // A prévia da própria tela: pendura a faixa local no <video> só quando pedida.
-  useEffect(() => {
-    const el = previaRef.current;
-    if (!el || !previa || !compartilhando) return;
-    let faixa: Faixa | undefined;
-    let vivo = true;
-    void import("livekit-client").then(({ Track }) => {
-      if (!vivo) return;
-      faixa = salaRef.current?.localParticipant.getTrackPublication(Track.Source.ScreenShare)?.track;
-      faixa?.attach(el);
-    });
-    return () => {
-      vivo = false;
-      // Só solta este <video>: o `detach()` sem argumento soltaria todos.
-      (faixa as unknown as { detach: (el?: HTMLMediaElement) => unknown } | undefined)?.detach(el);
-    };
-  }, [previa, compartilhando]);
+  async function reagir(emoji: Reaction) {
+    setMenu(null);
+    mostrarReacao(me.id, emoji);
+    await salaRef.current?.localParticipant.publishData(encodeReaction(emoji), { reliable: true }).catch(() => undefined);
+  }
 
-  // O selo "1920×1080 · 30 fps": o que está chegando de verdade, a cada segundo.
+  // Quem apresenta: a primeira tela de fora; senão a sua.
+  const apresentador = remotos.find((r) => r.tela) ?? null;
+  const telaNoPalco = apresentador?.tela ?? minhaTela;
+  const quemApresenta = apresentador
+    ? (detail.members.find((m) => m.id === apresentador.id)?.name ?? "Alguém")
+    : minhaTela
+      ? "Você"
+      : null;
+
+  // O selo "1080p · 30fps": o que está chegando de verdade, a cada segundo.
   useEffect(() => {
-    if (!temTela) {
+    if (!telaNoPalco) {
       setRecebendo(null);
       return;
     }
     let antes = -1;
     const id = setInterval(() => {
-      const v = videoRef.current;
+      // O <video> onde a tela está pendurada agora (palco ou grade).
+      const v = telaNoPalco.attachedElements?.find((e): e is HTMLVideoElement => e instanceof HTMLVideoElement);
       if (!v || !v.videoWidth) return;
       const quadros = v.getVideoPlaybackQuality?.().totalVideoFrames ?? 0;
       const fps = antes < 0 ? 0 : Math.max(0, quadros - antes);
       antes = quadros;
       const w = v.videoWidth;
       const h = v.videoHeight;
-      // Mesmo selo de antes: não re-renderiza a chamada inteira por nada.
       setRecebendo((r) => (r && r.w === w && r.h === h && r.fps === fps ? r : { w, h, fps }));
     }, 1000);
     return () => clearInterval(id);
-  }, [temTela]);
+  }, [telaNoPalco]);
 
-  // Tela cheia do navegador: acompanha também o Esc do próprio navegador.
   useEffect(() => {
-    const aoMudar = () =>
-      setTelaCheia(!!telaRef.current && document.fullscreenElement === telaRef.current);
+    const aoMudar = () => setTelaCheia(!!document.fullscreenElement);
     document.addEventListener("fullscreenchange", aoMudar);
     return () => document.removeEventListener("fullscreenchange", aoMudar);
   }, []);
 
-  const alternarTelaCheia = () => alternarTelaCheiaDe(telaRef.current);
-
-  /*
-   * Arrastar o canto do popup: cresce para os dois lados, porque ele é
-   * centralizado. Durante o arrasto a largura vai direto no elemento — passar
-   * pelo estado re-renderizava a chamada inteira (vídeos, participantes) a
-   * cada movimento do mouse, e o canto ficava para trás do cursor. O estado
-   * só recebe a largura final, ao soltar.
-   */
-  function redimensionar(e: React.PointerEvent<HTMLDivElement>) {
-    e.preventDefault();
-    const painel = e.currentTarget.parentElement;
-    if (!painel) return;
-    const inicioX = e.clientX;
-    const inicio = painel.getBoundingClientRect().width;
-    let final = inicio;
-    let moveu = false;
-    const mover = (ev: PointerEvent) => {
-      const max = window.innerWidth - 32;
-      final = Math.round(Math.min(max, Math.max(LARGURA_MIN, inicio + (ev.clientX - inicioX) * 2)));
-      moveu = true;
-      painel.style.maxWidth = `${final}px`;
-    };
-    const soltar = () => {
-      window.removeEventListener("pointermove", mover);
-      window.removeEventListener("pointerup", soltar);
-      if (moveu) setLargura(final);
-      try {
-        localStorage.setItem(LARGURA_KEY, String(final));
-      } catch {
-        // Sem armazenamento: a largura vale só para esta chamada.
+  // F: tela cheia (do palco, com alguém apresentando). Esc fecha o menu aberto.
+  const minimizedRef = useRef(minimized);
+  minimizedRef.current = minimized;
+  const modalRef = useRef(modal);
+  modalRef.current = modal;
+  const temTelaRef = useRef(!!telaNoPalco);
+  temTelaRef.current = !!telaNoPalco;
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      // Com modal aberto, o teclado é dele (o Esc ele mesmo trata).
+      if (minimizedRef.current || modalRef.current) return;
+      const alvo = e.target instanceof Element ? e.target : null;
+      const digitando = alvo?.closest("input, textarea, select, [contenteditable='true']");
+      if (e.key === "Escape") return setMenu(null);
+      if ((e.key === "f" || e.key === "F") && !digitando && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        alternarTelaCheiaDe(temTelaRef.current ? palcoBoxRef.current : vistaRef.current);
       }
-    };
-    window.addEventListener("pointermove", mover);
-    window.addEventListener("pointerup", soltar);
-  }
-
-  function larguraPadrao() {
-    setLargura(null);
-    try {
-      localStorage.removeItem(LARGURA_KEY);
-    } catch {
-      // Nada guardado para apagar.
     }
-  }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
 
   const ativo = estado === "na-chamada";
   const outros = detail.members.filter((m) => m.id !== me.id);
@@ -786,53 +794,85 @@ export function CallOverlay({
    * Quem está na chamada além de você. Com a sala conectada, quem o LiveKit
    * vê; sem provedor de mídia (ou antes de conectar), o registro do servidor.
    */
-  const presentes = new Set(
-    (ativo ? naSala : detail.callMemberIds).filter((id) => id !== me.id),
-  );
-  const ordenados = [...outros].sort(
-    (a, b) => Number(presentes.has(b.id)) - Number(presentes.has(a.id)),
-  );
-  const principal = ordenados[0];
-  const resto = ordenados.slice(1, 4);
-  const sobra = Math.max(0, ordenados.length - 1 - resto.length);
-  const statusDe = (id: string) =>
-    presentes.has(id) ? "na chamada" : detail.kind === "direta" ? "chamando…" : "fora da chamada";
-  const mostraPrevia = previa && compartilhando;
+  const presentes = new Set((ativo ? naSala : detail.callMemberIds).filter((id) => id !== me.id));
+  const remotoDe = (id: string) => remotos.find((r) => r.id === id);
 
-  function minimizar() {
-    setMenuAberto(false);
-    setMaximizado(false);
-    onMinimize();
-  }
+  /** Os quadros: você, quem está na sala e, na direta, quem está sendo chamado. */
+  const quadros: TileInfo[] = [
+    {
+      id: me.id,
+      name: me.name,
+      label: "Você",
+      video: meuVideo,
+      mirrored: cameraPrefs.mirror,
+      self: true,
+      muted: mudo || !ativo,
+      speaking: ativo && falando.has(me.id),
+    },
+    ...outros
+      .filter((m) => presentes.has(m.id) || detail.kind === "direta")
+      .map((m) => {
+        const r = remotoDe(m.id);
+        const dentro = presentes.has(m.id);
+        return {
+          id: m.id,
+          name: m.name,
+          label: m.name,
+          video: r?.camera ?? null,
+          muted: r ? r.mudo : true,
+          speaking: falando.has(m.id),
+          absent: !dentro,
+          status: dentro ? undefined : "Chamando…",
+        };
+      }),
+  ];
 
-  const status =
+  const titulo = detail.kind === "direta" ? `Chamada com ${outros[0]?.name ?? detail.title}` : "Sala de reunião";
+  const situacao =
     estado === "entrando"
-      ? "Entrando na chamada…"
+      ? "entrando…"
       : estado === "erro"
-        ? "Chamada interrompida"
+        ? "chamada interrompida"
         : estado === "outra-aba"
-          ? "Chamada em outra aba"
-          : <Cronometro desde={startedAt} />;
+          ? "continua em outra aba"
+          : quemApresenta
+            ? `${quemApresenta === "Você" ? "você está" : `${quemApresenta} está`} apresentando`
+            : presentes.size > 0
+              ? `${presentes.size + 1} na chamada`
+              : detail.kind === "direta"
+                ? "chamando…"
+                : "só você, esperando o grupo";
+  const contexto = detail.kind === "grupo" ? detail.title : "Chamada direta";
+  const usarPalco = !!telaNoPalco && layout === "palco";
+
+  const aviso =
+    estado === "sem-midia"
+      ? "Áudio, câmera e tela precisam do provedor de mídia configurado neste ambiente. A chamada segue marcando o tempo e fica registrada na conversa."
+      : estado === "erro"
+        ? "O áudio não conseguiu passar — pode ser a conexão de alguém ou o provedor de mídia fora do ar. O tempo até aqui fica registrado na conversa."
+        : estado === "outra-aba"
+          ? "Você entrou nesta chamada por outra aba ou outro aparelho, e ela continua por lá. Pode fechar esta sem sair da chamada."
+          : ativo && semCamera
+            ? "A câmera não abriu — o navegador não liberou, ou outro programa está usando. Libere no cadeado da barra de endereço e tente de novo."
+            : ativo && semMicrofone
+              ? "O navegador não liberou o microfone. Você ouve a chamada e pode mostrar a tela; para falar, libere o microfone no cadeado da barra de endereço e tire do mudo."
+              : null;
+
+  const semMidiaTitulo = estado === "sem-midia" ? "Precisa do provedor de mídia neste ambiente" : undefined;
 
   return (
-    <div
-      role={minimized ? "region" : "dialog"}
-      aria-modal={minimized ? undefined : true}
-      aria-label={`Chamada em ${detail.title}`}
-      className={cn(
-        "fixed z-50",
-        minimized
-          ? "bottom-3 right-3 md:bottom-4 md:right-4"
-          : cn("inset-0 flex items-center justify-center", maximizado ? "p-3" : "p-4"),
-      )}
-    >
+    <>
       {/*
-       * Recolhida: o cartão do canto. O popup de cima continua montado (só
-       * escondido) porque é nele que a tela compartilhada e as câmeras estão
-       * penduradas — desmontar os <video> cortaria a imagem ao voltar.
+       * Recolhida: o cartão do canto. A vista de cima continua montada (só
+       * escondida) porque é nela que as câmeras e a tela estão penduradas —
+       * desmontar os <video> cortaria a imagem ao voltar.
        */}
       {minimized && (
-        <div className="flex w-[280px] max-w-[calc(100vw-24px)] animate-scale-in items-center gap-2 rounded-card border border-border bg-surface p-3 shadow-[0_16px_40px_rgba(0,0,0,0.6)]">
+        <div
+          role="region"
+          aria-label={`Chamada em ${detail.title}`}
+          className="fixed bottom-3 right-3 z-50 flex w-[280px] max-w-[calc(100vw-24px)] animate-scale-in items-center gap-2 rounded-card border border-border bg-surface p-3 shadow-[0_16px_40px_rgba(0,0,0,0.6)] md:bottom-4 md:right-4"
+        >
           <button
             type="button"
             onClick={onExpand}
@@ -849,21 +889,14 @@ export function CallOverlay({
               {initialsOf(doOutroLado ?? detail.title)}
             </span>
             <span className="flex min-w-0 flex-col">
-              <span className="truncate text-[13px] font-semibold text-fg">
-                {detail.title}
-              </span>
+              <span className="truncate text-[13px] font-semibold text-fg">{detail.title}</span>
               <span className="truncate text-[11px] tabular-nums text-muted">
-                {status}
-                {temTela && " · tela"}
+                <Cronometro desde={startedAt} />
+                {telaNoPalco && " · tela"}
               </span>
             </span>
           </button>
-          <MiniButton
-            label={mudo ? "Tirar do mudo" : "Ficar no mudo"}
-            onClick={alternarMudo}
-            disabled={!ativo}
-            active={mudo}
-          >
+          <MiniButton label={mudo ? "Tirar do mudo" : "Ficar no mudo"} onClick={alternarMudo} disabled={!ativo} active={mudo}>
             {mudo ? <MicOffIcon size={15} /> : <MicIcon size={15} />}
           </MiniButton>
           <MiniButton label="Abrir a chamada" onClick={onExpand}>
@@ -881,401 +914,555 @@ export function CallOverlay({
         </div>
       )}
 
-      {!minimized && (
-        <div className="absolute inset-0 animate-fade-in bg-black/75 backdrop-blur-[3px]" />
-      )}
-
       <div
+        ref={vistaRef}
+        role="region"
+        aria-label={`Chamada em ${detail.title}`}
         className={cn(
-          "relative w-full animate-scale-in flex-col items-center rounded-card border border-border bg-surface shadow-[0_24px_64px_rgba(0,0,0,0.65)]",
-          minimized ? "hidden" : "flex",
-          maximizado
-            ? cn("h-full max-w-none gap-3 p-4", !temTela && !mostraPrevia && "justify-center")
-            : cn(
-                "max-h-[calc(100dvh-32px)] gap-5 p-6",
-                // A tela compartilhada precisa de espaço; sem ela o popup é o do desenho.
-                largura === null && (temTela || mostraPrevia ? "max-w-[720px]" : "max-w-[380px]"),
-              ),
+          "fixed flex flex-col overflow-hidden bg-bg",
+          minimized && "hidden",
+          lugar && !telaCheia ? "z-30 rounded-r-[27px]" : "inset-0 z-50",
         )}
-        style={!maximizado && largura !== null ? { maxWidth: largura } : undefined}
+        style={lugar && !telaCheia ? lugar : undefined}
       >
-        {/* Recolher para o canto — a chamada continua. */}
-        <button
-          type="button"
-          onClick={minimizar}
-          aria-label="Minimizar a chamada"
-          title="Minimizar a chamada"
-          className="tap absolute right-3 top-3 flex h-8 w-8 items-center justify-center rounded-pill text-fg-3 transition-colors hover:bg-surface-2 hover:text-fg-soft focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-fg-3"
-        >
-          <Minimize2Icon size={15} />
-        </button>
-
-        {/* Ocupar a janela inteira — para ver a tela compartilhada grande. */}
-        <button
-          type="button"
-          onClick={() => setMaximizado((m) => !m)}
-          aria-label={maximizado ? "Restaurar o tamanho da chamada" : "Maximizar a chamada"}
-          aria-pressed={maximizado}
-          title={maximizado ? "Restaurar tamanho" : "Maximizar"}
-          className="tap absolute right-12 top-3 flex h-8 w-8 items-center justify-center rounded-pill text-fg-3 transition-colors hover:bg-surface-2 hover:text-fg-soft focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-fg-3"
-        >
-          {maximizado ? <MinimizeIcon size={15} /> : <MaximizeIcon size={15} />}
-        </button>
-
-        <div className="flex flex-col items-center gap-1">
-          <p className="text-[15px] font-semibold text-fg">{detail.title}</p>
-          <p className="text-[12px] tabular-nums text-muted">
-            {status}
-            {estado !== "entrando" &&
-              (presentes.size > 0
-                ? ` · ${presentes.size + 1} na chamada`
-                : detail.kind === "direta"
-                  ? " · chamando…"
-                  : " · só você, esperando o grupo")}
-          </p>
-        </div>
-
-        {/*
-         * A tela compartilhada. O desenho do Felipe tem os dois avatares; onde
-         * a tela aparece quando alguém compartilha ainda não foi desenhado —
-         * por ora ela ocupa o corpo do popup e os avatares descem, que é o
-         * arranjo que não esconde nenhum dos dois. Falta confirmar.
-         */}
-        <div
-          ref={telaRef}
-          onDoubleClick={alternarTelaCheia}
-          className={cn(
-            "group relative w-full overflow-hidden rounded-panel bg-black",
-            !temTela && "hidden",
-            maximizado || telaCheia ? "min-h-0 flex-1" : "aspect-video shrink",
-            telaCheia && "rounded-none",
-          )}
-        >
-          <video
-            ref={videoRef}
-            autoPlay
-            playsInline
-            muted
-            className="absolute inset-0 h-full w-full object-contain"
-          />
-          {/* Controles da transmissão: aparecem ao passar o mouse. */}
-          <div className="absolute right-2 top-2 flex items-center gap-1.5 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
-            {recebendo && (
-              <span className="rounded-pill bg-black/70 px-2 py-1 text-[11px] tabular-nums text-fg-soft">
-                {recebendo.w}×{recebendo.h}
-                {recebendo.fps > 0 && ` · ${recebendo.fps} fps`}
-              </span>
-            )}
-            <ScreenControl
+        {/* Cabeçalho: a sala, o tempo e os botões de vista */}
+        <header className="flex shrink-0 items-center justify-between gap-3 border-b border-panel-ring bg-surface px-3 py-3 md:px-5">
+          <div className="flex min-w-0 items-center gap-3">
+            <span className="flex h-[38px] w-[38px] shrink-0 items-center justify-center rounded-pill bg-border text-fg-soft">
+              <VideoIcon size={18} />
+            </span>
+            <div className="flex min-w-0 flex-col gap-0.5">
+              <h2 className="truncate text-[15px] font-semibold text-fg">{titulo}</h2>
+              <p className="flex min-w-0 items-center gap-1.5 text-[12px] text-muted">
+                <span
+                  className={cn(
+                    "h-1.5 w-1.5 shrink-0 rounded-full",
+                    ativo ? "bg-fg-soft" : estado === "erro" ? "bg-flow-danger" : "bg-dim",
+                  )}
+                  aria-hidden="true"
+                />
+                <span className="truncate">
+                  {contexto} · {situacao}
+                </span>
+              </p>
+            </div>
+          </div>
+          <div className="flex shrink-0 items-center gap-2">
+            <span className="flex items-center gap-1.5 rounded-pill border border-panel-ring bg-surface-2 px-2.5 py-1.5 text-[12px] font-semibold tabular-nums text-fg-soft">
+              <span className={cn("h-[7px] w-[7px] rounded-full", ativo ? "bg-call-live" : "bg-dim")} aria-hidden="true" />
+              <Cronometro desde={startedAt} />
+            </span>
+            <HeaderButton
+              label={layout === "grade" ? "Destacar quem apresenta" : "Ver todos em grade"}
+              pressed={layout === "grade"}
+              onClick={() => setLayout((l) => (l === "grade" ? "palco" : "grade"))}
+              className="hidden sm:flex"
+            >
+              <LayoutGridIcon size={16} />
+            </HeaderButton>
+            <HeaderButton label="Voltar à conversa (a chamada segue no canto)" onClick={onMinimize}>
+              <MessageSquareIcon size={16} />
+            </HeaderButton>
+            <HeaderButton
               label={telaCheia ? "Sair da tela cheia (F)" : "Tela cheia (F)"}
-              onClick={alternarTelaCheia}
+              pressed={telaCheia}
+              onClick={() => alternarTelaCheiaDe(vistaRef.current)}
+              className="hidden sm:flex"
             >
-              {telaCheia ? <MinimizeIcon size={14} /> : <FullscreenIcon size={14} />}
-            </ScreenControl>
-          </div>
-        </div>
-
-        {/* A prévia da sua própria tela, quando pedida no menu de ajustes. */}
-        {mostraPrevia && (
-          <div className={cn("relative w-full overflow-hidden rounded-panel bg-black", temTela ? "max-w-[240px] self-end" : "aspect-video")}>
-            <video
-              ref={previaRef}
-              autoPlay
-              playsInline
-              muted
-              className={cn("w-full object-contain", temTela ? "aspect-video" : "absolute inset-0 h-full")}
-            />
-            <span className="absolute left-2 top-2 rounded-pill bg-black/70 px-2 py-1 text-[11px] text-fg-soft">
-              Sua tela
-            </span>
-          </div>
-        )}
-
-        <div className="flex flex-wrap items-start justify-center gap-3">
-          <CallAvatar
-            name={me.name}
-            label="Você"
-            status={estado === "entrando" ? "entrando…" : "na chamada"}
-            ausente={estado === "entrando"}
-            falando={ativo && !mudo}
-            videoRef={cameraLocalRef}
-            comVideo={ativo && camera}
-            espelhado
-          />
-          <span className="mt-[26px] h-px w-6 bg-border" aria-hidden="true" />
-          {/*
-           * Quem está do outro lado, e se está **de fato** na chamada: dentro,
-           * o avatar aceso com "na chamada"; fora, apagado e tracejado, com
-           * "chamando…" (direta) ou "fora" (grupo). Quem entrou vem primeiro.
-           */}
-          {principal ? (
-            <CallAvatar
-              name={principal.name}
-              label={principal.name}
-              status={statusDe(principal.id)}
-              ausente={!presentes.has(principal.id)}
-              falando={ativo && presentes.has(principal.id)}
-              videoRef={cameraRemotaRef}
-              comVideo={ativo && cameraRemota}
-            />
-          ) : (
-            <CallAvatar
-              name={detail.title}
-              label={detail.title}
-              ausente
-              videoRef={cameraRemotaRef}
-            />
-          )}
-          {resto.map((m) => (
-            <CallAvatar
-              key={m.id}
-              name={m.name}
-              label={m.name}
-              status={statusDe(m.id)}
-              ausente={!presentes.has(m.id)}
-              falando={ativo && presentes.has(m.id)}
-              pequeno
-            />
-          ))}
-          {sobra > 0 && (
-            <span
-              title={`Mais ${sobra} no grupo`}
-              className="flex h-[40px] w-[40px] items-center justify-center self-start rounded-pill border border-dashed border-border text-[12px] font-medium text-muted"
+              {telaCheia ? <Minimize2Icon size={16} /> : <Maximize2Icon size={16} />}
+            </HeaderButton>
+            <Popover
+              open={menu === "mais"}
+              onClose={() => setMenu(null)}
+              align="right"
+              trigger={
+                <HeaderButton label="Mais opções da chamada" pressed={menu === "mais"} onClick={() => setMenu((m) => (m === "mais" ? null : "mais"))}>
+                  <EllipsisIcon size={16} />
+                </HeaderButton>
+              }
             >
-              +{sobra}
-            </span>
-          )}
-        </div>
+              <div role="menu" className="w-[230px] animate-pop-in rounded-menu border border-border bg-surface p-1 shadow-[0_8px_24px_rgba(0,0,0,0.5)]">
+                <MenuItem onClick={() => { setMenu(null); onMinimize(); }}>Minimizar no canto</MenuItem>
+                <MenuItem onClick={() => { setMenu(null); setModal("qualidade"); }}>Qualidade da transmissão</MenuItem>
+                <MenuItem disabled={!ativo} onClick={() => { setMenu(null); setModal("camera"); }}>Ajustes da câmera</MenuItem>
+                {telaNoPalco && (
+                  <MenuItem onClick={() => { setMenu(null); alternarTelaCheiaDe(palcoBoxRef.current); }}>Tela cheia da apresentação</MenuItem>
+                )}
+              </div>
+            </Popover>
+          </div>
+        </header>
 
-        {estado === "sem-midia" && (
-          <p className="max-w-[280px] text-center text-[11px] leading-[16px] text-muted">
-            Áudio e tela precisam do provedor de mídia configurado neste
-            ambiente. A chamada segue marcando o tempo e fica registrada na
-            conversa.
-          </p>
-        )}
-        {estado === "erro" && (
-          <p className="max-w-[280px] text-center text-[11px] leading-[16px] text-muted">
-            O áudio não conseguiu passar — pode ser a conexão de alguém ou o
-            provedor de mídia fora do ar. O tempo até aqui fica registrado na
-            conversa.
-          </p>
-        )}
-        {estado === "entrando" && (
-          <p className="text-[11px] text-muted">Pedindo o microfone…</p>
-        )}
-        {estado === "outra-aba" && (
-          <p className="max-w-[280px] text-center text-[11px] leading-[16px] text-muted">
-            Você entrou nesta chamada por outra aba ou outro aparelho, e ela
-            continua por lá. Pode fechar esta janela sem sair da chamada.
-          </p>
-        )}
-        {ativo && semCamera && (
-          <p className="max-w-[280px] text-center text-[11px] leading-[16px] text-muted">
-            A câmera não abriu — o navegador não liberou, ou outro programa
-            está usando. Libere no cadeado da barra de endereço e tente de novo.
-          </p>
-        )}
-        {ativo && semMicrofone && (
-          <p className="max-w-[280px] text-center text-[11px] leading-[16px] text-muted">
-            O navegador não liberou o microfone. Você ouve a chamada e pode
-            mostrar a tela; para falar, libere o microfone no cadeado da barra
-            de endereço e tire do mudo.
-          </p>
-        )}
-
-        <Popover
-          open={menuAberto && ativo && !minimized}
-          onClose={() => setMenuAberto(false)}
-          side="top"
-          align="center"
-          trigger={
-            <div className="flex items-center gap-3">
-              <CallButton
-                label="Ajustes de áudio e vídeo"
-                onClick={() => setMenuAberto((m) => !m)}
-                disabled={!ativo}
-                active={menuAberto}
-                menu
-              >
-                <Settings2Icon size={18} />
-              </CallButton>
-              <CallButton
-                label={mudo ? "Tirar do mudo" : "Ficar no mudo"}
-                onClick={alternarMudo}
-                disabled={!ativo}
-                active={mudo}
-              >
-                {mudo ? <MicOffIcon size={18} /> : <MicIcon size={18} />}
-              </CallButton>
-              {compartilhando && (
-                <CallButton label="Trocar o que estou compartilhando" onClick={trocarTela} disabled={!ativo}>
-                  <ReplaceIcon size={18} />
-                </CallButton>
-              )}
-              <CallButton
-                label={
-                  !podeTela
-                    ? "Este navegador não compartilha tela"
-                    : compartilhando
-                      ? "Parar de compartilhar"
-                      : "Compartilhar tela"
+        <div className="flex min-h-0 flex-1">
+          {/* O palco */}
+          <div className="flex min-w-0 flex-1 flex-col gap-3.5 p-3 md:p-4">
+            {usarPalco ? (
+              <>
+                <div className="-mx-1 flex shrink-0 gap-3 overflow-x-auto px-1">
+                  {quadros.map((q) => (
+                    <Tile key={q.id} info={q} reaction={reacoes[q.id]?.emoji} className="h-[96px] min-w-[140px] flex-1 md:h-[116px]" />
+                  ))}
+                </div>
+                <div
+                  ref={palcoBoxRef}
+                  onDoubleClick={() => alternarTelaCheiaDe(palcoBoxRef.current)}
+                  className="relative min-h-0 flex-1 overflow-hidden rounded-panel border border-border-strong bg-call-stage"
+                >
+                  <VideoTrack track={telaNoPalco} fit="contain" />
+                  {quemApresenta && (
+                    <span className="absolute left-4 top-4 flex items-center gap-2 rounded-pill border border-call-live bg-black/70 px-3 py-[7px] text-[12px] font-semibold text-fg">
+                      <ScreenShareIcon size={14} />
+                      {quemApresenta === "Você" ? "Você está apresentando" : `${quemApresenta} está apresentando`}
+                    </span>
+                  )}
+                  {recebendo && (
+                    <span className="absolute bottom-3 right-3 flex items-center gap-1.5 rounded-chip bg-black/70 px-2.5 py-1.5 text-[11px] font-semibold tabular-nums text-fg-soft">
+                      <SignalHighIcon size={13} />
+                      {recebendo.h}p{recebendo.fps > 0 && ` · ${recebendo.fps}fps`}
+                    </span>
+                  )}
+                </div>
+              </>
+            ) : (
+              <TileGrid
+                tiles={quadros}
+                reacoes={reacoes}
+                share={
+                  telaNoPalco
+                    ? { track: telaNoPalco, label: quemApresenta === "Você" ? "Sua tela" : `Tela de ${quemApresenta}` }
+                    : null
                 }
-                onClick={alternarTela}
-                disabled={!ativo || !podeTela}
-                active={compartilhando}
-              >
-                <ScreenShareIcon size={18} />
-              </CallButton>
+              />
+            )}
+            {aviso && <p className="mx-auto max-w-[520px] shrink-0 text-center text-[12px] leading-[17px] text-muted">{aviso}</p>}
+          </div>
+
+          {painel && (
+            <aside className="hidden w-[260px] shrink-0 flex-col border-l border-panel-ring bg-surface md:flex" aria-label="Participantes">
+              <div className="flex items-center justify-between px-4 py-3">
+                <h3 className="text-[13px] font-semibold text-fg-soft">Participantes</h3>
+                <button
+                  type="button"
+                  aria-label="Fechar participantes"
+                  onClick={() => setPainel(false)}
+                  className="tap flex h-7 w-7 items-center justify-center rounded-mark text-muted hover:bg-border hover:text-fg-soft"
+                >
+                  <XIcon size={14} />
+                </button>
+              </div>
+              <ul className="flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto px-2 pb-3">
+                {[me, ...outros].map((m) => {
+                  const eu = m.id === me.id;
+                  const dentro = eu || presentes.has(m.id);
+                  const mutado = eu ? mudo || !ativo : (remotoDe(m.id)?.mudo ?? true);
+                  const fala = dentro && falando.has(m.id);
+                  return (
+                    <li key={m.id} className="flex items-center gap-2.5 rounded-chip px-2 py-2">
+                      <span
+                        className={cn(
+                          "flex h-8 w-8 shrink-0 items-center justify-center rounded-pill text-[11px] font-semibold",
+                          dentro ? "bg-border-strong text-fg" : "border border-dashed border-border-strong text-muted",
+                          fala && "inset-ring-2 inset-ring-call-live",
+                        )}
+                      >
+                        {initialsOf(m.name)}
+                      </span>
+                      <span className="flex min-w-0 flex-1 flex-col">
+                        <span className={cn("truncate text-[13px]", dentro ? "text-fg-soft" : "text-muted")}>
+                          {eu ? `${m.name} (você)` : m.name}
+                        </span>
+                        <span className="text-[11px] text-muted">
+                          {fala ? "falando" : dentro ? "na chamada" : detail.kind === "direta" ? "chamando…" : "fora da chamada"}
+                        </span>
+                      </span>
+                      {dentro && (mutado ? <MicOffIcon size={14} className="text-muted" /> : <MicIcon size={14} className="text-fg-3" />)}
+                    </li>
+                  );
+                })}
+              </ul>
+            </aside>
+          )}
+        </div>
+
+        {/* Barra de controles */}
+        <footer className="flex shrink-0 items-center justify-center border-t border-panel-ring bg-surface px-2 py-3 md:px-5 md:py-4">
+          <div className="flex max-w-full items-center gap-2 px-1 md:gap-3">
+            <Popover
+              open={menu === "audio"}
+              onClose={() => setMenu(null)}
+              side="top"
+              align="left"
+              trigger={
+                <Control
+                  label="Microfone"
+                  title={semMidiaTitulo ?? (mudo ? "Tirar do mudo" : "Ficar no mudo")}
+                  tone={mudo ? "off" : "neutral"}
+                  disabled={!ativo}
+                  onClick={alternarMudo}
+                  chevron={{ label: "Microfone e som", open: menu === "audio", onClick: () => setMenu((m) => (m === "audio" ? null : "audio")) }}
+                >
+                  {mudo ? <MicOffIcon size={22} /> : <MicIcon size={22} />}
+                </Control>
+              }
+            >
+              <MenuPanel>
+                <MenuTitle first>Áudio</MenuTitle>
+                <DeviceRow label="Microfone" kind="audioinput" devices={aparelhos} active={ativos} onSelect={trocarAparelho} />
+                {saidaSuportada && (
+                  <DeviceRow label="Saída de som" kind="audiooutput" devices={aparelhos} active={ativos} onSelect={trocarAparelho} />
+                )}
+                <MenuRow label="Reduzir ruído">
+                  <MenuToggle on={reduzirRuido} onClick={alternarReduzirRuido} label="Reduzir ruído do microfone" />
+                </MenuRow>
+              </MenuPanel>
+            </Popover>
+
+            <Control
+              label="Câmera"
+              title={semMidiaTitulo ?? (camera ? "Desligar a câmera" : "Ligar a câmera")}
+              tone={camera ? "neutral" : "off"}
+              disabled={!ativo}
+              onClick={alternarCamera}
+              chevron={{ label: "Ajustes da câmera", onClick: () => setModal("camera") }}
+            >
+              {camera ? <VideoIcon size={22} /> : <VideoOffIcon size={22} />}
+            </Control>
+
+            <Control
+              label={compartilhando ? "Apresentando" : "Apresentar"}
+              title={
+                semMidiaTitulo ??
+                (!podeTela ? "Este navegador não compartilha tela" : compartilhando ? "Parar de apresentar" : "Compartilhar tela")
+              }
+              tone={compartilhando ? "on" : "neutral"}
+              disabled={!ativo || !podeTela}
+              onClick={() => (compartilhando ? void pararTela() : setModal("tela"))}
+              chevron={
+                podeTela
+                  ? { label: compartilhando ? "Trocar o que estou apresentando" : "Opções de compartilhamento", onClick: () => setModal("tela") }
+                  : undefined
+              }
+            >
+              <ScreenShareIcon size={22} />
+            </Control>
+
+            <Popover
+              open={menu === "reagir"}
+              onClose={() => setMenu(null)}
+              side="top"
+              align="center"
+              trigger={
+                <Control
+                  label="Reagir"
+                  title={semMidiaTitulo ?? "Reagir"}
+                  disabled={!ativo}
+                  pressed={menu === "reagir"}
+                  onClick={() => setMenu((m) => (m === "reagir" ? null : "reagir"))}
+                >
+                  <SmilePlusIcon size={22} />
+                </Control>
+              }
+            >
+              <div role="menu" aria-label="Reações" className="flex animate-pop-in gap-1 rounded-pill border border-border bg-surface p-1.5 shadow-[0_8px_24px_rgba(0,0,0,0.5)]">
+                {REACTIONS.map((r) => (
+                  <button
+                    key={r}
+                    type="button"
+                    role="menuitem"
+                    aria-label={`Reagir com ${r}`}
+                    onClick={() => void reagir(r)}
+                    className="flex h-10 w-10 items-center justify-center rounded-pill text-[22px] transition-transform hover:scale-110 hover:bg-border"
+                  >
+                    {r}
+                  </button>
+                ))}
+              </div>
+            </Popover>
+
+            <Control
+              label="Participantes"
+              title="Quem está na chamada"
+              pressed={painel}
+              onClick={() => setPainel((p) => !p)}
+              className="hidden md:flex"
+            >
+              <UsersIcon size={22} />
+            </Control>
+
+            <Control label="Configurações" title="Qualidade da transmissão" onClick={() => setModal("qualidade")}>
+              <SettingsIcon size={22} />
+            </Control>
+
+            <span className="mx-1 hidden h-9 w-px shrink-0 bg-border md:block" aria-hidden="true" />
+
+            <div className="flex shrink-0 flex-col items-center gap-1.5">
               <button
                 type="button"
                 onClick={encerrar}
-                // Na chamada que passou para outra aba, este botão só fecha a janela.
                 aria-label={estado === "outra-aba" ? "Fechar" : "Encerrar chamada"}
                 title={estado === "outra-aba" ? "Fechar" : "Encerrar chamada"}
-                autoFocus
-                className="tap flex h-control w-control items-center justify-center rounded-pill bg-primary text-on-primary transition-colors hover:bg-white focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-fg-3"
+                className="tap flex h-11 items-center gap-2 rounded-pill bg-black px-4 text-[14px] font-semibold text-fg ring-1 ring-panel-ring transition-colors hover:bg-danger hover:text-on-primary md:h-[52px] md:px-[22px]"
               >
-                <PhoneOffIcon size={18} />
+                <PhoneOffIcon size={20} />
+                <span className="hidden sm:inline">{estado === "outra-aba" ? "Fechar" : "Sair"}</span>
               </button>
+              <span className="hidden text-[10px] font-medium text-muted md:block">Encerrar</span>
             </div>
-          }
-        >
-          <CallSettingsMenu
-            devices={aparelhos}
-            active={ativos}
-            onSelect={trocarAparelho}
-            camera={camera}
-            onToggleCamera={alternarCamera}
-            noiseSuppression={reduzirRuido}
-            onToggleNoiseSuppression={alternarReduzirRuido}
-            outputSupported={saidaSuportada}
-            screenQuality={qualidade}
-            onScreenQuality={mudarQualidade}
-            screenSupported={podeTela}
-            preview={previa}
-            onTogglePreview={() => setPrevia((v) => !v)}
-          />
-        </Popover>
-
-        {/* Arrastar o canto muda a largura; dois cliques voltam à do desenho. */}
-        {!maximizado && (
-          <div
-            role="separator"
-            aria-label="Redimensionar a chamada"
-            title="Arraste para redimensionar · dois cliques para o tamanho padrão"
-            onPointerDown={redimensionar}
-            onDoubleClick={larguraPadrao}
-            className="absolute bottom-0 right-0 hidden h-5 w-5 cursor-nwse-resize md:block"
-          >
-            <svg viewBox="0 0 20 20" className="h-full w-full text-border-strong" aria-hidden="true">
-              <path d="M16 8 8 16M16 12l-4 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-            </svg>
           </div>
-        )}
+        </footer>
       </div>
 
       {/* A voz das outras pessoas mora aqui — som, sem nada para ver. */}
       <div ref={audioRef} className="sr-only" aria-hidden="true" />
-    </div>
+
+      {modal === "tela" && (
+        <ShareScreenModal quality={qualidade} onClose={() => setModal(null)} onShare={(q) => void compartilhar(q)} />
+      )}
+      {modal === "camera" && (
+        <CameraModal
+          prefs={cameraPrefs}
+          devices={aparelhos.videoinput}
+          initials={initialsOf(me.name)}
+          onClose={() => setModal(null)}
+          onApply={(p) => void aplicarCamera(p)}
+        />
+      )}
+      {modal === "qualidade" && (
+        <StreamQualityModal quality={qualidade} onClose={() => setModal(null)} onSave={(q) => void mudarQualidade(q)} />
+      )}
+    </>
   );
 }
 
-function CallAvatar({
-  name,
-  label,
-  status,
-  ausente,
-  pequeno,
-  falando,
-  videoRef,
-  comVideo,
-  espelhado,
-}: {
+/* ================================================================ quadros */
+
+type TileInfo = {
+  id: string;
   name: string;
   label: string;
-  /** "na chamada", "chamando…", "fora da chamada" — a linha de baixo. */
+  video: Faixa | null;
+  mirrored?: boolean;
+  self?: boolean;
+  muted: boolean;
+  speaking: boolean;
+  absent?: boolean;
   status?: string;
-  /** Ainda não entrou: apagado e tracejado, para não parecer que está ouvindo. */
-  ausente?: boolean;
-  /** Os outros membros do grupo, menores ao lado do principal. */
-  pequeno?: boolean;
-  falando?: boolean;
-  /** Onde a câmera desta pessoa é pendurada. Fica montado sempre. */
-  videoRef?: React.RefObject<HTMLVideoElement | null>;
-  /** A câmera está acesa: o vídeo toma o lugar das iniciais. */
-  comVideo?: boolean;
-  /** A sua própria imagem vem espelhada, como em qualquer espelho. */
-  espelhado?: boolean;
+};
+
+/** Pendura a faixa no <video> enquanto ele existe; solta só este elemento ao sair. */
+function VideoTrack({
+  track,
+  mirrored,
+  fit = "cover",
+}: {
+  track: Faixa | null;
+  mirrored?: boolean;
+  fit?: "cover" | "contain";
 }) {
+  const ref = useRef<HTMLVideoElement>(null);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el || !track) return;
+    track.attach(el);
+    return () => {
+      track.detach(el);
+    };
+  }, [track]);
+  if (!track) return null;
   return (
-    <div className="flex flex-col items-center gap-2">
-      {/*
-       * Câmera no lugar do avatar, no mesmo círculo, só maior. O export não
-       * desenha a chamada com câmera — este é o arranjo que não mexe em mais
-       * nada do popup até o desenho chegar.
-       */}
-      <span
-        className={cn(
-          "relative flex items-center justify-center overflow-hidden rounded-pill font-semibold transition-all",
-          comVideo ? "h-[96px] w-[96px]" : pequeno ? "h-[40px] w-[40px] text-[13px]" : "h-[52px] w-[52px] text-[16px]",
-          ausente
-            ? "border border-dashed border-border-strong bg-surface-2 text-muted opacity-60"
-            : "bg-border-strong text-fg",
-          falando && "inset-ring-2 inset-ring-fg-3",
-        )}
-        aria-hidden="true"
-      >
-        {videoRef && (
-          <video
-            ref={videoRef}
-            autoPlay
-            playsInline
-            muted
-            className={cn(
-              "absolute inset-0 h-full w-full object-cover",
-              espelhado && "-scale-x-100",
-              !comVideo && "hidden",
-            )}
-          />
-        )}
-        {!comVideo && initialsOf(name)}
-      </span>
-      <span className={cn("truncate text-[11px]", pequeno ? "max-w-[64px]" : "max-w-[96px]", ausente ? "text-muted" : "text-fg-3")}>
-        {label}
-      </span>
-      {status && (
+    <video
+      ref={ref}
+      autoPlay
+      playsInline
+      muted
+      className={cn("absolute inset-0 h-full w-full", fit === "cover" ? "object-cover" : "object-contain", mirrored && "-scale-x-100")}
+    />
+  );
+}
+
+function Tile({ info, reaction, className }: { info: TileInfo; reaction?: Reaction; className?: string }) {
+  const semVideo = !info.video;
+  return (
+    <div
+      className={cn(
+        "relative flex items-center justify-center overflow-hidden rounded-thumb border",
+        info.self && semVideo ? "border-panel-ring" : "border-panel-ring bg-surface-2",
+        info.speaking && "ring-2 ring-call-live",
+        info.absent && "opacity-60",
+        className,
+      )}
+      style={
+        info.self && semVideo
+          ? { background: "linear-gradient(-109deg, var(--color-call-self-from), var(--color-call-self-to))" }
+          : undefined
+      }
+    >
+      <VideoTrack track={info.video} mirrored={info.mirrored} />
+      {semVideo && (
         <span
           className={cn(
-            "-mt-1.5 flex items-center gap-1 text-[10px]",
-            ausente ? "text-muted" : "text-fg-soft",
+            "flex items-center justify-center rounded-pill font-semibold",
+            info.self ? "h-14 w-14 bg-white/15 text-[18px] text-fg" : "h-[52px] w-[52px] bg-border text-[18px] text-fg-soft",
+            info.absent && "border border-dashed border-border-strong bg-transparent text-muted",
           )}
+          aria-hidden="true"
         >
-          {!ausente && <span className="h-1.5 w-1.5 rounded-full bg-presence-on" aria-hidden="true" />}
-          {status}
+          {initialsOf(info.name)}
+        </span>
+      )}
+      <span className="absolute bottom-2.5 left-2.5 flex max-w-[calc(100%-20px)] items-center gap-[5px] rounded-mark bg-black/65 px-2 py-[3px] text-[12px] font-medium text-fg-soft">
+        {info.muted ? <MicOffIcon size={12} className="shrink-0 text-muted" /> : <MicIcon size={12} className="shrink-0" />}
+        <span className="truncate">{info.status ? `${info.label} · ${info.status}` : info.label}</span>
+      </span>
+      {reaction && (
+        <span className="absolute right-2 top-2 animate-pop-in text-[28px] leading-none drop-shadow" aria-label={`${info.label} reagiu com ${reaction}`}>
+          {reaction}
         </span>
       )}
     </div>
   );
 }
 
-function ScreenControl({
+function TileGrid({
+  tiles,
+  reacoes,
+  share,
+}: {
+  tiles: TileInfo[];
+  reacoes: Record<string, { emoji: Reaction }>;
+  share: { track: Faixa; label: string } | null;
+}) {
+  const total = tiles.length + (share ? 1 : 0);
+  const cols = total <= 1 ? 1 : total <= 4 ? 2 : 3;
+  return (
+    <div
+      className="grid min-h-0 flex-1 gap-3"
+      style={{ gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))`, gridAutoRows: "minmax(0, 1fr)" }}
+    >
+      {share && (
+        <div className="relative overflow-hidden rounded-thumb border border-border-strong bg-call-stage">
+          <VideoTrack track={share.track} fit="contain" />
+          <span className="absolute bottom-2.5 left-2.5 flex items-center gap-[5px] rounded-mark bg-black/65 px-2 py-[3px] text-[12px] font-medium text-fg-soft">
+            <ScreenShareIcon size={12} />
+            {share.label}
+          </span>
+        </div>
+      )}
+      {tiles.map((t) => (
+        <Tile key={t.id} info={t} reaction={reacoes[t.id]?.emoji} className="min-h-[96px]" />
+      ))}
+    </div>
+  );
+}
+
+/* ================================================================= botões */
+
+function Control({
   label,
+  title,
+  tone = "neutral",
+  pressed,
+  disabled,
   onClick,
+  chevron,
+  className,
+  children,
+}: {
+  /** A legenda embaixo ("Microfone"). */
+  label: string;
+  title: string;
+  /** `off`: desligado (mudo, câmera apagada); `on`: em uso (apresentando). */
+  tone?: "neutral" | "off" | "on";
+  pressed?: boolean;
+  disabled?: boolean;
+  onClick: () => void;
+  chevron?: { label: string; open?: boolean; onClick: () => void };
+  className?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className={cn("flex shrink-0 flex-col items-center gap-1.5", className)}>
+      <span className="relative">
+        <button
+          type="button"
+          aria-label={title}
+          aria-pressed={pressed ?? (tone === "neutral" ? undefined : tone === "on")}
+          title={title}
+          disabled={disabled}
+          onClick={onClick}
+          className={cn(
+            "tap flex h-11 w-11 items-center justify-center rounded-pill transition-colors md:h-[52px] md:w-[52px]",
+            tone === "on"
+              ? "bg-primary text-on-primary hover:bg-white"
+              : tone === "off"
+                ? "bg-call-off-bg text-fg-soft hover:bg-border-strong"
+                : pressed
+                  ? "bg-border-strong text-fg"
+                  : "bg-border text-fg-soft hover:bg-border-strong",
+            disabled && "cursor-not-allowed opacity-45 hover:bg-border",
+          )}
+        >
+          {children}
+        </button>
+        {chevron && (
+          <button
+            type="button"
+            aria-label={chevron.label}
+            title={chevron.label}
+            aria-haspopup="true"
+            aria-expanded={chevron.open}
+            disabled={disabled}
+            onClick={chevron.onClick}
+            className="absolute -bottom-0.5 -right-0.5 flex h-[18px] w-[18px] items-center justify-center rounded-pill border border-panel-ring bg-surface text-fg-3 transition-colors hover:text-fg disabled:opacity-45"
+          >
+            <ChevronUpIcon size={12} />
+          </button>
+        )}
+      </span>
+      <span className="hidden text-[10px] font-medium text-muted md:block">{label}</span>
+    </div>
+  );
+}
+
+function HeaderButton({
+  label,
+  pressed,
+  onClick,
+  className,
   children,
 }: {
   label: string;
+  pressed?: boolean;
   onClick: () => void;
+  className?: string;
   children: React.ReactNode;
 }) {
   return (
     <button
       type="button"
       aria-label={label}
+      aria-pressed={pressed}
       title={label}
       onClick={onClick}
-      onDoubleClick={(e) => e.stopPropagation()}
-      className="tap flex h-7 w-7 items-center justify-center rounded-pill bg-black/70 text-fg-soft transition-colors hover:bg-black hover:text-fg focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-fg-3"
+      className={cn(
+        "tap flex h-8 w-8 items-center justify-center rounded-chip transition-colors",
+        pressed ? "bg-border text-fg" : "bg-surface-2 text-fg-3 hover:bg-border hover:text-fg-soft",
+        className,
+      )}
+    >
+      {children}
+    </button>
+  );
+}
+
+function MenuItem({ onClick, disabled, children }: { onClick: () => void; disabled?: boolean; children: React.ReactNode }) {
+  return (
+    <button
+      type="button"
+      role="menuitem"
+      disabled={disabled}
+      onClick={onClick}
+      className="flex w-full items-center rounded-mark px-2.5 py-[7px] text-left text-[12.5px] text-fg-soft hover:bg-row-raised disabled:opacity-45"
     >
       {children}
     </button>
@@ -1314,46 +1501,37 @@ function MiniButton({
   );
 }
 
-function CallButton({
+function DeviceRow({
   label,
-  disabled,
+  kind,
+  devices,
   active,
-  menu,
-  onClick,
-  children,
+  onSelect,
 }: {
   label: string;
-  disabled?: boolean;
-  active?: boolean;
-  /** Abre um menu: anuncia isso em vez de "apertado/solto". */
-  menu?: boolean;
-  onClick?: () => void;
-  children: React.ReactNode;
+  kind: DeviceKind;
+  devices: CallDevices;
+  active: ActiveDevices;
+  onSelect: (kind: DeviceKind, id: string) => void;
 }) {
+  const options = devices[kind];
+  if (options.length === 0) {
+    return (
+      <MenuRow label={label}>
+        <span className="text-[13px] text-muted">Nenhum encontrado</span>
+      </MenuRow>
+    );
+  }
   return (
-    <button
-      type="button"
-      aria-label={label}
-      aria-pressed={menu ? undefined : active}
-      aria-haspopup={menu ? "menu" : undefined}
-      aria-expanded={menu ? active : undefined}
-      title={label}
-      disabled={disabled}
-      onClick={onClick}
-      className={cn(
-        "tap flex h-control w-control items-center justify-center rounded-pill transition-colors",
-        active ? "bg-border text-fg-soft" : "bg-surface-2 text-fg-3",
-        disabled ? "cursor-not-allowed opacity-45" : "hover:bg-border hover:text-fg-soft",
-      )}
-    >
-      {children}
-    </button>
+    <MenuRow label={label}>
+      <MenuDropdown label={label} value={active[kind] ?? options[0].id} options={options} onSelect={(id) => onSelect(kind, id)} />
+    </MenuRow>
   );
 }
 
 /*
  * O tempo de chamada, num componente só dele. Morando no estado da chamada,
- * o tique de cada segundo re-renderizava o popup inteiro — vídeos, avatares,
+ * o tique de cada segundo re-renderizava a vista inteira — vídeos, quadros,
  * controles — durante a ligação toda, para mudar quatro dígitos.
  */
 function Cronometro({ desde }: { desde: React.RefObject<number> }) {

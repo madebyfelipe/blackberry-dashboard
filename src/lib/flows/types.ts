@@ -11,7 +11,45 @@ import type { AgencyId } from "@/lib/agency/types";
  * responsável da próxima (ver `automation.ts`).
  */
 
-export type FlowStatus = "ativo" | "inativo" | "arquivado";
+/**
+ * `rascunho` é o "Salvar rascunho" do Novo fluxo: guardado, mas ainda não
+ * pronto — desligado como o inativo, e marcado assim na lista para o time
+ * saber que alguém está no meio dele.
+ */
+export type FlowStatus = "ativo" | "inativo" | "rascunho" | "arquivado";
+
+/** Os modelos do passo "Modelo" do Novo fluxo (ver `templates.ts`). */
+export type FlowTemplateId = "zero" | "social-media" | "blog" | "paid-media";
+
+/** O ícone do fluxo ("Ícone e cor"), lucide pelo nome. */
+export type FlowIcon =
+  | "megaphone"
+  | "pen-line"
+  | "target"
+  | "palette"
+  | "clapperboard"
+  | "send"
+  | "zap"
+  | "chart-line"
+  | "calendar"
+  | "users"
+  | "file-text"
+  | "git-branch";
+
+/** As sete bolinhas de cor do passo "Detalhes", na ordem do export. */
+export type FlowColor = "indigo" | "rose" | "orange" | "yellow" | "green" | "sky" | "violet";
+
+/** O campo "Categoria" do passo "Detalhes". */
+export type FlowCategory = "marketing" | "midia-paga" | "atendimento" | "operacao" | "outro";
+
+/**
+ * A quem o fluxo vale ("Todos os clientes" · "Clientes específicos").
+ *
+ * - `todos`: é o fluxo padrão da agência — o criativo de todo cliente **sem
+ *   fluxo próprio** cai nele.
+ * - `especificos`: só os clientes atribuídos (`Client.flowId`) entram nele.
+ */
+export type FlowAppliesTo = "todos" | "especificos";
 
 /** Os ícones das etapas do export — lucide, pelo nome. */
 export type StepIcon =
@@ -22,7 +60,10 @@ export type StepIcon =
   | "check-check"
   | "send"
   | "clapperboard"
-  | "megaphone";
+  | "megaphone"
+  | "search"
+  | "target"
+  | "sliders";
 
 /**
  * Quem toca a etapa.
@@ -77,8 +118,17 @@ export type Flow = {
   id: string;
   agencyId: AgencyId;
   name: string;
+  /** "Descreva quando usar este fluxo" — pode ficar vazia. */
+  description: string;
+  category: FlowCategory;
+  icon: FlowIcon;
+  color: FlowColor;
+  appliesTo: FlowAppliesTo;
   status: FlowStatus;
-  /** Na ordem do pipeline. */
+  /**
+   * Na ordem do pipeline. Vazio só no fluxo "Começar do zero" recém-criado:
+   * as etapas entram depois, no editor.
+   */
   steps: FlowStep[];
   /** Onde a tarefa entra ("Definir como início"); `null` = a primeira. */
   startStepId: string | null;

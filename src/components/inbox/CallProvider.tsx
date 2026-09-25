@@ -8,6 +8,7 @@ import {
   useRef,
   useState,
 } from "react";
+import { usePathname, useRouter } from "next/navigation";
 import type { ConversationDetail, InboxMember } from "@/lib/inbox/types";
 import { CallOverlay } from "./CallOverlay";
 
@@ -18,6 +19,11 @@ import { CallOverlay } from "./CallOverlay";
  * trabalhando em Tarefas, Clientes, onde for — sem a sala cair. Para isso o
  * `CallOverlay` não pode desmontar ao trocar de página, então quem o monta é
  * o layout do app, e o Inbox só pede para ligar.
+ *
+ * Aberta, ela ocupa o lugar da conversa no Inbox (export "Call View"): o
+ * Inbox marca esse lugar (`setSlot`) e a chamada se posiciona em cima dele,
+ * sem sair do lugar no DOM — trocar de pai desmontaria os vídeos. Sem lugar
+ * marcado (celular, outra tela) ela ocupa a tela inteira.
  */
 
 type Chamada = {
@@ -29,7 +35,14 @@ type Chamada = {
 type CallCtx = {
   /** A conversa em chamada agora, ou `null`. */
   activeId: string | null;
+  /** Recolhida no cartão do canto. */
+  minimized: boolean;
   start: (detail: ConversationDetail, me: InboxMember, withScreen: boolean) => void;
+  minimize: () => void;
+  /** Abre a chamada — no Inbox, na conversa dela. */
+  expand: () => void;
+  /** O lugar da conversa no Inbox, onde a chamada aberta se desenha. */
+  setSlot: (el: HTMLElement | null) => void;
   /**
    * Avisa quando a chamada fecha, com a conversa atualizada quando o
    * servidor respondeu. Devolve a função de parar de ouvir.
@@ -46,8 +59,11 @@ export function useCall(): CallCtx {
 }
 
 export function CallProvider({ children }: { children: React.ReactNode }) {
+  const router = useRouter();
+  const pathname = usePathname();
   const [call, setCall] = useState<Chamada | null>(null);
   const [minimized, setMinimized] = useState(false);
+  const [slot, setSlotState] = useState<HTMLElement | null>(null);
   const ouvintes = useRef(new Set<(c?: ConversationDetail) => void>());
 
   const start = useCallback(
@@ -64,6 +80,16 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
     return () => void ouvintes.current.delete(ao);
   }, []);
 
+  const minimize = useCallback(() => setMinimized(true), []);
+  const setSlot = useCallback((el: HTMLElement | null) => setSlotState(el), []);
+
+  const callId = call?.detail.id ?? null;
+  const expand = useCallback(() => {
+    setMinimized(false);
+    // Fora do Inbox, abrir a chamada leva até a conversa dela — é lá que ela mora.
+    if (callId && pathname !== "/inbox") router.push(`/inbox?conversa=${callId}`);
+  }, [callId, pathname, router]);
+
   function close(updated?: ConversationDetail) {
     setCall(null);
     setMinimized(false);
@@ -71,8 +97,8 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
   }
 
   const value = useMemo<CallCtx>(
-    () => ({ activeId: call?.detail.id ?? null, start, onEnded }),
-    [call?.detail.id, start, onEnded],
+    () => ({ activeId: callId, minimized, start, minimize, expand, setSlot, onEnded }),
+    [callId, minimized, start, minimize, expand, setSlot, onEnded],
   );
 
   return (
@@ -84,8 +110,9 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
           me={call.me}
           withScreen={call.withScreen}
           minimized={minimized}
-          onMinimize={() => setMinimized(true)}
-          onExpand={() => setMinimized(false)}
+          slot={minimized ? null : slot}
+          onMinimize={minimize}
+          onExpand={expand}
           onClose={close}
         />
       )}

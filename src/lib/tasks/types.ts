@@ -59,6 +59,13 @@ export type Task = {
   creator: string;
   /** Prazo interno, ISO. `null` = sem prazo. */
   dueDate: string | null;
+  /**
+   * ISO — quando a tarefa foi concluída; `null` fora de "Concluído". Gravado
+   * pelo repositório na troca de status, nunca pelo corpo da requisição: é
+   * ele que diz se a entrega saiu no prazo ("Tarefas no prazo", ficha do
+   * cliente). Tarefa concluída antes deste campo existir fica sem a data.
+   */
+  completedAt: string | null;
   /** Conversa da tarefa, do mais antigo para o mais novo. */
   comments: TaskComment[];
   /**
@@ -94,6 +101,6 @@ export type NewTask = {
 export type TaskPatch = Partial<
   Omit<
     Task,
-    "id" | "createdAt" | "agencyId" | "comments" | "flowId" | "stepId" | "source" | "clientId"
+    "id" | "createdAt" | "agencyId" | "comments" | "flowId" | "stepId" | "source" | "clientId" | "completedAt"
   >
 >;

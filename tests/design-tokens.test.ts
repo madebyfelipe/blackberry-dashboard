@@ -7,6 +7,7 @@ import { PIECE_STATUS } from "../src/lib/approval/constants";
 import { STATUSES } from "../src/lib/tasks/constants";
 import { CLIENT_STATUSES } from "../src/lib/clients/constants";
 import { PRESENCES } from "../src/lib/inbox/constants";
+import { FLOW_CATEGORIES, FLOW_COLORS } from "../src/lib/flows/constants";
 
 /*
  * As cores que as réguas de status carregam vão direto para `style` das pílulas
@@ -34,6 +35,8 @@ const cores: [string, string][] = [
     [`cliente ${s.id} · texto`, s.badgeFg],
   ]),
   ...PRESENCES.map((p): [string, string] => [`presença ${p.id}`, p.color]),
+  ...FLOW_COLORS.map((c): [string, string] => [`cor do fluxo ${c.id}`, c.value]),
+  ...FLOW_CATEGORIES.map((c): [string, string] => [`categoria ${c.id} · ponto`, c.dot]),
   ...Object.values(PIECE_STATUS).flatMap((p): [string, string][] => [
     [`peça ${p.id} · fundo`, p.badgeBg],
     [`peça ${p.id} · texto`, p.badgeFg],

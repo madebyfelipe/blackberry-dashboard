@@ -1,6 +1,14 @@
 import { createStore } from "@/lib/store";
 import { agencyIdOrLegacy } from "@/lib/agency/id";
-import { NO_AUTOMATIONS, isStepIcon } from "./constants";
+import {
+  FLOW_DESCRIPTION_MAX,
+  NO_AUTOMATIONS,
+  isFlowAppliesTo,
+  isFlowCategory,
+  isFlowColor,
+  isFlowIcon,
+  isStepIcon,
+} from "./constants";
 import { seedFlows } from "./seed";
 import { isFlowStatus } from "./view";
 import type { Flow, FlowStep, StepAssignee, StepApprover } from "./types";
@@ -73,6 +81,16 @@ function normalize(raw: Partial<Flow> & { id: string }): Flow {
     id: raw.id,
     agencyId: agencyIdOrLegacy(raw.agencyId),
     name: String(raw.name ?? "").trim() || "Fluxo",
+    description: String(raw.description ?? "").trim().slice(0, FLOW_DESCRIPTION_MAX),
+    category: isFlowCategory(raw.category) ? raw.category : "outro",
+    icon: isFlowIcon(raw.icon) ? raw.icon : "zap",
+    color: isFlowColor(raw.color) ? raw.color : "indigo",
+    /*
+     * Fluxo gravado antes do "Todos os clientes · Clientes específicos" era o
+     * padrão de quem não tinha fluxo próprio (o "primeiro ativo da agência"):
+     * lido como `todos`, continua pegando os mesmos criativos.
+     */
+    appliesTo: isFlowAppliesTo(raw.appliesTo) ? raw.appliesTo : "todos",
     status: isFlowStatus(raw.status) ? raw.status : "ativo",
     // "Próxima" e "início" que apontam para etapa que não existe mais caem no padrão.
     steps: steps.map((s) => (s.nextStepId && !ids.has(s.nextStepId) ? { ...s, nextStepId: null } : s)),

@@ -9,6 +9,12 @@ export type DecisionEvent = {
   title: string;
   /** e.g. "Marina Duarte · 11 set · 21:14" */
   who: string;
+  /**
+   * ISO — o instante do evento. O `who` guarda a data só como texto para a
+   * tela; é este campo que a ficha do cliente usa para montar a linha do
+   * tempo e o tempo de resposta. Evento gravado antes dele não tem.
+   */
+  at?: string;
   /** client IP at the moment of decision (public link only) */
   ip?: string;
   /** exact content shown to the client when they decided */

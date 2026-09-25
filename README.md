@@ -71,6 +71,7 @@ Dá para criar outra conta em `/criar-conta` — o cadastro já entra logado.
 | `/tarefas` | Tarefas — Lista + Quadro (Kanban), CRUD, seleção em massa, drag-and-drop, busca, menu de filtros (`F`) e menu "Personalizar" |
 | `/tarefas/[id]` | **Descrição da tarefa** — visualizador e editor na mesma tela: título, descrição, propriedades (coluna fixa à direita) e a conversa da tarefa |
 | `/clientes` | **Clientes** — a carteira da agência: Lista + Grade, abas por saúde do cliente, filtros, busca, seleção em massa, criação/edição pelo modal, menu de visualização (agrupamento, ordenação, colunas) e o cartão de hover do nome |
+| `/clientes/[id]` | **Ficha do cliente** (export "Clientes · Detalhe") — Visão geral, Serviços, Financeiro, Arquivos e Atividades (`?aba=`); ver "Ficha do cliente" abaixo |
 | `/social` | **Social media › clientes** — passo 1 do fluxo de aprovação: de quem são os lotes (lotes, peças e pendentes de cada um). Lê o nome do cliente gravado no lote, não a ficha de `/clientes` — ver "Cliente ainda é texto livre" no roadmap |
 | `/social/[cliente]` | **Lotes do cliente** — passo 2: progresso de cada lote e o modal "Novo lote" |
 | `/social/[cliente]/[lote]` | Detalhe do lote — grade de peças + painel de decisão + link público |
@@ -78,6 +79,8 @@ Dá para criar outra conta em `/criar-conta` — o cadastro já entra logado.
 | `/a/[token]` | **Aprovação pública** (cliente, sem login): tela de início + swipe para aprovar/pedir ajuste |
 | `/configuracoes` | Conta: perfil (com o seu @), troca de senha e sessão |
 | `/configuracoes/fluxos` | **Fluxos e Processos** — a esteira de trabalho: etapas, quem toca cada uma, prazo, próxima etapa, aprovadores e automações |
+| `/configuracoes/fluxos/novo` | **Novo fluxo** (export "Novo Fluxo") — modelo → detalhes → revisão; cria o fluxo ativo, inativo ou como rascunho |
+| `/configuracoes/fluxos/[id]/editar` | O passo "Detalhes" do Novo fluxo com o fluxo preenchido — o "Editar" do cabeçalho do fluxo |
 | `/inbox` | **Inbox** — a conversa do time: grupos e diretas, histórico salvo e pesquisável, presença (disponível · ocupado · ausente · offline) e a chamada com registro no histórico |
 | `/equipe` | **Usuários** (export "Usuários · Painel (Lista)") — o time: função, status, último acesso; "Adicionar usuário" cria convite com link de cadastro que entra **nesta** agência |
 | `/notificacoes` | **Notificações** — menções, tarefas atribuídas, comentários na sua tarefa e mensagens novas; ver "Notificações" abaixo |
@@ -97,7 +100,7 @@ discordarem:
 
 | Camada | Exports | Onde está aplicada |
 | --- | --- | --- |
-| **v3** (atual) | `Tarefas · Painel (Lista)`, `Tarefas · Painel (Quadro)`, `Tarefas · Descrição da tarefa`, `Clientes · Painel (Lista)`, `Clientes · Painel (Grade)`, `Inbox` | Shell (lateral), Tarefas, Descrição da tarefa, Clientes, Inbox |
+| **v3** (atual) | `Tarefas · Painel (Lista)`, `Tarefas · Painel (Quadro)`, `Tarefas · Descrição da tarefa`, `Clientes · Painel (Lista)`, `Clientes · Painel (Grade)`, `Inbox`, `Novo Fluxo` | Shell (lateral), Tarefas, Descrição da tarefa, Clientes, Inbox, Novo fluxo |
 | **v2** (gradiente) | `2. Gradiente`, `Clínica Aurora - *`, `Lotes de Aprovação*`, `Filtros · Menu` | Só o link público do cliente (`/a/<token>`). Social media, Lote, Editor, Planejamento e Configurações passaram para o painel v3 (2026-09-23) — o conteúdo dos exports v2 continua, dentro do vocabulário v3 |
 
 Os exports `List View` e `2. Board · Kanban` são a versão v2 das Tarefas, hoje
@@ -185,7 +188,8 @@ O app só conversa com `repository.ts`, que só conversa com `store.ts`. Trocar 
 - Agência (tenant): `src/lib/agency/{types,id}.ts` — ver "Multi-tenant" abaixo.
 - Tarefas: `src/lib/tasks/{types,constants,priority,seed,store,repository}.ts` — o pipeline de status vive **só** em `constants.ts`; a régua de prioridade, **só** em `priority.ts`. A conversa da tarefa (`Task.comments`) entra por `POST /api/tasks/<id>/comments`, com o autor vindo da sessão — nunca do corpo.
 - Clientes: `src/lib/clients/{types,constants,seed,store,repository,view}.ts` — mesma forma das tarefas; a régua de saúde do cliente (e os pares fundo/texto do selo) vive **só** em `constants.ts`, e o que a tela filtra/ordena, **só** em `view.ts`. **O vínculo com tarefa e lote**: `Task.clientId`/`Batch.clientId` guardam o `Client.id` cujo nome bate com o texto livre gravado (`resolveClientId`, sem acento/caixa, escopado por agência) — resolvido de novo a cada gravação, `null` quando não bate com nenhuma ficha. `client` continua sendo o texto de registro; `clientId` é para quem precisa do id de verdade (`listTasksForClient`, futura ficha do cliente e Health Score). Registro gravado antes deste vínculo fica com `clientId: null` até ser salvo de novo, **ou até rodar `npm run backfill:client-ids`** (`src/lib/maintenance/backfill-client-ids.ts`): backfill manual, idempotente, que resolve `client` contra a ficha cadastrada da mesma agência sem tocar em quem já tem vínculo — não é migração de leitura porque essa é síncrona e não pode consultar a lista de clientes.
-- Aprovação: `src/lib/approval/{types,constants,seed,store,repository}.ts`.
+- Aprovação: `src/lib/approval/{types,constants,seed,store,repository}.ts`. Todo evento novo do histórico da peça grava `at` (ISO) — é o que a linha do tempo da ficha do cliente lê.
+- Ficha do cliente: `src/lib/crm/{types,constants,defaults,seed,store,repository,view,http}.ts` — uma conta por cliente (`crm.json`): serviços, faturas, contrato, forma de pagamento, arquivos e agenda, dinheiro sempre em **centavos inteiros**. O cadastro continua em `lib/clients` (que ganhou `contactName` e `nps`); a linha do tempo e os números dos cartões são funções puras em `view.ts`, nunca gravados. As rotas ficam em `/api/clients/<id>/{servicos,faturas,contrato,arquivos,eventos}` e todas passam por `withClient` (`http.ts`): sessão, cliente desta agência (404 para o resto) e erro de validação virando 422. Apagar o cliente apaga a ficha e os arquivos dela.
 - Inbox: `src/lib/inbox/{types,constants,view,seed,store,repository,viewer}.ts` — a equipe e as conversas dela no mesmo arquivo (`inbox.json`), porque conversa sem saber quem é quem não existe. A régua de presença vive **só** em `constants.ts`; título, prévia, não lidas, ordem e carimbos de hora, **só** em `view.ts`. `viewer.ts` é a única porta que liga a sessão ao membro da equipe — ver "Inbox" abaixo.
 - Contas: `src/lib/auth/{types,password,token,session,seed,store,repository}.ts`. `token.ts` não importa nada do Node nem do Next — é o único pedaço compartilhado com o `proxy.ts`.
 - Mídia: `src/lib/media/*` — metadados pelo store comum; bytes em `data/uploads/` (ou fallback em memória) sem `BLOB_READ_WRITE_TOKEN`, no Vercel Blob com ela. Como os bytes entram e saem está em "O teto de 4,5 MB" abaixo — leia antes de mexer em upload de arte.
@@ -284,15 +288,21 @@ Três decisões que vale saber antes de mexer:
   Ativo, vermelho de Em risco, âmbar de Renovação, cinza de Pausado): o
   produto tem uma paleta com significado só, não duas. O seu status se troca
   no menu da sua conta, no rodapé da lateral.
-- **A chamada ainda não transmite.** Não existe camada de tempo real no
-  projeto (WebSocket/WebRTC), e a issue registra que essa decisão técnica vem
-  *depois* do desenho. Então a chamada abre no popup desenhado, conta o tempo
-  e **deixa o registro no histórico** ("Fulano iniciou uma chamada que durou 12
-  minutos", a linha de sistema do export); microfone e tela aparecem
-  desligados, dizendo por quê, em vez de acenderem fingindo que alguém ouve do
-  outro lado. Pela mesma razão, mensagem nova chega por releitura periódica da
-  tela (12s, só com a aba à vista), não por push. Quando a camada entrar, ela
-  substitui essas duas coisas — o resto da tela não muda.
+- **A chamada mora no shell e se desenha no lugar da conversa.** O
+  `CallProvider` monta a `CallOverlay` no layout do app, então ela não cai ao
+  trocar de página (minimizada, vira o cartão do canto). Aberta no desktop, o
+  Inbox marca o lugar da conversa (`call.setSlot`) e a chamada se posiciona
+  **por cima** dele (export "Chamada · Call View") — posição fixa medida com
+  `ResizeObserver`, sem trocar de pai no DOM, porque remontar os `<video>`
+  cortaria a imagem. Sem lugar marcado (celular, outra tela) ela cobre a tela
+  inteira; "abrir" de outra tela leva até `/inbox?conversa=<id>`. A mídia é o
+  LiveKit (`src/lib/realtime/*`); sem as variáveis dele a chamada abre, conta o
+  tempo e **deixa o registro no histórico**, com os controles desligados
+  dizendo por quê — nada acende fingindo que alguém ouve do outro lado. As
+  preferências de quem transmite (qualidade da tela, câmera) são regra pura em
+  `lib/inbox/screenQuality.ts` e `lib/inbox/callPrefs.ts`, guardadas no
+  navegador entre uma chamada e outra. Sem o Ably, mensagem nova chega por
+  releitura periódica da tela (12s, só com a aba à vista), não por push.
 
 ## Fluxos: o criativo vira tarefa e a tarefa anda sozinha
 
@@ -303,6 +313,15 @@ Três peças, cada uma num lugar:
   próprio cliente (a aprovação pelo link) —, o prazo em dias úteis e a
   próxima etapa. As regras ("qual vem depois", "quem recebe") são funções
   puras em `view.ts`, testadas em `tests/flows-view.test.ts`.
+- **A quem o fluxo vale** (`Flow.appliesTo`, o "Todos os clientes · Clientes
+  específicos" do Novo fluxo): o criativo segue o fluxo escolhido na ficha do
+  cliente (`Client.flowId`) se ele estiver ativo; senão, o fluxo ativo
+  marcado "Todos os clientes". Fluxo "Clientes específicos" nunca pega
+  cliente de fora, e fluxo sem etapa ligada (o "Começar do zero" recém-criado)
+  não pega ninguém — `pickFlowForClient` em `view.ts`. Fluxo gravado antes
+  disso é lido como "Todos os clientes", que é o que ele já fazia. A lista de
+  "Clientes específicos" grava de uma vez só (`setFlowClients`, em
+  `lib/clients/repository.ts`): cliente fica em um fluxo só.
 - **O squad** mora na ficha do cliente (`Client.squad`, ids do time). Etapa
   marcada "squad do cliente" vai para o primeiro do squad que ainda está no
   time — é assim que o mesmo fluxo serve todos os clientes.

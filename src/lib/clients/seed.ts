@@ -13,6 +13,8 @@ type SeedRow = {
   city?: string;
   email?: string;
   phone?: string;
+  contactName?: string;
+  nps?: number;
 };
 
 /**
@@ -21,16 +23,18 @@ type SeedRow = {
  * mesma regra do `tasks/seed.ts`: é o que faz a tela abrir viva na primeira
  * execução, e nenhum dado aqui foi inventado por fora do desenho.
  *
- * Cidade, e-mail e telefone só existem em Studio Raiz porque é o único cliente
- * cujo contato o desenho mostra (export "hover clientes"). Os outros abrem com
- * o campo vazio de propósito: contato falso é pior que contato em branco.
+ * Cidade, e-mail e telefone só existem em Studio Raiz e na Clínica Aurora
+ * porque são os dois clientes cujo contato os desenhos mostram (exports
+ * "hover clientes" e "Clientes · Detalhe" — este traz também o contato
+ * principal e o NPS). Os outros abrem com o campo vazio de propósito: contato
+ * falso é pior que contato em branco.
  */
 const ROWS: SeedRow[] = [
   { id: "c01", name: "Auto Peças União", segment: "Automotivo", services: ["Google Ads"], owner: "Marcos", billingDay: 12, status: "pausado" },
   { id: "c02", name: "Bela Vita Odonto", segment: "Odontologia", services: ["Instagram", "Blog", "E-mail"], owner: "Camila", billingDay: 20, status: "ativo" },
   { id: "c03", name: "Café Raízes", segment: "Alimentação", services: ["Instagram", "Influencers"], owner: "Fernanda", billingDay: 8, status: "risco" },
   { id: "c04", name: "Casa Bloom", segment: "Decoração", services: ["Pinterest", "Blog"], owner: "Juliana", billingDay: 3, status: "ativo" },
-  { id: "c05", name: "Clínica Aurora", segment: "Estética facial", services: ["Instagram", "Blog", "Meta Ads"], owner: "Fernanda", billingDay: 5, status: "ativo" },
+  { id: "c05", name: "Clínica Aurora", segment: "Estética facial", services: ["Instagram", "Blog", "Meta Ads"], owner: "Fernanda", billingDay: 5, status: "ativo", city: "São Paulo, SP", email: "contato@clinicaaurora.com.br", phone: "(11) 98765-4321", contactName: "Dra. Helena Rocha", nps: 9.2 },
   { id: "c06", name: "Doce Lar Imóveis", segment: "Imobiliária", services: ["Meta Ads", "Site"], owner: "Rafael", billingDay: 25, status: "novo" },
   { id: "c07", name: "Fit Prime", segment: "Academia", services: ["Instagram", "TikTok"], owner: "Marcos", billingDay: 10, status: "ativo" },
   { id: "c08", name: "Grupo Ventura", segment: "Varejo de moda", services: ["Facebook Ads", "Google Ads"], owner: "Marcos", billingDay: 10, status: "risco" },
@@ -62,6 +66,8 @@ export function seedClients(): Client[] {
     city: row.city ?? "",
     email: row.email ?? "",
     phone: row.phone ?? "",
+    contactName: row.contactName ?? "",
+    nps: row.nps ?? null,
     squad: SQUADS[row.name] ?? (TEAM_BY_NAME[row.owner] ? [TEAM_BY_NAME[row.owner]] : []),
     flowId: null,
     // A demonstração é da agência semeada — a que abre o app na primeira vez.

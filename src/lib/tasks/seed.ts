@@ -42,6 +42,8 @@ export function seedTasks(): Task[] {
     flowId: null,
     stepId: null,
     source: null,
+    // Semente não passa pela troca de status: a concluída fica sem a data.
+    completedAt: null,
     dueDate:
       dueInDays === undefined
         ? null

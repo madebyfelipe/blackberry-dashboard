@@ -12,17 +12,31 @@ export type ScreenFps = 15 | 30 | 60;
 /** `nitidez`: planilha, código, peça em revisão. `fluidez`: vídeo, animação. */
 export type ScreenOptimize = "nitidez" | "fluidez";
 
+/** O que o navegador oferece primeiro no seletor (abas Telas · Janelas · Aba do modal). */
+export type ScreenSurface = "monitor" | "window" | "browser";
+
 export type ScreenQuality = {
   resolution: ScreenResolution;
   fps: ScreenFps;
   optimize: ScreenOptimize;
+  /** "Bitrate" do modal Qualidade da transmissão, em Mbps; `null` = automático pela resolução. */
+  bitrateMbps: number | null;
+  surface: ScreenSurface;
+  /** "Compartilhar áudio do sistema". */
+  systemAudio: boolean;
 };
 
 export const DEFAULT_SCREEN_QUALITY: ScreenQuality = {
   resolution: "1080p",
   fps: 30,
   optimize: "nitidez",
+  bitrateMbps: null,
+  surface: "monitor",
+  systemAudio: true,
 };
+
+/** A régua do "Bitrate" — o mesmo piso e teto da banda automática. */
+export const BITRATE_RANGE = { min: 1, max: 12 } as const;
 
 export const RESOLUTION_OPTIONS: { id: ScreenResolution; label: string }[] = [
   { id: "720p", label: "720p" },
@@ -65,12 +79,23 @@ export function screenBitrate(q: ScreenQuality): number {
   return Math.round(Math.min(MAX_BITRATE, Math.max(MIN_BITRATE, raw)));
 }
 
+/** A banda que vale: a escolhida no modal (dentro da régua) ou a automática. */
+export function effectiveBitrate(q: ScreenQuality): number {
+  if (q.bitrateMbps === null) return screenBitrate(q);
+  const mbps = Math.min(BITRATE_RANGE.max, Math.max(BITRATE_RANGE.min, q.bitrateMbps));
+  return Math.round(mbps * 1_000_000);
+}
+
 /** O que a escolha vira para o LiveKit: captura, dica de conteúdo e codificação. */
 export function screenShareOptions(q: ScreenQuality) {
   const { width, height } = DIMENSIONS[q.resolution];
   return {
     capture: {
-      audio: true,
+      audio: q.systemAudio,
+      // O som do sistema entra na lista do navegador só quando pedido.
+      systemAudio: q.systemAudio ? ("include" as const) : ("exclude" as const),
+      // A aba escolhida no modal é o que o seletor do navegador abre primeiro.
+      video: { displaySurface: q.surface },
       resolution: { width, height, frameRate: q.fps },
       contentHint: q.optimize === "nitidez" ? ("detail" as const) : ("motion" as const),
       // O som da tela não volta pelos seus próprios alto-falantes.
@@ -79,7 +104,7 @@ export function screenShareOptions(q: ScreenQuality) {
       surfaceSwitching: "include" as const,
     },
     publish: {
-      screenShareEncoding: { maxBitrate: screenBitrate(q), maxFramerate: q.fps },
+      screenShareEncoding: { maxBitrate: effectiveBitrate(q), maxFramerate: q.fps },
       // Na nitidez, perder quadros é melhor que perder resolução; na fluidez, o contrário.
       degradationPreference:
         q.optimize === "nitidez" ? ("maintain-resolution" as const) : ("maintain-framerate" as const),
@@ -105,7 +130,16 @@ export function parseScreenQuality(raw: unknown): ScreenQuality {
   const fps = r.fps === 15 || r.fps === 30 || r.fps === 60 ? r.fps : DEFAULT_SCREEN_QUALITY.fps;
   const optimize =
     r.optimize === "nitidez" || r.optimize === "fluidez" ? r.optimize : DEFAULT_SCREEN_QUALITY.optimize;
-  return { resolution, fps, optimize };
+  const bitrateMbps =
+    typeof r.bitrateMbps === "number" && r.bitrateMbps >= BITRATE_RANGE.min && r.bitrateMbps <= BITRATE_RANGE.max
+      ? r.bitrateMbps
+      : null;
+  const surface =
+    r.surface === "monitor" || r.surface === "window" || r.surface === "browser"
+      ? r.surface
+      : DEFAULT_SCREEN_QUALITY.surface;
+  const systemAudio = typeof r.systemAudio === "boolean" ? r.systemAudio : DEFAULT_SCREEN_QUALITY.systemAudio;
+  return { resolution, fps, optimize, bitrateMbps, surface, systemAudio };
 }
 
 export function loadScreenQuality(): ScreenQuality {

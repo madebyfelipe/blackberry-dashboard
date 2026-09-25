@@ -12,6 +12,7 @@ import {
   flowMeta,
   moveStep,
   nextStep,
+  pickFlowForClient,
   removeStep,
   startStep,
   stepNumber,
@@ -27,6 +28,11 @@ function flow(steps: FlowStep[], over: Partial<Flow> = {}): Flow {
     id: "f",
     agencyId: AGENCIA_A.agencyId,
     name: "Fluxo",
+    description: "",
+    category: "outro",
+    icon: "zap",
+    color: "indigo",
+    appliesTo: "todos",
     status: "ativo",
     steps,
     startStepId: null,
@@ -139,5 +145,32 @@ describe("modelo Social Media", () => {
     assert.ok(steps.every((s) => s.assignee.kind !== "membro"));
     assert.equal(steps.find((s) => s.name === "Aprovação")?.assignee.kind, "cliente");
     assert.ok(steps.every((s) => s.approvers.every((a) => a.memberId === null)));
+  });
+});
+
+describe("pickFlowForClient", () => {
+  const todos = flow([s("a")], { id: "todos", appliesTo: "todos" });
+  const espec = flow([s("a")], { id: "espec", appliesTo: "especificos" });
+
+  test("o fluxo da ficha vence, se estiver ativo", () => {
+    assert.equal(pickFlowForClient([todos, espec], "espec")?.id, "espec");
+    assert.equal(pickFlowForClient([todos, { ...espec, status: "inativo" }], "espec")?.id, "todos");
+  });
+
+  test("sem fluxo próprio: só um 'Todos os clientes' pega o cliente", () => {
+    assert.equal(pickFlowForClient([espec, todos], null)?.id, "todos");
+    assert.equal(pickFlowForClient([espec], null), undefined, "específico não pega cliente de fora");
+  });
+
+  test("rascunho e fluxo sem etapa ligada ficam de fora", () => {
+    assert.equal(pickFlowForClient([{ ...todos, status: "rascunho" }], null), undefined);
+    assert.equal(pickFlowForClient([{ ...todos, steps: [] }], null), undefined);
+    assert.equal(pickFlowForClient([{ ...todos, steps: [s("a", { disabled: true })] }], null), undefined);
+  });
+});
+
+describe("rascunho", () => {
+  test("é um status de verdade, com rótulo", () => {
+    assert.equal(flowMeta(flow([s("a")], { status: "rascunho" })), "1 etapa · Rascunho");
   });
 });

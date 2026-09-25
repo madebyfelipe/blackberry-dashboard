@@ -5,6 +5,8 @@ import {
   ValidationError,
 } from "@/lib/clients/repository";
 import type { ClientPatch } from "@/lib/clients/types";
+import { deleteAccount } from "@/lib/crm/repository";
+import { deleteMedia } from "@/lib/media/store";
 import { requireAgency, unauthorized } from "@/lib/auth/session";
 
 export const dynamic = "force-dynamic";
@@ -22,6 +24,8 @@ const EDITABLE = [
   "city",
   "email",
   "phone",
+  "contactName",
+  "nps",
   "squad",
   "flowId",
 ] as const;
@@ -71,5 +75,8 @@ export async function DELETE(_req: Request, { params }: Ctx) {
   if (!ok) {
     return NextResponse.json({ error: "Cliente não encontrado." }, { status: 404 });
   }
+  // A ficha (serviços, faturas, agenda) sai junto — e os arquivos dela, do armazenamento.
+  const media = await deleteAccount(session.scope, id);
+  await Promise.all(media.map((m) => deleteMedia(m).catch(() => undefined)));
   return NextResponse.json({ ok: true });
 }

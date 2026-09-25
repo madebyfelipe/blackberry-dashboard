@@ -77,6 +77,16 @@ function cleanEmail(value: unknown): string {
   return email;
 }
 
+/** NPS: 0–10 com uma casa, ou `null`. Fora da faixa é erro. */
+function cleanNps(value: unknown): number | null {
+  if (value === null || value === undefined || value === "") return null;
+  const n = Number(String(value).replace(",", "."));
+  if (!Number.isFinite(n) || n < 0 || n > 10) {
+    throw new ValidationError("NPS vai de 0 a 10.");
+  }
+  return Math.round(n * 10) / 10;
+}
+
 /** Dia do faturamento: 1–31 ou `null`. Fora da faixa é erro, não silêncio. */
 function cleanBillingDay(value: unknown): number | null {
   if (value === null || value === undefined || value === "") return null;
@@ -95,6 +105,7 @@ export async function createClient(
   if (!name) throw new ValidationError("Nome é obrigatório.");
   const billingDay = cleanBillingDay(input.billingDay);
   const email = cleanEmail(input.email);
+  const nps = cleanNps(input.nps);
 
   const client: Client = {
     id: makeId(),
@@ -106,6 +117,8 @@ export async function createClient(
     city: cleanContact(input.city),
     email,
     phone: cleanContact(input.phone, 40),
+    contactName: cleanContact(input.contactName),
+    nps,
     owner: (input.owner ?? "").trim() || "—",
     billingDay,
     status: isClientStatus(input.status) ? input.status : "novo",
@@ -135,6 +148,7 @@ export async function updateClient(
   const billingDay =
     patch.billingDay === undefined ? undefined : cleanBillingDay(patch.billingDay);
   const email = patch.email === undefined ? undefined : cleanEmail(patch.email);
+  const nps = patch.nps === undefined ? undefined : cleanNps(patch.nps);
 
   return transaction((clients) => {
     const c = clients.find(
@@ -147,6 +161,8 @@ export async function updateClient(
     if (patch.city !== undefined) c.city = cleanContact(patch.city);
     if (email !== undefined) c.email = email;
     if (patch.phone !== undefined) c.phone = cleanContact(patch.phone, 40);
+    if (patch.contactName !== undefined) c.contactName = cleanContact(patch.contactName);
+    if (nps !== undefined) c.nps = nps;
     if (patch.owner !== undefined) c.owner = patch.owner.trim() || "—";
     if (patch.status !== undefined) c.status = patch.status;
     if (billingDay !== undefined) c.billingDay = billingDay;
@@ -193,6 +209,33 @@ export async function resolveClientId(
 ): Promise<string | null> {
   const client = await findClientByName(scope, name);
   return client?.id ?? null;
+}
+
+/**
+ * Os clientes de um fluxo, de uma vez — o "Clientes específicos" do Novo
+ * fluxo. Quem está em `clientIds` passa a seguir `flowId` (e sai do fluxo em
+ * que estava: cliente fica em um fluxo só); quem seguia `flowId` e ficou de
+ * fora volta ao padrão da agência. Id de outra agência é ignorado, como se
+ * não existisse. Devolve só os clientes que mudaram.
+ */
+export async function setFlowClients(
+  scope: AgencyScope,
+  flowId: string,
+  clientIds: string[],
+): Promise<Client[]> {
+  if (!flowId) throw new ValidationError("Fluxo inválido.");
+  const wanted = new Set(clientIds.map(String));
+  return transaction((clients) => {
+    const changed: Client[] = [];
+    for (const c of clients) {
+      if (c.agencyId !== scope.agencyId) continue;
+      const next = wanted.has(c.id) ? flowId : c.flowId === flowId ? null : c.flowId;
+      if (next === c.flowId) continue;
+      c.flowId = next;
+      changed.push({ ...c, services: [...c.services], squad: [...c.squad] });
+    }
+    return changed;
+  });
 }
 
 export async function deleteClient(

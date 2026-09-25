@@ -41,6 +41,13 @@ export type Client = {
   city: string;
   email: string;
   phone: string;
+  /** "Contato principal" da ficha (export "Clientes · Detalhe") — quem fala pelo cliente. */
+  contactName: string;
+  /**
+   * Satisfação (NPS) de 0 a 10, com uma casa ("9,2"). `null` = ainda não
+   * medido — a ficha mostra traço, não um número inventado.
+   */
+  nps: number | null;
   /** Quem cuida da conta dentro da agência — nome curto, como o responsável da tarefa. */
   owner: string;
   /** Dia do mês do faturamento (1–31). `null` = ainda não definido. */
@@ -65,6 +72,8 @@ export type NewClient = {
   city?: string;
   email?: string;
   phone?: string;
+  contactName?: string;
+  nps?: number | null;
   owner?: string;
   billingDay?: number | null;
   status?: ClientStatus;

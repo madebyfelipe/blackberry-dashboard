@@ -32,6 +32,8 @@ function cliente(over: Partial<Client> = {}): Client {
     city: "",
     email: "",
     phone: "",
+    contactName: "",
+    nps: null,
     owner: "Fernanda",
     billingDay: 5,
     status: "ativo",

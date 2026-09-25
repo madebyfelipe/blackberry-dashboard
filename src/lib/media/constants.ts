@@ -159,3 +159,20 @@ export const ATTACHMENT_POLICY: MediaPolicy = {
     "Esse tipo de arquivo não vai na conversa. Mande imagem, vídeo, áudio, PDF, documento, planilha, apresentação, texto ou ZIP.",
   tooBig: "Anexo acima de 20 MB.",
 };
+
+/** Pasta dos arquivos da ficha do cliente dentro do store do Blob. */
+export const BLOB_CLIENT_FILE_PREFIX = "clientes/";
+
+/**
+ * Os arquivos da ficha do cliente (aba Arquivos): os mesmos tipos do anexo
+ * da conversa — nada que o navegador execute — com o teto das artes, porque
+ * é aqui que mora o vídeo bruto do cliente.
+ */
+export const CLIENT_FILE_POLICY: MediaPolicy = {
+  accepted: ATTACHMENT_MIME,
+  maxBytes: MAX_UPLOAD_BYTES,
+  prefix: BLOB_CLIENT_FILE_PREFIX,
+  notAccepted:
+    "Esse tipo de arquivo não entra na ficha. Envie imagem, vídeo, áudio, PDF, documento, planilha, apresentação, texto ou ZIP.",
+  tooBig: "Arquivo acima de 50 MB.",
+};

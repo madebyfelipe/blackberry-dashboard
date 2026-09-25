@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
 import { createPortal } from "react-dom";
 import { cn } from "@/lib/cn";
 import { Breadcrumb } from "@/components/ui/Breadcrumb";
@@ -12,6 +13,7 @@ import { AUTOMATIONS, blankStep } from "@/lib/flows/constants";
 import type { AutomationId, Flow, FlowStatus, FlowStep, StepAssignee } from "@/lib/flows/types";
 import {
   duplicateStep,
+  FLOW_STATUS_LABEL,
   flowMeta,
   moveStep,
   nextStep,
@@ -52,6 +54,7 @@ import {
   ZapIcon,
 } from "@/components/icons";
 import { StepGlyph } from "./StepGlyph";
+import { Switch } from "./Switch";
 import { FlowClients, type FlowClient } from "./FlowClients";
 import { apiUpdateClient } from "@/components/clients/api";
 
@@ -66,16 +69,17 @@ import { apiUpdateClient } from "@/components/clients/api";
  * Toda mudança grava na hora — o pipeline é salvo inteiro a cada ajuste, e
  * a tela volta atrás se o servidor recusar.
  *
- * O Felipe ainda está desenhando a tela de criação/edição do fluxo. Até ela
- * chegar, "Novo fluxo" cria um fluxo desligado com uma etapa, e "Editar"
- * renomeia no próprio título — o resto já se configura aqui, nos cartões do
- * desenho.
+ * Criar e editar o fluxo (nome, descrição, categoria, ícone, cor e a quem
+ * ele vale) é a tela própria dos exports "Novo Fluxo" (`FlowWizard`): "Novo
+ * fluxo" abre os três passos, "Editar" abre o passo "Detalhes". Aqui fica a
+ * esteira — etapas, responsáveis, prazos e automações.
  */
 
 export type TeamPerson = { id: string; name: string; handle: string };
 
 type Tab = "todos" | FlowStatus;
 
+/** "Inativos" também mostra os rascunhos — os dois estão desligados. */
 const TABS: { id: Tab; label: string }[] = [
   { id: "todos", label: "Todos" },
   { id: "ativo", label: "Ativos" },
@@ -92,6 +96,10 @@ function relative(iso: string): string {
   if (days <= 0) return "hoje";
   if (days === 1) return "ontem";
   return `há ${days} dias`;
+}
+
+function inTab(status: FlowStatus, tab: Tab): boolean {
+  return tab === "inativo" ? status === "inativo" || status === "rascunho" : status === tab;
 }
 
 export function FlowsView({
@@ -151,7 +159,7 @@ export function FlowsView({
     const q = query.trim().toLowerCase();
     return flows.filter(
       (f) =>
-        (tab === "todos" ? f.status !== "arquivado" : f.status === tab) &&
+        (tab === "todos" ? f.status !== "arquivado" : inTab(f.status, tab)) &&
         (!q || f.name.toLowerCase().includes(q)),
     );
   }, [flows, tab, query]);
@@ -185,28 +193,6 @@ export function FlowsView({
   function patchStep(id: string, patch: Partial<FlowStep>) {
     if (!flow) return;
     saveSteps(flow.steps.map((s) => (s.id === id ? { ...s, ...patch } : s)));
-  }
-
-  async function createFlow(template?: "social-media") {
-    try {
-      const res = await fetch("/api/flows", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify(
-          template ? { name: "Social Media - Padrão", template } : { name: "Novo fluxo" },
-        ),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data?.error);
-      setFlows((all) => [...all, data.flow]);
-      setTab("todos");
-      setFlowId(data.flow.id);
-      setStepId(data.flow.steps[0]?.id ?? null);
-      if (template) toast("Modelo criado e ligado — cada etapa vai para o squad do cliente.");
-      else setRenaming(true);
-    } catch {
-      toast("Não foi possível criar o fluxo.", "error");
-    }
   }
 
   async function duplicateFlow() {
@@ -288,7 +274,6 @@ export function FlowsView({
     },
     [],
   );
-  const [renaming, setRenaming] = useState(false);
   const [dragging, setDragging] = useState<string | null>(null);
 
   // Os atalhos do menu de contexto valem com a etapa escolhida.
@@ -320,7 +305,7 @@ export function FlowsView({
     return () => window.removeEventListener("keydown", onKey);
   });
 
-  const statusTab = (s: FlowStatus) => flows.filter((f) => f.status === s).length;
+  const statusTab = (s: FlowStatus) => flows.filter((f) => inTab(f.status, s)).length;
 
   return (
     <Screen gap="md">
@@ -335,14 +320,14 @@ export function FlowsView({
       <ScreenHeader
         actions={
           <>
-            <button
-              type="button"
-              onClick={() => void createFlow()}
+            <Link
+              href="/configuracoes/fluxos/novo"
+              aria-label="Novo fluxo"
               className="tap flex items-center gap-2 rounded-mark bg-primary px-5 py-2.5 text-[13px] font-semibold text-on-primary transition-colors hover:bg-white"
             >
               <PlusIcon size={14} strokeWidth={2.5} />
               <span className="hidden sm:inline">Novo fluxo</span>
-            </button>
+            </Link>
           </>
         }
       >
@@ -393,7 +378,6 @@ export function FlowsView({
                     onClick={() => {
                       setFlowId(f.id);
                       setStepId(f.steps[0]?.id ?? null);
-                      setRenaming(false);
                     }}
                     className={cn(
                       "flex w-full flex-col gap-1.5 px-3.5 py-3 text-left transition-colors",
@@ -426,12 +410,6 @@ export function FlowsView({
           <section className="flex min-h-0 min-w-0 flex-1 flex-col rounded-card bg-flow-panel lg:overflow-y-auto">
             <FlowHeader
               flow={flow}
-              renaming={renaming}
-              onRename={(name) => {
-                setRenaming(false);
-                if (name.trim() && name.trim() !== flow.name) void save(flow.id, { name: name.trim() });
-              }}
-              onStartRename={() => setRenaming(true)}
               onDuplicate={duplicateFlow}
               onToggle={() => void save(flow.id, { status: flow.status === "ativo" ? "inativo" : "ativo" })}
               onArchive={() => {
@@ -474,6 +452,11 @@ export function FlowsView({
                 </div>
               </div>
 
+              {flow.steps.length === 0 && (
+                <p className="rounded-menu border border-dashed border-border px-4 py-5 text-center text-[12px] text-muted">
+                  Nenhuma etapa ainda — use “Adicionar etapa” para montar a esteira.
+                </p>
+              )}
               <div className="-mx-1 flex overflow-x-auto px-1 pb-1" role="list" aria-label="Etapas do fluxo">
                 {flow.steps.map((s, i) => (
                   <div key={s.id} className="flex shrink-0 items-stretch" role="listitem">
@@ -542,13 +525,12 @@ export function FlowsView({
                 pelo modelo (Briefing → Redação → Design → Revisão → Aprovação → Publicação, tudo
                 com o squad do cliente) ou monte um do zero.
               </p>
-              <button
-                type="button"
-                onClick={() => void createFlow("social-media")}
+              <Link
+                href="/configuracoes/fluxos/novo"
                 className="tap rounded-mark bg-primary px-4 py-2.5 text-[13px] font-semibold text-on-primary hover:bg-white"
               >
-                Usar o modelo Social Media
-              </button>
+                Novo fluxo
+              </Link>
             </div>
           </div>
         )}
@@ -601,17 +583,11 @@ export function FlowsView({
 
 function FlowHeader({
   flow,
-  renaming,
-  onRename,
-  onStartRename,
   onDuplicate,
   onToggle,
   onArchive,
 }: {
   flow: Flow;
-  renaming: boolean;
-  onRename: (name: string) => void;
-  onStartRename: () => void;
   onDuplicate: () => void;
   onToggle: () => void;
   onArchive: () => void;
@@ -622,21 +598,7 @@ function FlowHeader({
     <header className="flex flex-wrap items-center justify-between gap-4 px-5 pb-4 pt-[18px]">
       <div className="flex min-w-0 flex-col gap-0.5">
         <div className="flex min-w-0 items-center gap-2.5">
-          {renaming ? (
-            <input
-              autoFocus
-              defaultValue={flow.name}
-              aria-label="Nome do fluxo"
-              onBlur={(e) => onRename(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") onRename(e.currentTarget.value);
-                if (e.key === "Escape") onRename(flow.name);
-              }}
-              className="min-w-0 rounded-mark bg-surface px-2 py-0.5 text-[16px] font-semibold text-fg focus:outline-none"
-            />
-          ) : (
-            <h1 className="truncate text-[16px] font-semibold text-fg">{flow.name}</h1>
-          )}
+          <h1 className="truncate text-[16px] font-semibold text-fg">{flow.name}</h1>
           <span
             className={cn(
               "flex shrink-0 items-center gap-1.5 rounded-pill px-2 py-[3px] text-[11px] font-semibold",
@@ -644,7 +606,7 @@ function FlowHeader({
             )}
           >
             <span className={cn("h-1.5 w-1.5 rounded-full", active ? "bg-flow-on" : "bg-status-paused")} />
-            {flow.status === "ativo" ? "Ativo" : flow.status === "inativo" ? "Inativo" : "Arquivado"}
+            {FLOW_STATUS_LABEL[flow.status]}
           </span>
         </div>
         <p className="text-[12px] text-muted">
@@ -657,7 +619,7 @@ function FlowHeader({
         <HeaderButton onClick={onDuplicate} icon={<CopyIcon size={13} />}>
           Duplicar
         </HeaderButton>
-        <HeaderButton onClick={onStartRename} icon={<PencilIcon size={13} />}>
+        <HeaderButton href={`/configuracoes/fluxos/${flow.id}/editar`} icon={<PencilIcon size={13} />}>
           Editar
         </HeaderButton>
         <button
@@ -704,20 +666,30 @@ function FlowHeader({
 function HeaderButton({
   icon,
   onClick,
+  href,
   children,
 }: {
   icon: React.ReactNode;
-  onClick: () => void;
   children: React.ReactNode;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className="tap flex items-center gap-1.5 rounded-mark bg-flow-btn px-3 py-2 text-[12px] font-medium text-fg-soft transition-colors hover:bg-row-raised"
-    >
+} & ({ onClick: () => void; href?: never } | { href: string; onClick?: never })) {
+  const className =
+    "tap flex items-center gap-1.5 rounded-mark bg-flow-btn px-3 py-2 text-[12px] font-medium text-fg-soft transition-colors hover:bg-row-raised";
+  const body = (
+    <>
       <span className="text-fg-3">{icon}</span>
       <span className="hidden sm:inline">{children}</span>
+    </>
+  );
+  if (href) {
+    return (
+      <Link href={href} className={className}>
+        {body}
+      </Link>
+    );
+  }
+  return (
+    <button type="button" onClick={onClick} className={className}>
+      {body}
     </button>
   );
 }
@@ -747,27 +719,6 @@ function ViewMode({
     >
       {children}
     </button>
-  );
-}
-
-function Switch({ on, size = "sm" }: { on: boolean; size?: "sm" | "md" }) {
-  return (
-    <span
-      aria-hidden="true"
-      className={cn(
-        "flex shrink-0 items-center rounded-pill px-0.5 transition-colors",
-        size === "md" ? "h-5 w-[34px]" : "h-3.5 w-[26px]",
-        on ? "justify-end bg-primary" : "justify-start bg-border",
-      )}
-    >
-      <span
-        className={cn(
-          "rounded-full transition-colors",
-          size === "md" ? "h-4 w-4" : "h-2.5 w-2.5",
-          on ? "bg-flow-panel" : "bg-muted",
-        )}
-      />
-    </span>
   );
 }
 

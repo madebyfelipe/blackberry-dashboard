@@ -43,6 +43,10 @@ export type ClientModalValues = {
   city: string;
   email: string;
   phone: string;
+  /** "Contato principal" da ficha do cliente. */
+  contactName: string;
+  /** Satisfação (NPS) 0–10; `null` = não medido. */
+  nps: number | null;
   /** Quem do time cuida do cliente — recebe as etapas "squad do cliente". */
   squad: string[];
   /** Fluxo das tarefas deste cliente; `null` = o padrão da agência. */
@@ -73,6 +77,8 @@ export function ClientModal({
   const [city, setCity] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
+  const [contactName, setContactName] = useState("");
+  const [nps, setNps] = useState<number | null>(null);
   const [squad, setSquad] = useState<string[]>([]);
   const [flowId, setFlowId] = useState<string | null>(null);
 
@@ -89,6 +95,8 @@ export function ClientModal({
       setCity(c.city);
       setEmail(c.email);
       setPhone(c.phone);
+      setContactName(c.contactName ?? "");
+      setNps(c.nps ?? null);
       setSquad(c.squad ?? []);
       setFlowId(c.flowId ?? null);
     } else {
@@ -101,6 +109,8 @@ export function ClientModal({
       setCity("");
       setEmail("");
       setPhone("");
+      setContactName("");
+      setNps(null);
       setSquad([]);
       setFlowId(null);
     }
@@ -129,6 +139,8 @@ export function ClientModal({
       city,
       email,
       phone,
+      contactName,
+      nps,
       squad,
       flowId,
     });
@@ -237,6 +249,16 @@ export function ClientModal({
             value={phone}
             onChange={setPhone}
           />
+
+          {/* Da ficha do cliente (export "Clientes · Detalhe"): quem fala por ele e o NPS. */}
+          <ChipField
+            icon={<UserCircleIcon size={14} />}
+            placeholder="Contato principal"
+            value={contactName}
+            onChange={setContactName}
+          />
+
+          <NpsChip value={nps} onChange={setNps} />
         </div>
 
         <div className="h-px w-full bg-border" />
@@ -482,6 +504,60 @@ function BillingChip({
         <CalendarIcon size={14} />
       </span>
       {value === null ? "Faturamento" : `Dia ${String(value).padStart(2, "0")}`}
+    </button>
+  );
+}
+
+/** NPS — 0 a 10, com uma casa ("9,2"). */
+function NpsChip({ value, onChange }: { value: number | null; onChange: (v: number | null) => void }) {
+  const show = (v: number | null) => (v === null ? "" : String(v).replace(".", ","));
+  const [open, setOpen] = useState(false);
+  const [draft, setDraft] = useState(show(value));
+
+  useEffect(() => setDraft(show(value)), [value]);
+
+  function commit() {
+    const n = Number(draft.replace(",", "."));
+    onChange(draft.trim() && Number.isFinite(n) && n >= 0 && n <= 10 ? Math.round(n * 10) / 10 : null);
+    setOpen(false);
+  }
+
+  if (open) {
+    return (
+      <span className="flex items-center gap-1.5 rounded-pill px-4 py-2 inset-ring-1 inset-ring-border-strong">
+        <span className="text-[13px] text-muted">NPS</span>
+        <input
+          autoFocus
+          inputMode="decimal"
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          onBlur={commit}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              e.preventDefault();
+              commit();
+            } else if (e.key === "Escape") {
+              setDraft(show(value));
+              setOpen(false);
+            }
+          }}
+          placeholder="0–10"
+          className="w-12 bg-transparent text-[13px] text-fg-soft focus:outline-none"
+        />
+      </span>
+    );
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={() => setOpen(true)}
+      className={cn(
+        chipBase,
+        value === null ? "text-fg-3 inset-ring-border hover:bg-border" : "text-fg-soft inset-ring-border-strong",
+      )}
+    >
+      {value === null ? "NPS" : `NPS ${show(value)}`}
     </button>
   );
 }

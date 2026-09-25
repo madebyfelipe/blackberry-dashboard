@@ -36,7 +36,8 @@ export type TaskModalValues = {
 };
 
 export type TaskModalState =
-  | { mode: "create"; status?: TaskStatus }
+  /** `client` já preenche o cliente — a "Nova tarefa" da ficha do cliente. */
+  | { mode: "create"; status?: TaskStatus; client?: string }
   | { mode: "edit"; task: Task };
 
 /** Quick-create/edit modal, faithful to the "New Issue Modal" export. */
@@ -75,7 +76,7 @@ export function TaskModal({
       setDueDate(t.dueDate);
     } else {
       setTitle("");
-      setClient("");
+      setClient(state.client ?? "");
       setAssignee("");
       setStatus(state.status ?? "a-fazer");
       setDescription("");

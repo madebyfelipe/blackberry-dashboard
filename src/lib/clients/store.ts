@@ -22,6 +22,8 @@ function normalize(raw: Partial<Client> & { id: string }): Client {
     city: raw.city ?? "",
     email: raw.email ?? "",
     phone: raw.phone ?? "",
+    contactName: raw.contactName ?? "",
+    nps: typeof raw.nps === "number" && raw.nps >= 0 && raw.nps <= 10 ? raw.nps : null,
     owner: raw.owner ?? "—",
     billingDay: typeof raw.billingDay === "number" ? raw.billingDay : null,
     status: isClientStatus(raw.status) ? raw.status : "ativo",

@@ -136,6 +136,7 @@ export async function addPiece(
       history: [
         {
           id: "h" + Math.random().toString(36).slice(2, 8),
+          at: new Date().toISOString(),
           title: media ? "Arte enviada para o lote" : "Peça criada no lote",
           who: agencyStamp(scope),
         },
@@ -193,6 +194,7 @@ export async function addPieceMedia(
     piece.history = [
       {
         id: "h" + Math.random().toString(36).slice(2, 8),
+        at: new Date().toISOString(),
         title: wasEmpty ? "Arte enviada" : "Arte adicionada ao carrossel",
         who: agencyStamp(scope),
       },
@@ -226,6 +228,7 @@ export async function removePieceMedia(
     piece.history = [
       {
         id: "h" + Math.random().toString(36).slice(2, 8),
+        at: new Date().toISOString(),
         title: "Arte removida",
         who: agencyStamp(scope),
       },
@@ -257,6 +260,7 @@ export async function sendBatchForApproval(
       piece.history = [
         {
           id: "h" + Math.random().toString(36).slice(2, 8),
+          at: new Date().toISOString(),
           title: "Enviada para aprovação",
           who,
         },
@@ -382,6 +386,7 @@ export async function approvePieceByAgency(
     piece.history = [
       {
         id: "h" + Math.random().toString(36).slice(2, 8),
+        at: new Date().toISOString(),
         title: "Aprovada pela agência",
         who: agencyStamp(scope),
         snapshot: { caption: piece.caption, kind: piece.kind, size: piece.size },
@@ -407,6 +412,7 @@ export async function markPieceRedone(
     piece.history = [
       {
         id: "h" + Math.random().toString(36).slice(2, 8),
+        at: new Date().toISOString(),
         title: "Marcada como refeita",
         who: agencyStamp(scope),
       },
@@ -467,6 +473,7 @@ export async function decidePiece(
           : "Marcada como pendente";
     const event: DecisionEvent = {
       id: "h" + Math.random().toString(36).slice(2, 8),
+      at: new Date().toISOString(),
       title,
       who,
       ip: opts?.ip,
