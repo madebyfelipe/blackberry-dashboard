@@ -1502,3 +1502,82 @@ export function FolderOpenIcon(p: IconProps) {
     </Svg>
   );
 }
+
+/* --------------------------------------------------------------- Chamada */
+
+export function MonitorIcon(p: IconProps) {
+  return (
+    <Svg {...p}>
+      <rect width="20" height="14" x="2" y="3" rx="2" />
+      <line x1="8" x2="16" y1="21" y2="21" />
+      <line x1="12" x2="12" y1="17" y2="21" />
+    </Svg>
+  );
+}
+
+export function AppWindowIcon(p: IconProps) {
+  return (
+    <Svg {...p}>
+      <rect x="2" y="4" width="20" height="16" rx="2" />
+      <path d="M10 4v4" />
+      <path d="M2 8h20" />
+      <path d="M6 4v4" />
+    </Svg>
+  );
+}
+
+export function RadioIcon(p: IconProps) {
+  return (
+    <Svg {...p}>
+      <path d="M4.9 19.1C1 15.2 1 8.8 4.9 4.9" />
+      <path d="M7.8 16.2c-2.3-2.3-2.3-6.1 0-8.5" />
+      <circle cx="12" cy="12" r="2" />
+      <path d="M16.2 7.8c2.3 2.3 2.3 6.1 0 8.5" />
+      <path d="M19.1 4.9C23 8.8 23 15.1 19.1 19" />
+    </Svg>
+  );
+}
+
+export function FlipHorizontalIcon(p: IconProps) {
+  return (
+    <Svg {...p}>
+      <path d="M8 3H5a2 2 0 0 0-2 2v14c0 1.1.9 2 2 2h3" />
+      <path d="M16 3h3a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-3" />
+      <path d="M12 20v2" />
+      <path d="M12 14v2" />
+      <path d="M12 8v2" />
+      <path d="M12 2v2" />
+    </Svg>
+  );
+}
+
+export function VideoOffIcon(p: IconProps) {
+  return (
+    <Svg {...p}>
+      <path d="M10.66 6H14a2 2 0 0 1 2 2v2.5l5.248-3.062A.5.5 0 0 1 22 7.87v8.196" />
+      <path d="M16 16a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h2" />
+      <path d="m2 2 20 20" />
+    </Svg>
+  );
+}
+
+export function SmilePlusIcon(p: IconProps) {
+  return (
+    <Svg {...p}>
+      <path d="M22 11v1a10 10 0 1 1-9-10" />
+      <path d="M8 14s1.5 2 4 2 4-2 4-2" />
+      <line x1="9" x2="9.01" y1="9" y2="9" />
+      <line x1="15" x2="15.01" y1="9" y2="9" />
+      <path d="M16 5h6" />
+      <path d="M19 2v6" />
+    </Svg>
+  );
+}
+
+export function ChevronUpIcon(p: IconProps) {
+  return (
+    <Svg {...p}>
+      <path d="m18 15-6-6-6 6" />
+    </Svg>
+  );
+}

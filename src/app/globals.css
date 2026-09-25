@@ -220,6 +220,22 @@
   --color-crm-sheet-bg: #20361f;
   --color-crm-rail: #262626;
 
+  /*
+   * Chamada (export "Call View" e "Modais de controle da chamada"). O palco
+   * é um degrau abaixo do preto; o verde marca quem está apresentando; o
+   * vermelho escuro é a câmera desligada; o seu quadro, sem câmera, é o
+   * degradê azul do desenho; as miniaturas do seletor de tela e a prévia da
+   * câmera têm o degradê delas.
+   */
+  --color-call-stage: #08080c;
+  --color-call-live: #3ba55c;
+  --color-call-off-bg: #3a2a2a;
+  --color-call-self-from: #3b5bdb;
+  --color-call-self-to: #101018;
+  --color-call-thumb-from: #26262f;
+  --color-call-thumb-to: #14141a;
+  --color-call-preview-from: #3a3550;
+
   /* Radii */
   --radius-field: 24px;
   --radius-pill: 999px;

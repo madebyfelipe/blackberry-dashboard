@@ -288,15 +288,21 @@ Três decisões que vale saber antes de mexer:
   Ativo, vermelho de Em risco, âmbar de Renovação, cinza de Pausado): o
   produto tem uma paleta com significado só, não duas. O seu status se troca
   no menu da sua conta, no rodapé da lateral.
-- **A chamada ainda não transmite.** Não existe camada de tempo real no
-  projeto (WebSocket/WebRTC), e a issue registra que essa decisão técnica vem
-  *depois* do desenho. Então a chamada abre no popup desenhado, conta o tempo
-  e **deixa o registro no histórico** ("Fulano iniciou uma chamada que durou 12
-  minutos", a linha de sistema do export); microfone e tela aparecem
-  desligados, dizendo por quê, em vez de acenderem fingindo que alguém ouve do
-  outro lado. Pela mesma razão, mensagem nova chega por releitura periódica da
-  tela (12s, só com a aba à vista), não por push. Quando a camada entrar, ela
-  substitui essas duas coisas — o resto da tela não muda.
+- **A chamada mora no shell e se desenha no lugar da conversa.** O
+  `CallProvider` monta a `CallOverlay` no layout do app, então ela não cai ao
+  trocar de página (minimizada, vira o cartão do canto). Aberta no desktop, o
+  Inbox marca o lugar da conversa (`call.setSlot`) e a chamada se posiciona
+  **por cima** dele (export "Chamada · Call View") — posição fixa medida com
+  `ResizeObserver`, sem trocar de pai no DOM, porque remontar os `<video>`
+  cortaria a imagem. Sem lugar marcado (celular, outra tela) ela cobre a tela
+  inteira; "abrir" de outra tela leva até `/inbox?conversa=<id>`. A mídia é o
+  LiveKit (`src/lib/realtime/*`); sem as variáveis dele a chamada abre, conta o
+  tempo e **deixa o registro no histórico**, com os controles desligados
+  dizendo por quê — nada acende fingindo que alguém ouve do outro lado. As
+  preferências de quem transmite (qualidade da tela, câmera) são regra pura em
+  `lib/inbox/screenQuality.ts` e `lib/inbox/callPrefs.ts`, guardadas no
+  navegador entre uma chamada e outra. Sem o Ably, mensagem nova chega por
+  releitura periódica da tela (12s, só com a aba à vista), não por push.
 
 ## Fluxos: o criativo vira tarefa e a tarefa anda sozinha
 
