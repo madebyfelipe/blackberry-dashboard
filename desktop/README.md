@@ -39,6 +39,13 @@ Para apontar para outro endereço sem mexer em nada: `npx electron . --url=https
 
 O instalador do Mac só se gera num Mac; o do Windows, de preferência num Windows.
 
+**Release do Windows pelo GitHub** (`.github/workflows/desktop-release.yml`):
+para sair versão nova, suba `version` neste `package.json` e escreva as notas
+em `RELEASE_NOTES.md` num PR. No PR, a execução "Desktop — instalador" gera o
+`.exe` numa máquina Windows e deixa ele nos artefatos, para testar antes. No
+merge para a `main`, ela publica o release `v<versão>` com o `.exe` e as notas.
+Um release que já existe não é refeito.
+
 **Assinatura.** Sem certificado, o Windows mostra "O Windows protegeu o seu
 computador" e o macOS recusa abrir o app baixado (dá para liberar em Ajustes →
 Privacidade e Segurança). Para distribuir para a equipe sem esse aviso é preciso:
