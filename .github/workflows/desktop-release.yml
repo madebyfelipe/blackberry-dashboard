@@ -1,0 +1,85 @@
+# Instalador do app de desktop — ver desktop/README.md, "Gerando o instalador".
+#
+# Gera o .exe do Windows numa máquina Windows de verdade e publica o release
+# `v<versão>` com ele. A versão é a do `desktop/package.json`; as notas, as de
+# `desktop/RELEASE_NOTES.md`. Release que já existe não é refeito: para sair
+# versão nova, é subir a versão (e as notas) num PR e fazer o merge.
+#
+# Em pull request só gera e guarda o .exe nos artefatos da execução — dá para
+# baixar e testar antes do merge, sem publicar nada.
+
+name: Desktop — instalador
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - desktop/package.json
+      - desktop/RELEASE_NOTES.md
+      - .github/workflows/desktop-release.yml
+  pull_request:
+    paths:
+      - desktop/**
+      - .github/workflows/desktop-release.yml
+  workflow_dispatch:
+
+concurrency:
+  group: desktop-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  windows:
+    name: Instalador do Windows
+    runs-on: windows-latest
+    permissions:
+      contents: write
+    defaults:
+      run:
+        working-directory: desktop
+        shell: bash
+
+    steps:
+      - name: Baixar o código
+        uses: actions/checkout@v4
+
+      - name: Preparar o Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: desktop/package-lock.json
+
+      - name: Instalar dependências
+        run: npm ci
+
+      - name: Verificar
+        run: npm run check
+
+      - name: Versão
+        id: versao
+        run: echo "v=$(node -p "require('./package.json').version")" >> "$GITHUB_OUTPUT"
+
+      - name: Gerar o instalador
+        run: npx electron-builder --win --x64 --publish never
+
+      - name: Guardar o instalador na execução
+        uses: actions/upload-artifact@v4
+        with:
+          name: blackberry-${{ steps.versao.outputs.v }}-win-x64
+          path: desktop/dist/blackberry-${{ steps.versao.outputs.v }}-win-x64.exe
+          if-no-files-found: error
+
+      - name: Publicar o release
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          V: ${{ steps.versao.outputs.v }}
+        run: |
+          if gh release view "v$V" > /dev/null 2>&1; then
+            echo "O release v$V já existe — nada a publicar."
+            exit 0
+          fi
+          gh release create "v$V" "dist/blackberry-$V-win-x64.exe" \
+            --target "$GITHUB_SHA" \
+            --title "black berry desktop $V" \
+            --notes-file RELEASE_NOTES.md
