@@ -10,7 +10,7 @@ import { initialsOf } from "@/lib/inbox/view";
 import { alertRoute, DEFAULT_NOTIFY_PREFS, normalizeNotifyPrefs, type AlertRoute, type NotifyPrefs } from "@/lib/inbox/notifyPrefs";
 import { isPresence } from "@/lib/inbox/constants";
 import type { Presence } from "@/lib/inbox/types";
-import { playAlertSound } from "@/components/settings/sounds";
+import { playAlertSound, startRing } from "@/components/settings/sounds";
 import { PROFILE_CHANGED } from "@/components/settings/events";
 
 /*
@@ -99,6 +99,38 @@ function callRoute(): AlertRoute {
 let openConversation: string | null = null;
 export function setOpenConversation(id: string | null) {
   openConversation = id;
+  // Abriu a conversa que está tocando: já viu a ligação — o toque para.
+  if (id) stopIncomingRing(id);
+}
+
+/*
+ * O toque de quem recebe a ligação: em loop desde o "está te ligando" até
+ * atender (você aparece na chamada), a chamada acabar, abrir a conversa ou
+ * passar `RING_MAX_MS`. Um toque por vez — ligação nova troca a anterior.
+ * Ocupado (e som "Nenhum") não toca, como os outros avisos.
+ */
+const RING_MAX_MS = 30_000;
+let ringing: { conversationId: string; stop: () => void; timer: ReturnType<typeof setTimeout> } | null = null;
+
+function ringFor(conversationId: string) {
+  if (ringing?.conversationId === conversationId) return;
+  stopIncomingRing();
+  if (!callRoute().sound) return;
+  const stop = startRing("toque");
+  ringing = { conversationId, stop, timer: setTimeout(() => stopIncomingRing(), RING_MAX_MS) };
+}
+
+/** Para o toque (só o desta conversa, se ela for dita). A chamada chama ao entrar. */
+export function stopIncomingRing(conversationId?: string) {
+  if (!ringing || (conversationId && ringing.conversationId !== conversationId)) return;
+  ringing.stop();
+  clearTimeout(ringing.timer);
+  ringing = null;
+}
+
+/** A chamada mudou: se acabou ou se você já está nela, o toque dela para. */
+function settleRing(conversationId: string, memberIds: string[], me: string) {
+  if (memberIds.length === 0 || memberIds.includes(me)) stopIncomingRing(conversationId);
 }
 
 /** A pessoa está com os olhos nesta página agora? Foco, não só "aba visível". */
@@ -249,9 +281,11 @@ export function InboxNotifier() {
               from: c.title,
             });
           }
+          settleRing(c.id, c.callMemberIds, me);
           const callStarted =
             (prev?.callMemberIds.length ?? 0) === 0 && c.callMemberIds.length > 0 && !c.callMemberIds.includes(me);
           if (callStarted) {
+            ringFor(c.id);
             showNotification({
               route: callRoute(),
               router,
@@ -312,7 +346,9 @@ export function InboxNotifier() {
         );
         return;
       }
+      if (e.tipo === "chamada") settleRing(e.conversationId, e.memberIds, me);
       if (e.tipo === "chamada" && e.started && e.from && e.from.id !== me) {
+        ringFor(e.conversationId);
         notify(
           e.conversationId,
           `${e.from.name} está te ligando`,
@@ -405,7 +441,8 @@ function showNotification({
 }) {
   if (!route.inApp && !route.system) return;
   // O som toca mesmo sem permissão de notificação: é o aviso que sobra.
-  if (route.sound) tocarSom();
+  // A ligação tem o toque dela, em loop (`ringFor`): aqui não soma outro som.
+  if (route.sound && !call) tocarSom();
   const open = () => {
     desktopBridge()?.show?.();
     window.focus();

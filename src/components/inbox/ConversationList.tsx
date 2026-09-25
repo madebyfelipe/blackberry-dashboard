@@ -1,5 +1,6 @@
 "use client";
 
+import { MemberAvatar } from "./MemberAvatar";
 import { useEffect, useRef, useState } from "react";
 import { cn } from "@/lib/cn";
 import { BellOffIcon, PhoneIcon, SearchIcon, SlidersIcon, SquarePenIcon } from "@/components/icons";
@@ -247,14 +248,15 @@ function Item({
       {item.kind === "grupo" ? (
         // No celular o avatar cresce 25% inteiro (a pilha do grupo junto) — mais fácil de reconhecer.
         <span className="relative h-8 w-8 shrink-0 max-md:[zoom:1.25]" aria-hidden="true">
-          <span
+          <MemberAvatar
+            name=""
+            initials={item.initials[1] || "—"}
+            photoUrl={item.photos?.[1]}
             className={cn(
-              "absolute left-2.5 top-2.5 flex h-[22px] w-[22px] items-center justify-center rounded-pill bg-border text-[8px] font-semibold text-fg-3 outline-2",
+              "absolute left-2.5 top-2.5 h-[22px] w-[22px] bg-border text-[8px] font-semibold text-fg-3 outline-2",
               active ? "outline-row-raised" : "outline-surface",
             )}
-          >
-            {item.initials[1] || "—"}
-          </span>
+          />
           <span
             className={cn(
               "absolute left-0 top-0 flex h-[22px] w-[22px] items-center justify-center rounded-pill bg-border-strong text-[8px] font-semibold text-fg outline-2",
@@ -266,12 +268,12 @@ function Item({
         </span>
       ) : (
         <span className="relative h-8 w-8 shrink-0 max-md:[zoom:1.25]">
-          <span
-            className="flex h-8 w-8 items-center justify-center rounded-pill bg-border text-[11px] font-semibold text-fg-3"
-            aria-hidden="true"
-          >
-            {item.initials[0]}
-          </span>
+          <MemberAvatar
+            name=""
+            initials={item.initials[0]}
+            photoUrl={item.photos?.[0]}
+            className="h-8 w-8 bg-border text-[11px] font-semibold text-fg-3"
+          />
           {item.presence && (
             <PresenceBadge presence={item.presence} ring={ring} size={9} />
           )}

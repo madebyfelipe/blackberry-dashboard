@@ -293,6 +293,12 @@ export function summarize(
             initialsOf(others[0]?.name ?? ""),
           ]
         : [initialsOf(title)],
+    // As fotos, na mesma ordem das iniciais: a marca do grupo não tem foto; a
+    // pessoa atrás dela (e a do outro lado, na direta) tem, se mandou uma.
+    photos:
+      conversation.kind === "grupo"
+        ? [null, others[0]?.photoUrl ?? null]
+        : [others[0]?.photoUrl ?? null],
     preview: previewOf(conversation, members, viewerId),
     lastAt: last?.createdAt ?? null,
     unread: unreadCount(conversation, viewerId),

@@ -206,6 +206,7 @@ describe("ordem e seções da lista", () => {
     kind: "grupo",
     title: "X",
     initials: ["X"],
+    photos: [null],
     preview: "",
     lastAt: null,
     unread: 0,

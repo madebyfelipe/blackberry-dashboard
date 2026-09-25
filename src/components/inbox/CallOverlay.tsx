@@ -1,5 +1,9 @@
 "use client";
 
+import { playCallCue, startRing } from "@/components/settings/sounds";
+import { stopIncomingRing } from "./InboxNotifier";
+import { useDraggable } from "@/components/ui/useDraggable";
+import { MemberAvatar } from "./MemberAvatar";
 import { loadAudioPrefs, saveAudioPrefs } from "@/lib/inbox/audioPrefs";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { cn } from "@/lib/cn";
@@ -177,6 +181,9 @@ async function aplicarQualidade(sala: Sala, q: ScreenQuality) {
     // Tela que não aceita a resolução pedida segue na que tinha.
   }
 }
+
+/** Por quanto tempo quem liga ouve o "chamando" antes de ele parar sozinho. */
+const CHAMANDO_MAX_MS = 45_000;
 
 /** O Chrome e o Edge deixam a página escolher o alto-falante; o Safari não. */
 function escolheSaida(): boolean {
@@ -850,6 +857,9 @@ export function CallOverlay({
   }, []);
 
   const ativo = estado === "na-chamada";
+  // O cartão do canto (chamada minimizada) vai para onde a pessoa arrastar.
+  const canto = useDraggable<HTMLDivElement>("bb:chamada-canto");
+
   const outros = detail.members.filter((m) => m.id !== me.id);
   const doOutroLado = detail.kind === "direta" ? outros[0]?.name : detail.title;
   /*
@@ -857,6 +867,54 @@ export function CallOverlay({
    * vê; sem provedor de mídia (ou antes de conectar), o registro do servidor.
    */
   const presentes = new Set((ativo ? naSala : detail.callMemberIds).filter((id) => id !== me.id));
+
+  /*
+   * Os sons da chamada. Entrou: o toque de quem recebe (no notificador)
+   * para. Sozinho na sala e sem ninguém ter entrado ainda — você ligou —,
+   * toca o "chamando" em loop até alguém chegar (no máximo 45 s). Depois,
+   * cada entrada e saída tem o seu toque curto.
+   */
+  const chaveSala = [...presentes].sort().join(",");
+  const jaTeveAlguem = useRef(false);
+  const salaAntes = useRef<Set<string> | null>(null);
+  // Você entrou numa chamada que já tinha gente (o registro do servidor)?
+  // Então não foi você quem ligou: sem "chamando", e quem já estava lá
+  // aparecendo na conexão não conta como "entrou".
+  const jaTinhaGente = useRef(false);
+  const tinhaGenteAgora = detail.callMemberIds.some((id) => id !== me.id);
+  const tinhaGenteRef = useRef(tinhaGenteAgora);
+  tinhaGenteRef.current = tinhaGenteAgora;
+  useEffect(() => {
+    if (!ativo) return;
+    stopIncomingRing(detail.id);
+    jaTinhaGente.current = tinhaGenteRef.current;
+  }, [ativo, detail.id]);
+  useEffect(() => {
+    if (!ativo) {
+      salaAntes.current = null;
+      jaTeveAlguem.current = false;
+      return;
+    }
+    const agora = new Set(chaveSala ? chaveSala.split(",") : []);
+    const antes = salaAntes.current;
+    const chegandoNaSala = jaTinhaGente.current && !jaTeveAlguem.current;
+    if (antes && !chegandoNaSala) {
+      if ([...agora].some((id) => !antes.has(id))) playCallCue("entrou");
+      else if ([...antes].some((id) => !agora.has(id))) playCallCue("saiu");
+    }
+    if (agora.size > 0) jaTeveAlguem.current = true;
+    salaAntes.current = agora;
+  }, [ativo, chaveSala]);
+  useEffect(() => {
+    if (!ativo || chaveSala || jaTeveAlguem.current || jaTinhaGente.current) return;
+    const parar = startRing("chamando");
+    const limite = setTimeout(parar, CHAMANDO_MAX_MS);
+    return () => {
+      parar();
+      clearTimeout(limite);
+    };
+  }, [ativo, chaveSala]);
+
   const remotoDe = (id: string) => remotos.find((r) => r.id === id);
 
   /** Os quadros: você, quem está na sala e, na direta, quem está sendo chamado. */
@@ -864,6 +922,7 @@ export function CallOverlay({
     {
       id: me.id,
       name: me.name,
+      photoUrl: me.photoUrl,
       label: "Você",
       video: meuVideo,
       mirrored: cameraPrefs.mirror,
@@ -879,6 +938,7 @@ export function CallOverlay({
         return {
           id: m.id,
           name: m.name,
+          photoUrl: m.photoUrl,
           label: m.name,
           video: r?.camera ?? null,
           muted: r ? r.mudo : true,
@@ -931,9 +991,16 @@ export function CallOverlay({
        */}
       {minimized && (
         <div
+          ref={canto.ref}
+          {...canto.handlers}
           role="region"
-          aria-label={`Chamada em ${detail.title}`}
-          className="fixed bottom-3 right-3 z-50 flex w-[280px] max-w-[calc(100vw-24px)] animate-scale-in items-center gap-2 rounded-card border border-border bg-surface p-3 shadow-[0_16px_40px_rgba(0,0,0,0.6)] md:bottom-4 md:right-4"
+          aria-label={`Chamada em ${detail.title} — arraste para mover`}
+          title="Arraste para mover"
+          style={canto.style}
+          className={cn(
+            "fixed bottom-3 right-3 z-50 flex w-[280px] max-w-[calc(100vw-24px)] animate-scale-in touch-none select-none items-center gap-2 rounded-card border border-border bg-surface p-3 shadow-[0_16px_40px_rgba(0,0,0,0.6)] md:bottom-4 md:right-4",
+            canto.dragging ? "cursor-grabbing shadow-[0_24px_56px_rgba(0,0,0,0.7)]" : "cursor-grab",
+          )}
         >
           <button
             type="button"
@@ -941,15 +1008,14 @@ export function CallOverlay({
             title="Abrir a chamada"
             className="flex min-w-0 flex-1 items-center gap-2.5 rounded-mark text-left focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-fg-3"
           >
-            <span
+            <MemberAvatar
+              name={doOutroLado ?? detail.title}
+              photoUrl={detail.kind === "direta" ? outros[0]?.photoUrl : null}
               className={cn(
-                "flex h-9 w-9 shrink-0 items-center justify-center rounded-pill bg-border-strong text-[12px] font-semibold text-fg",
-                ativo && naSala.length > 0 && "inset-ring-2 inset-ring-fg-3",
+                "h-9 w-9 bg-border-strong text-[12px] font-semibold text-fg",
+                ativo && naSala.length > 0 && "ring-2 ring-fg-3",
               )}
-              aria-hidden="true"
-            >
-              {initialsOf(doOutroLado ?? detail.title)}
-            </span>
+            />
             <span className="flex min-w-0 flex-col">
               <span className="truncate text-[13px] font-semibold text-fg">{detail.title}</span>
               <span className="truncate text-[11px] tabular-nums text-muted">
@@ -1120,15 +1186,16 @@ export function CallOverlay({
                   const fala = dentro && falando.has(m.id);
                   return (
                     <li key={m.id} className="flex items-center gap-2.5 rounded-chip px-2 py-2">
-                      <span
+                      <MemberAvatar
+                        name={m.name}
+                        photoUrl={m.photoUrl}
                         className={cn(
-                          "flex h-8 w-8 shrink-0 items-center justify-center rounded-pill text-[11px] font-semibold",
+                          "h-8 w-8 text-[11px] font-semibold",
                           dentro ? "bg-border-strong text-fg" : "border border-dashed border-border-strong text-muted",
-                          fala && "inset-ring-2 inset-ring-call-live",
+                          !dentro && m.photoUrl && "opacity-60",
+                          fala && "ring-2 ring-call-live",
                         )}
-                      >
-                        {initialsOf(m.name)}
-                      </span>
+                      />
                       <span className="flex min-w-0 flex-1 flex-col">
                         <span className={cn("truncate text-[13px]", dentro ? "text-fg-soft" : "text-muted")}>
                           {eu ? `${m.name} (você)` : m.name}
@@ -1301,6 +1368,8 @@ export function CallOverlay({
 type TileInfo = {
   id: string;
   name: string;
+  /** A foto da pessoa — sem câmera, é ela que aparece no quadro. */
+  photoUrl?: string | null;
   label: string;
   video: Faixa | null;
   mirrored?: boolean;
@@ -1361,16 +1430,16 @@ function Tile({ info, reaction, className }: { info: TileInfo; reaction?: Reacti
     >
       <VideoTrack track={info.video} mirrored={info.mirrored} />
       {semVideo && (
-        <span
+        <MemberAvatar
+          name={info.name}
+          photoUrl={info.photoUrl}
           className={cn(
-            "flex items-center justify-center rounded-pill font-semibold",
+            "font-semibold",
             info.self ? "h-14 w-14 bg-white/15 text-[18px] text-fg" : "h-[52px] w-[52px] bg-border text-[18px] text-fg-soft",
             info.absent && "border border-dashed border-border-strong bg-transparent text-muted",
+            info.absent && info.photoUrl && "opacity-70",
           )}
-          aria-hidden="true"
-        >
-          {initialsOf(info.name)}
-        </span>
+        />
       )}
       <span className="absolute bottom-2.5 left-2.5 flex max-w-[calc(100%-20px)] items-center gap-[5px] rounded-mark bg-black/65 px-2 py-[3px] text-[12px] font-medium text-fg-soft">
         {info.muted ? <MicOffIcon size={12} className="shrink-0 text-muted" /> : <MicIcon size={12} className="shrink-0" />}
