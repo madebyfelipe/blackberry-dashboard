@@ -19,9 +19,10 @@ import {
 } from "@/components/icons";
 import { MESSAGE_EDIT_WINDOW_MS, canChangeMessage } from "@/lib/inbox/constants";
 import type { Attachment, InboxMember, Message } from "@/lib/inbox/types";
-import { initialsOf, memberName, messageText, messageTime, startsBlock } from "@/lib/inbox/view";
+import { memberName, messageText, messageTime, startsBlock } from "@/lib/inbox/view";
 import { formatBytes } from "@/lib/media/constants";
 import { VoicePlayer } from "./VoicePlayer";
+import { MemberAvatar } from "./MemberAvatar";
 
 /*
  * Uma mensagem da conversa, com o que dá para fazer com ela.
@@ -173,12 +174,11 @@ export function MessageRow({
         style={touch.dx > 0 ? { transform: `translateX(${touch.dx}px)` } : { transition: "transform 0.18s ease-out" }}
       >
       {opens ? (
-        <span
-          className="flex h-[34px] w-[34px] shrink-0 items-center justify-center rounded-pill bg-border text-[12px] font-semibold text-fg-3"
-          aria-hidden="true"
-        >
-          {initialsOf(mine ? me.name : author)}
-        </span>
+        <MemberAvatar
+          name={mine ? me.name : author}
+          photoUrl={mine ? me.photoUrl : members.find((m) => m.id === message.authorId)?.photoUrl}
+          className="h-[34px] w-[34px] bg-border text-[12px] font-semibold text-fg-3"
+        />
       ) : (
         <span className="w-[34px] shrink-0" aria-hidden="true" />
       )}

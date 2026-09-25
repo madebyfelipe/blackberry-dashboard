@@ -19,11 +19,12 @@ import {
 } from "@/components/icons";
 import { PRESENCE_BY_ID } from "@/lib/inbox/constants";
 import type { ConversationDetail, InboxMember, Message } from "@/lib/inbox/types";
-import { groupByDay, initialsOf, memberName, searchMessages } from "@/lib/inbox/view";
+import { groupByDay, memberName, searchMessages } from "@/lib/inbox/view";
 import type { OutgoingExtra } from "./api";
 import { Composer } from "./Composer";
 import { MemberMenuPanel } from "./MemberMenu";
 import { MessageRow } from "./MessageRow";
+import { MemberAvatar } from "./MemberAvatar";
 import { PresenceBadge, PresenceDot } from "./PresenceDot";
 
 /*
@@ -117,12 +118,12 @@ export function ChatPane({
           </button>
 
           <span className="relative h-[34px] w-[34px] shrink-0">
-            <span
-              className="flex h-[34px] w-[34px] items-center justify-center rounded-pill bg-border text-[12px] font-semibold text-fg-3"
-              aria-hidden="true"
-            >
-              {initialsOf(detail.title)}
-            </span>
+            <MemberAvatar
+              name={detail.title}
+              initials={detail.initials[0]}
+              photoUrl={detail.kind === "direta" ? detail.photos?.[0] : null}
+              className="h-[34px] w-[34px] bg-border text-[12px] font-semibold text-fg-3"
+            />
             {detail.presence && (
               <PresenceBadge presence={detail.presence} ring="bg-surface" />
             )}
@@ -585,12 +586,12 @@ function CallBanner({
       </span>
       <span className="flex shrink-0 -space-x-1.5" aria-hidden="true">
         {inside.slice(0, 4).map((id) => (
-          <span
+          <MemberAvatar
             key={id}
-            className="flex h-6 w-6 items-center justify-center rounded-pill bg-border-strong text-[9px] font-semibold text-fg outline-2 outline-surface-2"
-          >
-            {initialsOf(id === me.id ? me.name : memberName(detail.members, id))}
-          </span>
+            name={id === me.id ? me.name : memberName(detail.members, id)}
+            photoUrl={id === me.id ? me.photoUrl : detail.members.find((m) => m.id === id)?.photoUrl}
+            className="h-6 w-6 bg-border-strong text-[9px] font-semibold text-fg outline-2 outline-surface-2"
+          />
         ))}
       </span>
       <p className="min-w-0 flex-1 truncate text-[12px] text-fg-3">

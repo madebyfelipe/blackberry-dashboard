@@ -74,3 +74,52 @@ export function playAlertSound(sound: AlertSound): void {
     tone(ac, t, { freq: 180, to: 90, dur: 0.07, gain: 0.3, type: "triangle" });
   }
 }
+
+/* ================================================================ chamada */
+
+/*
+ * Os sons da chamada. "Chamando" é o de quem liga (o tuuu... tuuu da linha,
+ * baixinho), "toque" é o de quem recebe (três notas subindo, duas vezes).
+ * Os dois ficam em loop até quem chama parar — atender, desligar ou o tempo
+ * acabar. Entrar e sair da sala têm um toque curto cada: duas notas subindo
+ * para quem chega, descendo para quem sai.
+ */
+
+export type RingKind = "chamando" | "toque";
+
+const RING_CYCLE_MS: Record<RingKind, number> = { chamando: 4000, toque: 2600 };
+
+function ringOnce(ac: AudioContext, kind: RingKind) {
+  const t = ac.currentTime + 0.02;
+  if (kind === "chamando") {
+    // O "tuuu" da linha: duas frequências juntas, 1,2 s.
+    tone(ac, t, { freq: 440, dur: 1.2, gain: 0.05 });
+    tone(ac, t, { freq: 480, dur: 1.2, gain: 0.05 });
+    return;
+  }
+  // O toque de quem recebe: mi, sol#, si — e de novo.
+  [0, 0.9].forEach((offset) => {
+    tone(ac, t + offset, { freq: 659.25, dur: 0.28, gain: 0.12 });
+    tone(ac, t + offset + 0.14, { freq: 830.61, dur: 0.28, gain: 0.12 });
+    tone(ac, t + offset + 0.28, { freq: 987.77, dur: 0.4, gain: 0.12 });
+  });
+}
+
+/** Começa o loop e devolve a função que para. Parar duas vezes não faz mal. */
+export function startRing(kind: RingKind): () => void {
+  const ac = context();
+  if (!ac) return () => undefined;
+  ringOnce(ac, kind);
+  const id = window.setInterval(() => ringOnce(ac, kind), RING_CYCLE_MS[kind]);
+  return () => window.clearInterval(id);
+}
+
+/** Alguém entrou (`"entrou"`) ou saiu (`"saiu"`) da chamada. */
+export function playCallCue(cue: "entrou" | "saiu"): void {
+  const ac = context();
+  if (!ac) return;
+  const t = ac.currentTime + 0.01;
+  const [a, b] = cue === "entrou" ? [523.25, 783.99] : [783.99, 523.25];
+  tone(ac, t, { freq: a, dur: 0.16, gain: 0.1 });
+  tone(ac, t + 0.11, { freq: b, dur: 0.24, gain: 0.1 });
+}

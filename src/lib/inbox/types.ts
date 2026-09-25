@@ -203,6 +203,8 @@ export type ConversationSummary = {
    * um membro atrás, como o export desenha); a direta traz uma só.
    */
   initials: string[];
+  /** A foto de cada marca de `initials` (mesma ordem), ou `null` — aí vai a inicial. */
+  photos: (string | null)[];
   /** "Marina: fechei o export ok" — vazio quando ninguém escreveu ainda. */
   preview: string;
   /** ISO da última mensagem, ou `null` na conversa recém-criada. */
