@@ -40,4 +40,5 @@ next-env.d.ts
 !.env.example
 
 # worktrees dos agentes (o harness as cria dentro do repo)
-/.claude/
+/.claude/*
+!/.claude/settings.json
