@@ -28,6 +28,8 @@ export function attachmentFromMedia(media: MediaAsset): Attachment {
     size: media.size,
     ...(media.width ? { width: media.width } : {}),
     ...(media.height ? { height: media.height } : {}),
+    ...(media.duration ? { duration: media.duration } : {}),
+    ...(media.waveform?.length ? { waveform: media.waveform } : {}),
   };
 }
 

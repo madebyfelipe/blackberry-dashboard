@@ -100,6 +100,10 @@ export async function apiUploadAttachment(
   blobUploads: boolean,
 ): Promise<Attachment> {
   const endpoint = `/api/inbox/conversations/${id}/anexos`;
+  // Áudio segue com duração e forma de onda — o player da conversa desenha com elas.
+  const audio = file.type.startsWith("audio/")
+    ? await import("./audioAnalysis").then((m) => m.analyzeAudio(file))
+    : {};
   let res: Response;
   if (blobUploads) {
     const [{ upload }, { blobPathnameFor, BLOB_ATTACHMENT_PREFIX, BLOB_MULTIPART_THRESHOLD, baseMime }] =
@@ -111,10 +115,15 @@ export async function apiUploadAttachment(
       handleUploadUrl: `${endpoint}/token`,
       multipart: file.size > BLOB_MULTIPART_THRESHOLD,
     });
-    res = await fetch(endpoint, { method: "POST", ...json({ pathname: blob.pathname, name: file.name }) });
+    res = await fetch(endpoint, {
+      method: "POST",
+      ...json({ pathname: blob.pathname, name: file.name, ...audio }),
+    });
   } else {
     const form = new FormData();
     form.append("file", file);
+    if (audio.duration) form.append("duration", String(audio.duration));
+    if (audio.waveform) form.append("waveform", JSON.stringify(audio.waveform));
     res = await fetch(endpoint, { method: "POST", body: form });
   }
   const data = await parse(res);

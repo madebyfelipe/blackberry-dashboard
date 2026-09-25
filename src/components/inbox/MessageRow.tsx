@@ -21,6 +21,7 @@ import { MESSAGE_EDIT_WINDOW_MS, canChangeMessage } from "@/lib/inbox/constants"
 import type { Attachment, InboxMember, Message } from "@/lib/inbox/types";
 import { initialsOf, memberName, messageText, messageTime, startsBlock } from "@/lib/inbox/view";
 import { formatBytes } from "@/lib/media/constants";
+import { VoicePlayer } from "./VoicePlayer";
 
 /*
  * Uma mensagem da conversa, com o que dá para fazer com ela.
@@ -624,7 +625,7 @@ function EditBox({
   );
 }
 
-/** Imagem e GIF aparecem; vídeo e áudio tocam ali mesmo; documento vira cartão. */
+/** Imagem e GIF aparecem; vídeo toca ali mesmo, áudio no player de voz; documento vira cartão. */
 export function Attachments({ items }: { items: Attachment[] }) {
   return (
     <div className="flex flex-wrap gap-2 pt-0.5">
@@ -663,16 +664,7 @@ export function Attachments({ items }: { items: Attachment[] }) {
           );
         }
         if (a.kind === "audio") {
-          return (
-            <audio
-              key={a.id}
-              src={a.url}
-              controls
-              preload="metadata"
-              className="h-10 w-[min(300px,100%)]"
-              aria-label="Mensagem de voz"
-            />
-          );
+          return <VoicePlayer key={a.id} attachment={a} />;
         }
         return (
           <a

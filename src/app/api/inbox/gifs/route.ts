@@ -7,9 +7,11 @@ export const dynamic = "force-dynamic";
 
 /*
  * A biblioteca de GIFs da conversa. A chave fica no servidor (o navegador
- * pergunta aqui, não ao Giphy/Tenor): `TENOR_API_KEY` (Google Cloud → Tenor
- * API) ou `GIPHY_API_KEY` (developers.giphy.com). Com as duas, vale o Tenor.
- * Sem nenhuma, a rota diz isso e o botão de GIF explica o que configurar.
+ * pergunta aqui, não ao Giphy/Tenor): `GIPHY_API_KEY` (developers.giphy.com)
+ * ou `TENOR_API_KEY` (Google Cloud → Tenor API). Com as duas, vale o Giphy: o
+ * Tenor anunciou o fim da API (a v1 já responde "discontinued"), e a chave
+ * dele fica só para quem ainda tiver uma funcionando. Sem nenhuma, a rota diz
+ * isso e o botão de GIF explica o que configurar.
  *
  * `?q=` busca; sem `q`, os GIFs em alta. A resposta já vem filtrada pelo
  * mesmo `isGifUrl` que o envio confere — o que aparece aqui é o que dá para
@@ -113,15 +115,15 @@ export async function GET(req: Request) {
     return NextResponse.json(
       {
         error:
-          "A biblioteca de GIFs não está configurada. Defina TENOR_API_KEY ou GIPHY_API_KEY nas variáveis de ambiente.",
+          "A biblioteca de GIFs não está configurada. Defina GIPHY_API_KEY nas variáveis de ambiente.",
       },
       { status: 503 },
     );
   }
   try {
-    const results = tenorKey ? await tenor(tenorKey, q) : await giphy(giphyKey!, q);
+    const results = giphyKey ? await giphy(giphyKey, q) : await tenor(tenorKey!, q);
     return NextResponse.json({
-      provider: tenorKey ? "tenor" : "giphy",
+      provider: giphyKey ? "giphy" : "tenor",
       results: results.filter((r) => isGifUrl(r.url) && isGifUrl(r.preview)),
     });
   } catch (err) {

@@ -62,6 +62,15 @@ export function PlayIcon(p: IconProps) {
   );
 }
 
+export function PauseIcon(p: IconProps) {
+  return (
+    <Svg {...p}>
+      <rect x="14" y="4" width="4" height="16" rx="1" />
+      <rect x="6" y="4" width="4" height="16" rx="1" />
+    </Svg>
+  );
+}
+
 export function PanelsIcon(p: IconProps) {
   return (
     <Svg {...p}>

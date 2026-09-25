@@ -3,6 +3,7 @@ import { unauthorized } from "@/lib/auth/session";
 import { attachmentFromMedia } from "@/lib/inbox/attachments";
 import { getConversation } from "@/lib/inbox/repository";
 import { currentInboxSession } from "@/lib/inbox/viewer";
+import { voiceMeta } from "@/lib/inbox/voice";
 import { ATTACHMENT_POLICY } from "@/lib/media/constants";
 import { MediaError, saveBlobMedia, saveMedia } from "@/lib/media/store";
 
@@ -14,6 +15,8 @@ type Ctx = { params: Promise<{ id: string }> };
  * Registra um anexo da conversa e devolve o que a mensagem vai levar. Os
  * dois caminhos das artes: JSON `{ pathname, name }` quando o arquivo já foi
  * direto para o Blob (produção), multipart `file` sem Blob (dev local).
+ * Áudio pode trazer junto `duration` e `waveform`, medidos no navegador —
+ * limpos por `voiceMeta` e ignorados em qualquer outro tipo de arquivo.
  *
  * O anexo ainda não é mensagem — ele entra nela no envio, pelo id que sai
  * daqui (ver `resolveAttachments`).
@@ -41,7 +44,12 @@ export async function POST(req: Request, { params }: Ctx) {
       const pathname = typeof body?.pathname === "string" ? body.pathname : "";
       if (!pathname) return NextResponse.json({ error: "Envio inválido." }, { status: 400 });
       media = await saveBlobMedia(
-        { pathname, name: typeof body?.name === "string" ? body.name.slice(0, 160) : "", owner },
+        {
+          pathname,
+          name: typeof body?.name === "string" ? body.name.slice(0, 160) : "",
+          owner,
+          audio: voiceMeta(body),
+        },
         ATTACHMENT_POLICY,
       );
     } else {
@@ -52,7 +60,12 @@ export async function POST(req: Request, { params }: Ctx) {
       }
       media = await saveMedia(
         new Uint8Array(await file.arrayBuffer()),
-        { mime: file.type, name: file.name.slice(0, 160), owner },
+        {
+          mime: file.type,
+          name: file.name.slice(0, 160),
+          owner,
+          audio: voiceMeta({ duration: form.get("duration"), waveform: form.get("waveform") }),
+        },
         ATTACHMENT_POLICY,
       );
     }
