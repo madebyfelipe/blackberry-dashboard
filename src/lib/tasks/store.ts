@@ -36,6 +36,7 @@ function normalize(raw: Partial<Task> & { id: string }): Task {
     labels: Array.isArray(raw.labels) ? raw.labels.filter(Boolean) : [],
     creator: raw.creator ?? "—",
     dueDate: raw.dueDate ?? null,
+    completedAt: raw.status === "concluido" && raw.completedAt ? String(raw.completedAt) : null,
     comments: normalizeComments(raw.comments),
     flowId: raw.flowId ? String(raw.flowId) : null,
     stepId: raw.stepId ? String(raw.stepId) : null,

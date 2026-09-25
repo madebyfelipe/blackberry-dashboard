@@ -62,9 +62,10 @@ type OpenMenu = "filtros" | "visualizacao" | null;
  * "Clientes · Painel (Lista)" e "(Grade)").
  *
  * Jornada: lista › "+ Novo cliente" › criação. A criação usa o mesmo modal
- * da tarefa (ver `ClientModal`), e clicar numa linha ou num card abre o
- * mesmo modal em modo edição. A ficha completa e o briefing do cliente têm
- * telas próprias, ainda por desenhar — nada aqui as antecipa.
+ * da tarefa (ver `ClientModal`). Clicar numa linha ou num card abre a ficha
+ * do cliente (`/clientes/<id>`, export "Clientes · Detalhe"); o "Editar" do
+ * menu do card continua abrindo o modal. O briefing do cliente tem tela
+ * própria, ainda por desenhar — nada aqui o antecipa.
  *
  * As abas de cima são os degraus da régua de saúde; Pausado, Novo e VIP
  * ficam atrás do "..." do desenho.
@@ -358,12 +359,13 @@ export function ClientsView({ initialClients }: { initialClients: Client[] }) {
                 visibleIds.length > 0 && selectedVisible.length === visibleIds.length
               }
               someSelected={selectedVisible.length > 0}
-              onOpen={(c) => setModal({ mode: "edit", client: c })}
+              onOpen={(c) => router.push(`/clientes/${c.id}`)}
             />
           ) : (
             <ClientGrid
               clients={visible}
-              onOpen={(c) => setModal({ mode: "edit", client: c })}
+              onOpen={(c) => router.push(`/clientes/${c.id}`)}
+              onEdit={(c) => setModal({ mode: "edit", client: c })}
               onDelete={(c) => removeMany([c])}
             />
           )}

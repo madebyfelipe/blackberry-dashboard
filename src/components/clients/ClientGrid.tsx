@@ -22,10 +22,14 @@ import { PencilIcon, TrashIcon } from "@/components/icons";
 export function ClientGrid({
   clients,
   onOpen,
+  onEdit,
   onDelete,
 }: {
   clients: Client[];
+  /** Abre a ficha do cliente. */
   onOpen: (c: Client) => void;
+  /** O "Editar" do menu do card — o modal da ficha da carteira. */
+  onEdit: (c: Client) => void;
   onDelete: (c: Client) => void;
 }) {
   return (
@@ -59,7 +63,7 @@ export function ClientGrid({
                         {
                           label: "Editar",
                           icon: <PencilIcon size={15} />,
-                          onSelect: () => onOpen(c),
+                          onSelect: () => onEdit(c),
                         },
                         {
                           label: "Excluir",

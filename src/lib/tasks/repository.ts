@@ -122,6 +122,7 @@ export async function createTask(
     labels: cleanLabels(input.labels),
     creator: (input.creator ?? "").trim() || "—",
     dueDate: cleanDueDate(input.dueDate),
+    completedAt: status === "concluido" ? new Date().toISOString() : null,
     comments: [],
     flowId: input.flowId ?? null,
     stepId: input.stepId ?? null,
@@ -166,7 +167,10 @@ export async function updateTask(
     if (patch.title !== undefined) t.title = patch.title.trim();
     if (patch.client !== undefined) t.client = patch.client.trim();
     if (clientId !== undefined) t.clientId = clientId;
-    if (patch.status !== undefined) t.status = patch.status;
+    if (patch.status !== undefined) {
+      t.completedAt = completedAtFor(t, patch.status);
+      t.status = patch.status;
+    }
     if (assignee !== undefined) t.assignee = assignee || "—";
     if (patch.description !== undefined) t.description = patch.description.trim();
     if (patch.priority !== undefined) t.priority = patch.priority;
@@ -175,6 +179,15 @@ export async function updateTask(
     if (dueDate !== undefined) t.dueDate = dueDate;
     return { ...t, labels: [...t.labels], comments: [...t.comments] };
   });
+}
+
+/**
+ * A data de conclusão depois de uma troca de status: nasce quando a tarefa
+ * entra em "Concluído", fica enquanto ela continua lá e some quando sai.
+ */
+function completedAtFor(t: Task, next: Task["status"]): string | null {
+  if (next !== "concluido") return null;
+  return t.status === "concluido" && t.completedAt ? t.completedAt : new Date().toISOString();
 }
 
 /** Limite do que cabe num comentário da tela de descrição. */
@@ -231,6 +244,7 @@ export async function moveTaskToStep(
     if (!t) return undefined;
     t.flowId = move.flowId;
     t.stepId = move.stepId;
+    t.completedAt = completedAtFor(t, move.status);
     t.status = move.status;
     if (move.assignee) t.assignee = move.assignee;
     t.dueDate = move.dueDate;

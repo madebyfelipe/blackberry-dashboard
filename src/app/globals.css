@@ -200,6 +200,26 @@
   --color-flow-wait-ring: #3a2e00;
   --color-field-line: #3b3b3b;
 
+  /*
+   * Ficha do cliente (export "Clientes · Detalhe"). Os selos continuam nos
+   * fundos da escala de saúde (`client-*-bg`), com o texto no tom do export
+   * — um degrau mais suave que o da lista. Os pares azul, vermelho, roxo e
+   * verde-planilha pintam o tipo do arquivo e o ícone da atividade; `rail` é
+   * o fio que liga as bolinhas da linha do tempo.
+   */
+  --color-crm-green: #5fcb7e;
+  --color-crm-green-dot: #40b860;
+  --color-crm-amber: #d6a94a;
+  --color-crm-blue: #5fa8cb;
+  --color-crm-blue-bg: #20303a;
+  --color-crm-red: #e07a5f;
+  --color-crm-red-bg: #3a2020;
+  --color-crm-purple: #a98bcb;
+  --color-crm-purple-bg: #2e2038;
+  --color-crm-sheet: #6fb86f;
+  --color-crm-sheet-bg: #20361f;
+  --color-crm-rail: #262626;
+
   /* Radii */
   --radius-field: 24px;
   --radius-pill: 999px;

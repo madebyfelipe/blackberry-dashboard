@@ -333,3 +333,23 @@ describe("clientId — o vínculo com a ficha do cliente", () => {
     );
   });
 });
+
+describe("completedAt — quando a tarefa foi concluída", () => {
+  test("nasce ao concluir, fica enquanto concluída e some ao reabrir", async () => {
+    const t = await criar();
+    assert.equal(t.completedAt, null);
+    const done = await updateTask(AGENCIA_A, t.id, { status: "concluido" });
+    assert.ok(done?.completedAt && Date.parse(done.completedAt) > 0);
+    const again = await updateTask(AGENCIA_A, t.id, { status: "concluido", title: "Outro título" });
+    assert.equal(again?.completedAt, done?.completedAt, "concluir de novo não mexe na data");
+    const reopened = await updateTask(AGENCIA_A, t.id, { status: "em-progresso" });
+    assert.equal(reopened?.completedAt, null);
+  });
+
+  test("criada já concluída ganha a data; o corpo da requisição não escreve nela", async () => {
+    const t = await criar({ status: "concluido" });
+    assert.ok(t.completedAt);
+    const patched = await updateTask(AGENCIA_A, t.id, { completedAt: "2000-01-01T00:00:00.000Z" } as never);
+    assert.equal(patched?.completedAt, t.completedAt);
+  });
+});
