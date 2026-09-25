@@ -38,6 +38,7 @@ const {
   resolveAppOrigin,
 } = require("./policy");
 const { escolherFonte } = require("./screen-picker");
+const { normalizarQualidade } = require("./share-quality");
 const pkg = require("../package.json");
 
 /** `--url=` na linha de comando (o `npm run dev`) ou `BLACKBERRY_URL`. */
@@ -126,6 +127,7 @@ async function iniciar() {
   criarBandeja();
   ouvirChamada();
   ouvirPagina();
+  ouvirQualidadeTela();
 
   app.on("activate", mostrar); // clique no ícone do Dock
 }
@@ -152,7 +154,8 @@ function protegerSessao(sessao) {
         return callback({});
       }
       try {
-        const escolha = await escolherFonte(janela);
+        const escolha = await escolherFonte(janela, qualidadeTela);
+        ultimaQualidadeTela = escolha?.quality ?? null;
         if (!escolha) return callback({});
         callback(
           escolha.audio && request.audioRequested
@@ -376,6 +379,33 @@ function montarMenuBandeja() {
       { label: "Sair", click: sair },
     ]),
   );
+}
+
+/* ----------------------------------------------- qualidade da tela -- */
+
+/**
+ * A qualidade da tela compartilhada (0.0.7+). A página conta a que usa hoje
+ * antes de pedir a tela (`setShareQuality`) — é o que o seletor mostra
+ * marcado — e, com a tela aberta, pergunta o que foi escolhido nele
+ * (`takeShareQuality`, uma vez só) para ajustar a transmissão. Assim o
+ * desktop mostra um modal só, o do desenho, em vez do modal do site seguido
+ * do seletor.
+ */
+let qualidadeTela = null;
+let ultimaQualidadeTela = null;
+
+function ouvirQualidadeTela() {
+  ipcMain.on("desktop:qualidade-tela", (event, qualidade) => {
+    if (!pagina || event.sender !== pagina) return;
+    if (!isAppUrl(event.senderFrame?.url ?? "", APP_ORIGIN)) return;
+    qualidadeTela = normalizarQualidade(qualidade);
+  });
+  ipcMain.handle("desktop:escolha-tela", (event) => {
+    if (!pagina || event.sender !== pagina) return null;
+    const escolha = ultimaQualidadeTela;
+    ultimaQualidadeTela = null;
+    return escolha;
+  });
 }
 
 /* ------------------------------------------------------ avisos da página -- */

@@ -2,44 +2,58 @@
 
 /*
  * O seletor de tela compartilhada (Windows e Linux; no macOS 15+ vale o do
- * sistema). Uma janelinha modal sobre o app, com as janelas e telas abertas e
- * a miniatura de cada uma, como o do Discord. Devolve a fonte escolhida e se
- * o som vai junto, ou `null` quando a pessoa cancela.
+ * sistema). É o modal "Compartilhar tela" do desenho (export "Chamada · Call
+ * View"), numa janela do tamanho dele sobre o app: telas e janelas abertas
+ * com a miniatura de cada uma, e — quando a página manda a qualidade que usa
+ * — resolução, quadros e som do sistema. Devolve a fonte, se o som vai junto
+ * e a qualidade escolhida, ou `null` quando a pessoa cancela.
  */
 
 const path = require("node:path");
 const { BrowserWindow, desktopCapturer, ipcMain } = require("electron");
+const { normalizarQualidade } = require("./share-quality");
 
 const MINIATURA = { width: 320, height: 180 };
 const ATUALIZA_A_CADA_MS = 3000;
 /** Som do sistema só sai no Windows ("loopback"); no Linux não há. */
 const SOM_DISPONIVEL = process.platform === "win32";
 
+/**
+ * Janela transparente (para os cantos de 16px do modal) no Windows e no
+ * macOS. No Linux depende do compositor — lá a janela é sólida e sem cantos.
+ */
+const TRANSPARENTE = process.platform !== "linux";
+
 /** Um seletor por vez: um segundo pedido enquanto ele está aberto é recusado. */
 let aberto = false;
 
 /**
  * @param {BrowserWindow} pai
- * @returns {Promise<{ source: Electron.DesktopCapturerSource, audio: boolean } | null>}
+ * @param {{ resolution: string, fps: number, systemAudio: boolean } | null} [qualidade]
+ *   A qualidade que a página usa hoje. Com ela o seletor mostra resolução e
+ *   quadros; sem ela (site antigo), só a fonte e o som.
+ * @returns {Promise<{ source: Electron.DesktopCapturerSource, audio: boolean, quality: ReturnType<typeof normalizarQualidade> } | null>}
  */
-async function escolherFonte(pai) {
+async function escolherFonte(pai, qualidade = null) {
   if (aberto) return null;
   aberto = true;
 
   const janela = new BrowserWindow({
     parent: pai,
     modal: true,
-    width: 760,
-    height: 560,
-    minWidth: 480,
-    minHeight: 360,
+    // O modal do desenho: 480 de largura; a altura cabe duas linhas de fontes
+    // e a qualidade (sem ela, sobra espaço para mais fontes).
+    width: 480,
+    height: qualidade ? 724 : 540,
     frame: false,
     show: false,
-    resizable: true,
+    resizable: false,
     minimizable: false,
     maximizable: false,
     fullscreenable: false,
-    backgroundColor: "#141414",
+    transparent: TRANSPARENTE,
+    backgroundColor: TRANSPARENTE ? "#00000000" : "#1b1b1b",
+    hasShadow: true,
     title: "Compartilhar tela",
     webPreferences: {
       preload: path.join(__dirname, "picker", "picker-preload.js"),
@@ -73,6 +87,8 @@ async function escolherFonte(pai) {
     fontes = new Map(lista.map((f) => [f.id, f]));
     wc.send("seletor:fontes", {
       somDisponivel: SOM_DISPONIVEL,
+      qualidade,
+      transparente: TRANSPARENTE,
       fontes: lista.map((f) => ({
         id: f.id,
         name: f.name,
@@ -101,7 +117,16 @@ async function escolherFonte(pai) {
     function aoEscolher(event, escolha) {
       if (event.sender !== wc) return;
       const source = fontes.get(escolha?.id);
-      terminar(source ? { source, audio: SOM_DISPONIVEL && escolha.audio === true } : null);
+      terminar(
+        source
+          ? {
+              source,
+              audio: SOM_DISPONIVEL && escolha.audio === true,
+              // Qualidade só volta se o seletor a mostrou (a página pediu).
+              quality: qualidade ? normalizarQualidade(escolha.quality) : null,
+            }
+          : null,
+      );
     }
     function aoCancelar(event) {
       if (event.sender === wc) terminar(null);

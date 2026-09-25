@@ -14,7 +14,31 @@ export type DesktopBridge = {
   show?: () => void;
   /** 0.0.5+: as não lidas do Inbox, para a bandeja e a barra de tarefas. */
   setUnread?: (total: number) => void;
+  /**
+   * 0.0.7+: o seletor de tela do app é o modal "Compartilhar tela" do
+   * desenho, com resolução, quadros e som — a página não abre o dela antes.
+   * `false` no macOS (lá vale o seletor do sistema).
+   */
+  sharePicker?: boolean;
+  /** 0.0.7+: a qualidade que a página usa hoje — o seletor abre com ela marcada. */
+  setShareQuality?: (q: DesktopShareQuality) => void;
+  /** 0.0.7+: o que foi escolhido no seletor, uma vez só; `null` se nada. */
+  takeShareQuality?: () => Promise<DesktopShareQuality | null>;
 };
+
+/** A parte da qualidade da tela que o seletor do app escolhe. */
+export type DesktopShareQuality = {
+  resolution: "720p" | "1080p" | "1440p" | "original";
+  fps: 15 | 30 | 60;
+  systemAudio: boolean;
+};
+
+/** O app de desktop tem o seletor completo (fonte + qualidade)? */
+export function hasSharePicker(
+  d: DesktopBridge | null,
+): d is DesktopBridge & Required<Pick<DesktopBridge, "setShareQuality" | "takeShareQuality">> {
+  return !!d?.sharePicker && typeof d.setShareQuality === "function" && typeof d.takeShareQuality === "function";
+}
 
 export function desktopBridge(): DesktopBridge | null {
   if (typeof window === "undefined") return null;

@@ -23,6 +23,20 @@ contextBridge.exposeInMainWorld("blackberryDesktop", {
   setUnread(total) {
     ipcRenderer.send("desktop:nao-lidas", Number(total) || 0);
   },
+  /**
+   * 0.0.7+: o seletor de tela é o modal do desenho, com resolução, quadros e
+   * som. `false` no macOS, onde vale o seletor do sistema — lá a página
+   * segue com o modal dela.
+   */
+  sharePicker: process.platform !== "darwin",
+  /** A qualidade que a página usa hoje — o seletor abre com ela marcada. */
+  setShareQuality(qualidade) {
+    ipcRenderer.send("desktop:qualidade-tela", qualidade);
+  },
+  /** O que foi escolhido no seletor (uma vez só), ou `null`. */
+  takeShareQuality() {
+    return ipcRenderer.invoke("desktop:escolha-tela");
+  },
   /** Atalho global de mudo apertado. Devolve a função que para de ouvir. */
   onToggleMute(callback) {
     if (typeof callback !== "function") return () => {};
