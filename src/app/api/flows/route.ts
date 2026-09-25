@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
-import { ValidationError, createFlow, listFlows } from "@/lib/flows/repository";
+import { ValidationError, createFlow, listFlows, type NewFlow } from "@/lib/flows/repository";
+import { setFlowClients } from "@/lib/clients/repository";
+import { isFlowTemplateId } from "@/lib/flows/templates";
 import { requireAgency, unauthorized } from "@/lib/auth/session";
 
 export const dynamic = "force-dynamic";
@@ -10,7 +12,11 @@ export async function GET() {
   return NextResponse.json({ flows: await listFlows(session.scope) });
 }
 
-/** "Novo fluxo": nasce desligado, com uma etapa, para ser montado na tela. */
+/**
+ * "Criar fluxo" / "Salvar rascunho" do Novo fluxo: o modelo, o passo
+ * "Detalhes" e, em "Clientes específicos", quem entra nele. Quem criou vem
+ * da sessão, não do corpo.
+ */
 export async function POST(req: Request) {
   const session = await requireAgency();
   if (!session) return unauthorized();
@@ -20,13 +26,23 @@ export async function POST(req: Request) {
   } catch {
     return NextResponse.json({ error: "JSON inválido." }, { status: 400 });
   }
-  const { name, template } = (body ?? {}) as Record<string, unknown>;
+  const input = (body ?? {}) as Record<string, unknown>;
+  const clientIds = Array.isArray(input.clientIds) ? input.clientIds.map(String) : [];
   try {
     const flow = await createFlow(session.scope, {
-      name: String(name ?? ""),
+      name: String(input.name ?? ""),
       by: session.user.name,
-      template: template === "social-media" ? "social-media" : undefined,
+      template: isFlowTemplateId(input.template) ? input.template : undefined,
+      description: input.description === undefined ? undefined : String(input.description),
+      category: input.category as NewFlow["category"],
+      icon: input.icon as NewFlow["icon"],
+      color: input.color as NewFlow["color"],
+      appliesTo: input.appliesTo as NewFlow["appliesTo"],
+      status: input.status as NewFlow["status"],
     });
+    if (flow.appliesTo === "especificos" && clientIds.length > 0) {
+      await setFlowClients(session.scope, flow.id, clientIds);
+    }
     return NextResponse.json({ flow }, { status: 201 });
   } catch (err) {
     if (err instanceof ValidationError) {

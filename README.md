@@ -78,6 +78,8 @@ Dá para criar outra conta em `/criar-conta` — o cadastro já entra logado.
 | `/a/[token]` | **Aprovação pública** (cliente, sem login): tela de início + swipe para aprovar/pedir ajuste |
 | `/configuracoes` | Conta: perfil (com o seu @), troca de senha e sessão |
 | `/configuracoes/fluxos` | **Fluxos e Processos** — a esteira de trabalho: etapas, quem toca cada uma, prazo, próxima etapa, aprovadores e automações |
+| `/configuracoes/fluxos/novo` | **Novo fluxo** (export "Novo Fluxo") — modelo → detalhes → revisão; cria o fluxo ativo, inativo ou como rascunho |
+| `/configuracoes/fluxos/[id]/editar` | O passo "Detalhes" do Novo fluxo com o fluxo preenchido — o "Editar" do cabeçalho do fluxo |
 | `/inbox` | **Inbox** — a conversa do time: grupos e diretas, histórico salvo e pesquisável, presença (disponível · ocupado · ausente · offline) e a chamada com registro no histórico |
 | `/equipe` | **Usuários** (export "Usuários · Painel (Lista)") — o time: função, status, último acesso; "Adicionar usuário" cria convite com link de cadastro que entra **nesta** agência |
 | `/notificacoes` | **Notificações** — menções, tarefas atribuídas, comentários na sua tarefa e mensagens novas; ver "Notificações" abaixo |
@@ -97,7 +99,7 @@ discordarem:
 
 | Camada | Exports | Onde está aplicada |
 | --- | --- | --- |
-| **v3** (atual) | `Tarefas · Painel (Lista)`, `Tarefas · Painel (Quadro)`, `Tarefas · Descrição da tarefa`, `Clientes · Painel (Lista)`, `Clientes · Painel (Grade)`, `Inbox` | Shell (lateral), Tarefas, Descrição da tarefa, Clientes, Inbox |
+| **v3** (atual) | `Tarefas · Painel (Lista)`, `Tarefas · Painel (Quadro)`, `Tarefas · Descrição da tarefa`, `Clientes · Painel (Lista)`, `Clientes · Painel (Grade)`, `Inbox`, `Novo Fluxo` | Shell (lateral), Tarefas, Descrição da tarefa, Clientes, Inbox, Novo fluxo |
 | **v2** (gradiente) | `2. Gradiente`, `Clínica Aurora - *`, `Lotes de Aprovação*`, `Filtros · Menu` | Só o link público do cliente (`/a/<token>`). Social media, Lote, Editor, Planejamento e Configurações passaram para o painel v3 (2026-09-23) — o conteúdo dos exports v2 continua, dentro do vocabulário v3 |
 
 Os exports `List View` e `2. Board · Kanban` são a versão v2 das Tarefas, hoje
@@ -303,6 +305,15 @@ Três peças, cada uma num lugar:
   próprio cliente (a aprovação pelo link) —, o prazo em dias úteis e a
   próxima etapa. As regras ("qual vem depois", "quem recebe") são funções
   puras em `view.ts`, testadas em `tests/flows-view.test.ts`.
+- **A quem o fluxo vale** (`Flow.appliesTo`, o "Todos os clientes · Clientes
+  específicos" do Novo fluxo): o criativo segue o fluxo escolhido na ficha do
+  cliente (`Client.flowId`) se ele estiver ativo; senão, o fluxo ativo
+  marcado "Todos os clientes". Fluxo "Clientes específicos" nunca pega
+  cliente de fora, e fluxo sem etapa ligada (o "Começar do zero" recém-criado)
+  não pega ninguém — `pickFlowForClient` em `view.ts`. Fluxo gravado antes
+  disso é lido como "Todos os clientes", que é o que ele já fazia. A lista de
+  "Clientes específicos" grava de uma vez só (`setFlowClients`, em
+  `lib/clients/repository.ts`): cliente fica em um fluxo só.
 - **O squad** mora na ficha do cliente (`Client.squad`, ids do time). Etapa
   marcada "squad do cliente" vai para o primeiro do squad que ainda está no
   time — é assim que o mesmo fluxo serve todos os clientes.

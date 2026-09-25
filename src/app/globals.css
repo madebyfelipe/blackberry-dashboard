@@ -181,6 +181,25 @@
   --color-flow-wait-bg: #1a1400;
   --color-flow-danger: #e07070;
 
+  /*
+   * Novo fluxo (export "Novo Fluxo · 1/2/3"). As sete cores do "Ícone e cor"
+   * são a identidade do fluxo — escolha da pessoa, não significado —, e a
+   * mesma paleta pinta o ponto da categoria e o avatar dos clientes no passo
+   * "Detalhes". O card do modelo escolhido sobe um degrau (`flow-picked`), o
+   * campo de texto tem contorno próprio (`field-line`) e o selo âmbar de
+   * "3 selecionados" ganha o contorno dele (`flow-wait-ring`).
+   */
+  --color-flow-indigo: #5749f4;
+  --color-flow-rose: #e11d48;
+  --color-flow-orange: #ea580c;
+  --color-flow-yellow: #facc15;
+  --color-flow-green: #65a30d;
+  --color-flow-sky: #0ea5e9;
+  --color-flow-violet: #8b5cf6;
+  --color-flow-picked: #1a1a1a;
+  --color-flow-wait-ring: #3a2e00;
+  --color-field-line: #3b3b3b;
+
   /* Radii */
   --radius-field: 24px;
   --radius-pill: 999px;

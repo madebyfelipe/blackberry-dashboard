@@ -11,17 +11,30 @@ import type { Flow, FlowStatus, FlowStep, StepAssignee } from "./types";
 export const FLOW_STATUS_LABEL: Record<FlowStatus, string> = {
   ativo: "Ativo",
   inativo: "Inativo",
+  rascunho: "Rascunho",
   arquivado: "Arquivado",
 };
 
 export function isFlowStatus(v: unknown): v is FlowStatus {
-  return v === "ativo" || v === "inativo" || v === "arquivado";
+  return v === "ativo" || v === "inativo" || v === "rascunho" || v === "arquivado";
 }
 
 /** "6 etapas · Ativo" — a linha de baixo do item da lista. */
 export function flowMeta(flow: Flow): string {
   const n = flow.steps.length;
   return `${n} ${n === 1 ? "etapa" : "etapas"} · ${FLOW_STATUS_LABEL[flow.status]}`;
+}
+
+/**
+ * O fluxo que o criativo de um cliente segue, entre os fluxos da agência: o
+ * escolhido na ficha dele, se estiver ativo; senão o primeiro ativo marcado
+ * "Todos os clientes". Fluxo "Clientes específicos" nunca pega cliente de
+ * fora. Fluxo sem etapa ligada não tem por onde a tarefa entrar — fica de
+ * fora também, e o cliente cai no padrão (ou em nenhum).
+ */
+export function pickFlowForClient(flows: Flow[], clientFlowId: string | null | undefined): Flow | undefined {
+  const usable = flows.filter((f) => f.status === "ativo" && startStep(f));
+  return usable.find((f) => f.id === clientFlowId) ?? usable.find((f) => f.appliesTo === "todos");
 }
 
 /** Onde a tarefa entra: a etapa marcada como início, ou a primeira ligada. */

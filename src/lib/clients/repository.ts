@@ -195,6 +195,33 @@ export async function resolveClientId(
   return client?.id ?? null;
 }
 
+/**
+ * Os clientes de um fluxo, de uma vez — o "Clientes específicos" do Novo
+ * fluxo. Quem está em `clientIds` passa a seguir `flowId` (e sai do fluxo em
+ * que estava: cliente fica em um fluxo só); quem seguia `flowId` e ficou de
+ * fora volta ao padrão da agência. Id de outra agência é ignorado, como se
+ * não existisse. Devolve só os clientes que mudaram.
+ */
+export async function setFlowClients(
+  scope: AgencyScope,
+  flowId: string,
+  clientIds: string[],
+): Promise<Client[]> {
+  if (!flowId) throw new ValidationError("Fluxo inválido.");
+  const wanted = new Set(clientIds.map(String));
+  return transaction((clients) => {
+    const changed: Client[] = [];
+    for (const c of clients) {
+      if (c.agencyId !== scope.agencyId) continue;
+      const next = wanted.has(c.id) ? flowId : c.flowId === flowId ? null : c.flowId;
+      if (next === c.flowId) continue;
+      c.flowId = next;
+      changed.push({ ...c, services: [...c.services], squad: [...c.squad] });
+    }
+    return changed;
+  });
+}
+
 export async function deleteClient(
   scope: AgencyScope,
   id: string,
