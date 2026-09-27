@@ -20,7 +20,7 @@ import { useIsMobile } from "@/components/ui/useIsMobile";
 import { ATTACHMENTS_MAX } from "@/lib/inbox/constants";
 import type { Attachment, ConversationDetail, Message } from "@/lib/inbox/types";
 import { memberName, messageText } from "@/lib/inbox/view";
-import { ATTACHMENT_MAX_BYTES, ATTACHMENT_MIME, baseMime, formatBytes } from "@/lib/media/constants";
+import { ATTACHMENT_MAX_BYTES, ATTACHMENT_MIME, baseMime, formatBytes, mimeRule } from "@/lib/media/constants";
 import { apiUploadAttachment, type GifResult, type OutgoingExtra } from "./api";
 import { GifPicker } from "./GifPicker";
 
@@ -117,7 +117,7 @@ export function Composer({
       const problem =
         file.size > ATTACHMENT_MAX_BYTES
           ? `"${file.name}" passa de 20 MB.`
-          : !ATTACHMENT_MIME[baseMime(file.type)]
+          : !mimeRule(ATTACHMENT_MIME, baseMime(file.type))
             ? `"${file.name}": esse tipo de arquivo não vai na conversa.`
             : null;
       if (problem) {

@@ -252,7 +252,7 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
     if (canais) {
       try {
         const permitidos = JSON.parse(client.auth.tokenDetails?.capability ?? "{}");
-        if (canais.every((c) => c in permitidos)) return;
+        if (canais.every((c) => Object.hasOwn(permitidos, c))) return;
       } catch {
         // Permissão ilegível: renovar é o caminho seguro.
       }

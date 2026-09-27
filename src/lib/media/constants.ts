@@ -64,6 +64,19 @@ export const ALL_MIME: Record<string, { ext: string; kind: MediaKind }> = {
 };
 
 /**
+ * A regra de um tipo numa tabela de tipos aceitos, ou `undefined`. Nunca
+ * `tabela[mime]` direto: o tipo vem de quem envia, e "constructor" ou
+ * "toString" achariam o protótipo do objeto e passariam como aceitos
+ * (issue #95).
+ */
+export function mimeRule(
+  table: Record<string, { ext: string; kind: MediaKind }>,
+  mime: string,
+): { ext: string; kind: MediaKind } | undefined {
+  return Object.hasOwn(table, mime) ? table[mime] : undefined;
+}
+
+/**
  * O modo de acesso de **todo** objeto do Blob (issue #39): privado. Vale para
  * o que o servidor grava (`putBlob`) e para o que o navegador sobe direto
  * (`upload` de `@vercel/blob/client`) — um store privado recusa objeto
@@ -132,7 +145,7 @@ export function blobPathnameFor(
   mime: string,
   prefix: string = BLOB_MEDIA_PREFIX,
 ): string {
-  const { ext } = ALL_MIME[baseMime(mime)] ?? { ext: "bin" };
+  const { ext } = mimeRule(ALL_MIME, baseMime(mime)) ?? { ext: "bin" };
   const base = name
     .replace(/\.[^.]*$/, "")
     .normalize("NFD")

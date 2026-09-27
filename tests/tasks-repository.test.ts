@@ -143,6 +143,21 @@ describe("updateTask", () => {
     await assert.rejects(() => updateTask(AGENCIA_A, t.id, { dueDate: "ontem de manhã" }), ValidationError);
   });
 
+  // Issue #95: o `in` enxergava o protótipo, e a tarefa sumia de todas as abas.
+  test("recusa nomes do protótipo como status e prioridade", async () => {
+    const t = await criar();
+    for (const nome of ["constructor", "toString", "__proto__", "hasOwnProperty"]) {
+      await assert.rejects(() => updateTask(AGENCIA_A, t.id, { status: nome as never }), ValidationError, nome);
+      await assert.rejects(() => updateTask(AGENCIA_A, t.id, { priority: nome as never }), ValidationError, nome);
+      const nova = await criar({ status: nome as never, priority: nome as never });
+      assert.equal(nova.status, "a-fazer", `criação com status ${nome} cai no padrão`);
+      assert.equal(nova.priority, "sem", `criação com prioridade ${nome} cai no padrão`);
+    }
+    const salva = await getTask(AGENCIA_A, t.id);
+    assert.equal(salva?.status, "a-fazer", "nada foi gravado");
+    assert.equal(salva?.priority, "sem");
+  });
+
   test("valida o prazo antes de mexer no arquivo", async () => {
     const t = await criar({ title: "Intacta" });
     await assert.rejects(() => updateTask(AGENCIA_A, t.id, { title: "Mudou", dueDate: "xx" }), ValidationError);

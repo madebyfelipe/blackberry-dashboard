@@ -69,6 +69,10 @@ export function statusLabel(id: TaskStatus): string {
   return STATUS_BY_ID[id]?.label ?? id;
 }
 
+/**
+ * `Object.hasOwn`, não `in`: o `in` enxerga o protótipo, e "constructor",
+ * "toString" ou "__proto__" passariam como status (issue #95).
+ */
 export function isTaskStatus(v: unknown): v is TaskStatus {
-  return typeof v === "string" && v in STATUS_BY_ID;
+  return typeof v === "string" && Object.hasOwn(STATUS_BY_ID, v);
 }

@@ -8,6 +8,7 @@ import {
   ART_POLICY,
   baseMime,
   isMediaBlobPathname,
+  mimeRule,
   type MediaPolicy,
   BLOB_ACCESS,
   BLOB_STORE_NOT_PRIVATE,
@@ -42,12 +43,12 @@ export const transactionMediaIndex = index.transaction;
 const memoryBytes = new Map<string, Uint8Array>();
 
 function fileFor(asset: MediaAsset): string {
-  const { ext } = ALL_MIME[asset.mime] ?? { ext: "bin" };
+  const { ext } = mimeRule(ALL_MIME, asset.mime) ?? { ext: "bin" };
   return path.join(UPLOAD_DIR, `${asset.id}.${ext}`);
 }
 
 function blobPathFor(asset: Pick<MediaAsset, "id" | "mime">): string {
-  const { ext } = ALL_MIME[asset.mime] ?? { ext: "bin" };
+  const { ext } = mimeRule(ALL_MIME, asset.mime) ?? { ext: "bin" };
   return `media/${asset.id}.${ext}`;
 }
 
@@ -138,7 +139,7 @@ export async function saveMedia(
   policy: MediaPolicy = ART_POLICY,
 ): Promise<MediaAsset> {
   const mime = baseMime(meta.mime);
-  const accepted = policy.accepted[mime];
+  const accepted = mimeRule(policy.accepted, mime);
   if (!accepted) throw new MediaError(policy.notAccepted);
   if (bytes.byteLength === 0) throw new MediaError("Arquivo vazio.");
   if (bytes.byteLength > policy.maxBytes) throw new MediaError(policy.tooBig);
@@ -334,7 +335,7 @@ export async function saveBlobMedia(
   if (found.pathname !== meta.pathname) throw new MediaError("Envio inválido.");
 
   const mime = baseMime(found.contentType);
-  const accepted = policy.accepted[mime];
+  const accepted = mimeRule(policy.accepted, mime);
   if (!accepted) throw new MediaError(policy.notAccepted);
   if (found.size === 0) throw new MediaError("Arquivo vazio.");
   if (found.size > policy.maxBytes) throw new MediaError(policy.tooBig);
