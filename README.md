@@ -38,7 +38,9 @@ régua de formatos das peças, a revalidação do store de arquivo e a régua do
 Inbox (título, prévia, não lidas, agrupamento por dia, carimbos de hora e o
 registro da chamada, mais o isolamento por agência *e* por participante). O que
 depende de requisição (route handlers, `next/headers`) fica de fora — esse
-caminho é conferido subindo o app.
+caminho é conferido subindo o app. A exceção é o freio do login
+(`tests/auth-login-route.test.ts`), que chama a rota de verdade com 200
+tentativas em paralelo: o caminho de senha errada não toca `next/headers`.
 
 O mesmo trio roda no CI (`.github/workflows/ci.yml`) a cada push e pull
 request: `npm run typecheck`, `npm test` e `npm run build`.
