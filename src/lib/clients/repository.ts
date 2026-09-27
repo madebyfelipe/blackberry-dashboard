@@ -186,6 +186,24 @@ export async function findClientByName(
   return (await listClients(scope)).find((c) => foldName(c.name) === key);
 }
 
+/**
+ * A ficha do cliente de uma tarefa ou de um lote: pelo `clientId` quando ele
+ * existe, e pelo nome só quando não há id (registro gravado antes do vínculo)
+ * ou quando ele aponta para uma ficha que não existe mais. O id vem primeiro
+ * porque o nome muda: renomear "Aurora" para "Clínica Aurora" não pode tirar
+ * o trabalho dela do fluxo e do squad que a ficha define.
+ */
+export async function findClientForRecord(
+  scope: AgencyScope,
+  record: { clientId?: string | null; client: string },
+): Promise<Client | undefined> {
+  if (record.clientId) {
+    const byId = await getClient(scope, record.clientId);
+    if (byId) return byId;
+  }
+  return findClientByName(scope, record.client);
+}
+
 /** Nome sem acento, sem caixa e sem pontuação — a mesma dobra usada para comparar clientes. */
 export function foldName(s: string): string {
   return s

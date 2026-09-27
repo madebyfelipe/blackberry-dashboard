@@ -324,6 +324,13 @@ describe("clientId — o vínculo com a ficha do cliente", () => {
     assert.equal(desligado?.clientId, null);
   });
 
+  test("o vínculo passado por quem chama vence o nome (tarefa do criativo herda o do lote, #80)", async () => {
+    const renomeada = await createClient(AGENCIA_A, { name: "Clínica Renomeada" });
+    const t = await criar({ client: "Nome Antigo", clientId: renomeada.id });
+    assert.equal(t.clientId, renomeada.id, "pelo nome seria null");
+    assert.equal(t.client, "Nome Antigo", "o texto de registro continua o do lote");
+  });
+
   test("não mexer no client no PATCH não mexe no clientId", async () => {
     const cliente = await createClient(AGENCIA_A, { name: "Cliente Estável" });
     const t = await criar({ client: "Cliente Estável" });

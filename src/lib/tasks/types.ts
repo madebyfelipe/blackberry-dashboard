@@ -91,6 +91,13 @@ export type NewTask = {
   flowId?: string | null;
   stepId?: string | null;
   source?: { batchId: string; pieceId: string } | null;
+  /**
+   * O vínculo já resolvido por quem chama — a tarefa do criativo herda o do
+   * lote (`automation.ts`). Só código do servidor, com a ficha achada no
+   * escopo da agência; ausente, o repositório resolve pelo nome, como sempre.
+   * Nunca vem do corpo da requisição.
+   */
+  clientId?: string | null;
 };
 
 /**
