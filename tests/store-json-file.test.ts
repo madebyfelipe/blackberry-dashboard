@@ -1,5 +1,13 @@
 import assert from "node:assert/strict";
-import { existsSync, readFileSync, statSync, utimesSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  rmdirSync,
+  statSync,
+  utimesSync,
+  writeFileSync,
+} from "node:fs";
 import path from "node:path";
 import test, { describe } from "node:test";
 
@@ -171,5 +179,73 @@ describe("createJsonStore", () => {
       d.push("depois");
     });
     assert.deepEqual(await store.read(), ["depois"]);
+  });
+});
+
+/*
+ * Issue #76: `mutate` recebia o cache vivo. Uma validação que recusava depois
+ * de já ter mexido em algo (ex.: `PATCH` com título válido e descrição de tipo
+ * errado) deixava a alteração recusada na memória — e a próxima gravação no
+ * mesmo arquivo a levava para o disco. No Postgres o ROLLBACK desfaz; aqui
+ * tem que valer o mesmo.
+ */
+describe("createJsonStore — falhas na transação (#76)", () => {
+  test("transação que lança não altera read() nem o arquivo", async () => {
+    const nome = nomeUnico();
+    const store = createJsonStore<{ titulo: string; tags: string[] }>({
+      file: nome,
+      seed: () => ({ titulo: "original", tags: ["a"] }),
+    });
+    await store.read();
+
+    await assert.rejects(() =>
+      store.transaction((d) => {
+        d.titulo = "recusado";
+        d.tags.push("recusada");
+        throw new TypeError("descrição de tipo errado");
+      }),
+    );
+
+    assert.deepEqual(await store.read(), { titulo: "original", tags: ["a"] });
+    assert.deepEqual(ler(nome), { titulo: "original", tags: ["a"] });
+
+    // A gravação seguinte não pode arrastar a alteração recusada junto.
+    await store.transaction((d) => {
+      d.tags.push("b");
+    });
+    assert.deepEqual(ler(nome), { titulo: "original", tags: ["a", "b"] });
+    assert.deepEqual(await store.read(), { titulo: "original", tags: ["a", "b"] });
+  });
+
+  test("falha de escrita passageira não desliga a persistência", async (t) => {
+    t.mock.method(console, "error", () => undefined);
+    const nome = nomeUnico();
+    const store = createJsonStore<string[]>({ file: nome, seed: () => ["a"] });
+    await store.read();
+
+    // Um diretório no lugar do `.tmp` faz a escrita falhar (EISDIR) — o mesmo
+    // efeito de um ENOSPC/EMFILE/EBUSY passageiro, sem precisar encher o disco.
+    const tmp = arquivo(nome) + ".tmp";
+    mkdirSync(tmp);
+    await assert.rejects(
+      () =>
+        store.transaction((d) => {
+          d.push("não gravou");
+        }),
+      /EISDIR/,
+      "a falha de gravação chega a quem chamou",
+    );
+    assert.deepEqual(await store.read(), ["a"], "o cache não ficou com o que não foi gravado");
+    assert.deepEqual(ler(nome), ["a"]);
+
+    rmdirSync(tmp);
+    await store.transaction((d) => {
+      d.push("gravou");
+    });
+    assert.deepEqual(ler(nome), ["a", "gravou"], "passada a falha, volta a gravar no disco");
+
+    // E segue enxergando o que outro worker grava (o modo memória não enxergaria).
+    gravarPorFora(nome, ["de outro worker"]);
+    assert.deepEqual(await store.read(), ["de outro worker"]);
   });
 });
