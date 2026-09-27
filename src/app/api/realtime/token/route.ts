@@ -11,12 +11,13 @@ export const dynamic = "force-dynamic";
  *
  * A chave do Ably é a chave-raiz da conta e **nunca sai do servidor**. O
  * navegador chega aqui com o cookie de sessão e recebe um pedido de token
- * assinado, válido por uma hora, com permissão só para o canal de presença da
+ * assinado, válido por 10 minutos, com permissão só para o canal de presença da
  * agência dele e para os canais das conversas de que ele participa — a lista
  * é montada agora, a partir do repositório, não pedida pelo cliente.
  *
  * É esta rota que o cliente do Ably chama sozinho quando o token vence, então
- * ela precisa devolver o pedido cru, sem embrulho.
+ * ela precisa devolver o pedido cru, sem embrulho. Quem foi arquivado não
+ * passa da sessão (`memberAccess`) e fica sem renovar — ver `realtime/revoke.ts`.
  */
 export async function GET() {
   const session = await currentInboxSession();

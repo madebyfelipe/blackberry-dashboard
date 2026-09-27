@@ -486,6 +486,10 @@ Ably (`{ tipo: "notificacao" }`); sem tempo real, o notificador relê a cada
   segundo depois de abrir o Inbox. `ablyReady()` (`lib/realtime/server.ts`)
   confere o que a chave concede (a cada 10 min por instância); faltando
   permissão, o app trata o tempo real como desligado e o log diz o que ligar.
+- **Ligue também "Revocable tokens" na chave.** Arquivar alguém revoga o
+  token do Ably dele na hora e o tira das chamadas abertas no LiveKit
+  (`lib/realtime/revoke.ts`). Sem a opção, a revogação do Ably falha (o log
+  avisa) e o que sobra é o TTL do token: 10 min, o mesmo do crachá da chamada.
 
 ## App de desktop
 
