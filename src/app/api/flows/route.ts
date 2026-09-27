@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { ValidationError, createFlow, listFlows, type NewFlow } from "@/lib/flows/repository";
-import { setFlowClients } from "@/lib/clients/repository";
+import { syncFlowClients } from "@/lib/flows/clients";
 import { isFlowTemplateId } from "@/lib/flows/templates";
 import { requireAgency, unauthorized } from "@/lib/auth/session";
 
@@ -14,8 +14,10 @@ export async function GET() {
 
 /**
  * "Criar fluxo" / "Salvar rascunho" do Novo fluxo: o modelo, o passo
- * "Detalhes" e, em "Clientes específicos", quem entra nele. Quem criou vem
- * da sessão, não do corpo.
+ * "Detalhes" e, em "Clientes específicos", quem entra nele — só quando o
+ * fluxo nasce pronto para receber trabalho; rascunho guarda a lista sem
+ * tirar ninguém do fluxo atual (ver `flows/clients.ts`). Quem criou vem da
+ * sessão, não do corpo.
  */
 export async function POST(req: Request) {
   const session = await requireAgency();
@@ -29,7 +31,7 @@ export async function POST(req: Request) {
   const input = (body ?? {}) as Record<string, unknown>;
   const clientIds = Array.isArray(input.clientIds) ? input.clientIds.map(String) : [];
   try {
-    const flow = await createFlow(session.scope, {
+    const created = await createFlow(session.scope, {
       name: String(input.name ?? ""),
       by: session.user.name,
       template: isFlowTemplateId(input.template) ? input.template : undefined,
@@ -40,9 +42,11 @@ export async function POST(req: Request) {
       appliesTo: input.appliesTo as NewFlow["appliesTo"],
       status: input.status as NewFlow["status"],
     });
-    if (flow.appliesTo === "especificos" && clientIds.length > 0) {
-      await setFlowClients(session.scope, flow.id, clientIds);
-    }
+    const flow = await syncFlowClients(
+      session.scope,
+      created,
+      created.appliesTo === "especificos" && clientIds.length > 0 ? clientIds : undefined,
+    );
     return NextResponse.json({ flow }, { status: 201 });
   } catch (err) {
     if (err instanceof ValidationError) {

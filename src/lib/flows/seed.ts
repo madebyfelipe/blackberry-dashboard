@@ -60,6 +60,7 @@ export function seedFlows(): Flow[] {
       appliesTo: "todos",
       status: "ativo",
       startStepId: null,
+      pendingClientIds: null,
       updatedAt: twoDaysAgo,
       updatedBy: "Camila",
       createdAt: twoDaysAgo,
