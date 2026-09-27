@@ -1,6 +1,6 @@
 # Roadmap — black berry
 
-Documento vivo. Marca o que já existe, o que falta **desenhar** (você) e o que falta **construir** (Claude), até o fim do projeto. Última atualização: **22 set 2026** (Inbox, issue #30, a camada de tempo real da issue #43 — Ably e LiveKit — e o app de desktop em Electron).
+Documento vivo. Marca o que já existe, o que falta **desenhar** (você) e o que falta **construir** (Claude), até o fim do projeto. Última atualização: **27 set 2026** (revisão semanal: fila de issues arrumada a partir do Ultra review #83, release de Windows do desktop pelo GitHub Actions, contagem de testes em dia).
 
 Legenda: ✅ pronto · 🟡 parcial/placeholder · ⬜ não começado · 🎨 precisa de tela sua antes de eu construir
 
@@ -135,6 +135,7 @@ Legenda: ✅ pronto · 🟡 parcial/placeholder · ⬜ não começado · 🎨 pr
 - ✅ **Sons da chamada** — quem recebe ouve o toque em loop até atender, a chamada acabar, abrir a conversa ou 30 s (Ocupado e som "Nenhum" não tocam); quem liga ouve o "chamando" em loop até alguém entrar (no máximo 45 s); entrar e sair da sala têm um toque curto cada. Sons sintetizados, sem arquivo. `src/components/settings/sounds.ts` + `InboxNotifier.tsx` + `CallOverlay.tsx`
 - ✅ **Desktop: barra de título preta** — a barra do sistema some e a janela desenha a sua em `#000000`, com os botões do sistema por cima; o site fica numa `WebContentsView` logo abaixo
 - ✅ **Desktop: endereço de produção** — `blackberry.url` = `https://ragick-xi.vercel.app`
+- ✅ **Desktop: release do Windows pelo GitHub Actions** (0.0.7): o workflow `.github/workflows/desktop-release.yml` gera o `.exe` em `windows-latest`. No PR, guarda o instalador nos artefatos da execução; no merge para a `main`, publica o release `v<versão>` com o `.exe` e as notas de `desktop/RELEASE_NOTES.md`, sem refazer um release que já existe
 - ⬜ **Desktop: assinatura** — Felipe decide se compra os certificados (Apple Developer, assinatura de código Windows); sem eles o instalador abre com aviso de segurança
 - ✅ **Notificações** (`/notificacoes`, pedido do Felipe em 2026-09-23): menção (briefing, comentário, mensagem), tarefa atribuída (na mão ou pelo fluxo), comentário na sua tarefa e mensagem nova (várias da mesma conversa viram um aviso só, com contador). Abas Todas/Não lidas/Menções/Atribuições, marcar lida/não lida, tirar da lista, "marcar todas". Abrir a tarefa ou a conversa dá por lidos os avisos dela; número na lateral; aviso do sistema pelo canal pessoal do tempo real (ou releitura). `src/lib/notifications/*` — régua em `rules.ts`/`view.ts`, testada
 - 🎨 **Desenho da tela de Notificações** — a tela foi montada com o vocabulário v3 que já existe (painel, abas, linhas, blocos por dia do Inbox); é placeholder funcional, fácil de trocar quando o Felipe desenhar
@@ -142,7 +143,7 @@ Legenda: ✅ pronto · 🟡 parcial/placeholder · ⬜ não começado · 🎨 pr
 - ✅ **Usuários** (`/equipe`, export "Usuários · Painel (Lista)"): função, status, último acesso; convite com link que entra na agência; **convite automático pelo domínio** (com aprovação, porque não há confirmação de e-mail); arquivar tira o acesso na hora
 - ✅ **@ por pessoa** (menção e atribuição no briefing, comentário, Inbox e responsável) · **chamada minimizável** no canto, como no Discord · não lidas do Inbox na lateral
 - ✅ **Design system v3** em Social media, Lote, Editor, Planejamento e Configurações; link público do cliente no celular fiel ao export mobile
-- ✅ **Testes automatizados** (`tests/`, runner do próprio Node, 469 casos das funções puras, incluindo o isolamento entre agências e a régua de clientes) **+ CI** (`.github/workflows/ci.yml`: tipos, testes e build a cada push e pull request)
+- ✅ **Testes automatizados** (`tests/`, runner do próprio Node, 612 casos das funções puras, incluindo o isolamento entre agências e a régua de clientes) **+ CI** (`.github/workflows/ci.yml`: tipos, testes e build a cada push e pull request)
 - ✅ **`npm run lint` volta a funcionar**: o Next 16 removeu o `next lint`; entrou ESLint direto (`eslint.config.mjs`, flat config) com `eslint-config-next/core-web-vitals` + `/typescript`. Duas regras novas do plugin de React Compiler (`react-hooks/set-state-in-effect`, `react-hooks/refs`) ficaram desligadas — pegam padrões usados de propósito em várias telas (sincronizar estado com uma prop que muda, ler `ref.current` para medir menu/toolbar); satisfazê-las seria reescrever esses componentes, não corrigir lint. Ainda fora do CI, que continua só com tipos/testes/build.
 
 ## Fora do MVP (não construir sem pedido)
