@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test, { describe } from "node:test";
 
 import { AGENCIA_A } from "./helpers/agency";
+import { businessDay, businessToday } from "../src/lib/business-date";
 import { blankStep } from "../src/lib/flows/constants";
 import { seedFlows, socialMediaTemplate } from "../src/lib/flows/seed";
 import type { Flow, FlowStep } from "../src/lib/flows/types";
@@ -132,6 +133,32 @@ describe("addBusinessDays", () => {
     const d = addBusinessDays(new Date(2026, 8, 18, 10), 1);
     assert.equal(d.getDate(), 21);
     assert.equal(addBusinessDays(new Date(2026, 8, 18, 10), 0).getDate(), 18);
+  });
+
+  test("o dia da semana é o de Brasília, seja qual for o fuso do servidor (#97)", () => {
+    // Quinta, 24 set, 22h em Brasília = sexta 01h em UTC. +1 dia útil = sexta
+    // 22h — contado em UTC, caía no domingo.
+    const d = addBusinessDays(new Date("2026-09-24T22:00:00-03:00"), 1);
+    assert.equal(d.toISOString(), "2026-09-26T01:00:00.000Z");
+    assert.equal(businessDay(d).weekday, 5, "sexta");
+    // Sexta 22h + 1 dia útil = segunda 22h.
+    assert.equal(
+      addBusinessDays(new Date("2026-09-25T22:00:00-03:00"), 1).toISOString(),
+      "2026-09-29T01:00:00.000Z",
+    );
+  });
+});
+
+describe("businessDay / businessToday (#97)", () => {
+  test("22h em Brasília ainda é hoje, mesmo com o UTC já no dia (e no mês) seguinte", () => {
+    const noite = new Date("2026-09-30T22:00:00-03:00");
+    assert.deepEqual(businessDay(noite), { year: 2026, month: 9, day: 30, weekday: 3 });
+    const hoje = businessToday(noite);
+    assert.deepEqual([hoje.getFullYear(), hoje.getMonth(), hoje.getDate(), hoje.getHours()], [2026, 8, 30, 0]);
+  });
+
+  test("meia-noite em Brasília já é o dia seguinte", () => {
+    assert.deepEqual(businessDay(new Date("2026-10-01T00:00:00-03:00")), { year: 2026, month: 10, day: 1, weekday: 4 });
   });
 });
 

@@ -1,3 +1,4 @@
+import { businessDay } from "@/lib/business-date";
 import type { Flow, FlowStatus, FlowStep, StepAssignee } from "./types";
 
 /*
@@ -96,13 +97,18 @@ export function assigneeFor(
   return squad.find(exists) ?? null;
 }
 
-/** Soma dias úteis (seg–sex) a uma data. */
+/**
+ * Soma dias úteis (seg–sex) a uma data. O dia da semana é o de Brasília
+ * (`businessDay`), não o do processo: quinta 22h aqui já é sexta em UTC, e
+ * "+1 dia útil" contado no servidor caía no domingo. Brasília não tem mais
+ * horário de verão, então somar 24h mantém a mesma hora do relógio.
+ */
 export function addBusinessDays(from: Date, days: number): Date {
   const d = new Date(from);
   let left = Math.max(0, Math.floor(days));
   while (left > 0) {
-    d.setDate(d.getDate() + 1);
-    const wd = d.getDay();
+    d.setTime(d.getTime() + 86_400_000);
+    const wd = businessDay(d).weekday;
     if (wd !== 0 && wd !== 6) left--;
   }
   return d;

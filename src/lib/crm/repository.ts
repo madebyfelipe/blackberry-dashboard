@@ -2,6 +2,7 @@ import { read, transaction, normalizeContract, normalizeEvent, normalizePayment,
 import { CRM_LIMITS, isFileFolder, isPaymentKind, isServiceStatus } from "./constants";
 import { blankAccount } from "./defaults";
 import { monthKey, monthlyTotal, nextInvoice } from "./view";
+import { businessToday } from "@/lib/business-date";
 import type { AgencyScope } from "@/lib/agency/types";
 import type {
   ClientAccount,
@@ -78,7 +79,8 @@ export async function addService(
   const service = normalizeService({
     ...input,
     id: makeId("s"),
-    deliveredMonth: monthKey(now),
+    // O mês de Brasília: às 22h do dia 30 o servidor (UTC) já está no mês seguinte.
+    deliveredMonth: monthKey(businessToday(now)),
     createdAt: now.toISOString(),
   });
   return withAccount(scope, clientId, (a) => {
@@ -114,7 +116,7 @@ export async function updateService(
       ...patch,
       id: current.id,
       createdAt: current.createdAt,
-      deliveredMonth: touchedDeliveries ? monthKey(now) : current.deliveredMonth,
+      deliveredMonth: touchedDeliveries ? monthKey(businessToday(now)) : current.deliveredMonth,
     });
   });
   return found ? account : undefined;
@@ -149,7 +151,8 @@ export async function generateInvoice(
   const now = opts.now ?? new Date();
   return withAccount(scope, clientId, (a) => {
     const mrr = monthlyTotal(a.services);
-    const next = nextInvoice(a.invoices, mrr, opts.billingDay, now);
+    // A competência e o vencimento contam do dia de hoje em Brasília, não do UTC do servidor.
+    const next = nextInvoice(a.invoices, mrr, opts.billingDay, businessToday(now));
     if (next.existing) throw new ValidationError("Já existe uma cobrança em aberto — marque-a como paga antes de gerar outra.");
     if (!opts.billingDay || !next.dueDate || !next.competence) {
       throw new ValidationError("Defina o dia do faturamento na ficha do cliente para gerar a cobrança.");
