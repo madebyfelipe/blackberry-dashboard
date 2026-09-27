@@ -7,6 +7,7 @@ import { AuthError, AuthField, AuthShell } from "@/components/auth/AuthShell";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Spinner } from "@/components/ui/Spinner";
+import { safeNext } from "@/lib/auth/next-path";
 
 export default function LoginPage() {
   return (
@@ -142,10 +143,4 @@ function LoginForm() {
       </Button>
     </AuthShell>
   );
-}
-
-/** Só aceita caminho interno — evita redirect aberto via ?next=. */
-function safeNext(value: string | null): string {
-  if (!value || !value.startsWith("/") || value.startsWith("//")) return "/tarefas";
-  return value;
 }
