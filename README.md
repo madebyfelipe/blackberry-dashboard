@@ -53,6 +53,9 @@ O seed cria uma conta de demonstração na primeira execução:
 | --- | --- |
 | `felipe@blackberry.app` | `blackberry` (ou `DEMO_PASSWORD`) |
 
+Em produção a senha pública não vale: com o banco ainda sem contas, o seed
+exige `DEMO_PASSWORD` (mín. 12 caracteres) e recusa semear sem ela.
+
 Dá para criar outra conta em `/criar-conta` — o cadastro já entra logado.
 
 ### Variáveis de ambiente
@@ -60,7 +63,7 @@ Dá para criar outra conta em `/criar-conta` — o cadastro já entra logado.
 | Variável | Para quê |
 | --- | --- |
 | `AUTH_SECRET` | Chave que assina o cookie de sessão. **Obrigatória em produção** (mín. 16 caracteres): sem ela o servidor recusa subir e qualquer assinatura/conferência de cookie lança. Gere com `openssl rand -base64 32` e defina em Vercel → Settings → Environment Variables. Fora de produção o app cai num segredo de desenvolvimento, que não protege nada e invalida as sessões a cada deploy. |
-| `DEMO_PASSWORD` | Senha da conta semeada, para instalações compartilhadas. |
+| `DEMO_PASSWORD` | Senha da conta semeada, para instalações compartilhadas. **Obrigatória em produção no primeiro boot de um banco vazio** (mín. 12 caracteres): sem ela o seed de contas lança em vez de gravar a senha `blackberry` do README. Instância que já tem contas não precisa dela. |
 | `DATABASE_URL` | String de conexão do Postgres (Neon, criado pelo marketplace da Vercel — Storage → Marketplace Database Providers → Neon). Presente, os cinco stores (tarefas, clientes, lotes, contas, índice de mídia — e o Inbox) passam a gravar lá. Ausente, o app usa arquivo JSON local (dev) — nunca em produção sem disco gravável. |
 | `TENOR_API_KEY` · `GIPHY_API_KEY` | A biblioteca de GIFs do Inbox (uma das duas basta; com as duas vale o Giphy — o Tenor anunciou o fim da API). A chave fica no servidor — o navegador busca por `/api/inbox/gifs`. Sem nenhuma, o botão de GIF diz o que configurar. |
 | `BLOB_READ_WRITE_TOKEN` | Token do Vercel Blob (Storage → Create Database → Blob), injetado automaticamente ao conectar o projeto. Presente, a arte vai do navegador **direto** para o Blob (sem passar pela função, ver "O teto de 4,5 MB") e sobrevive a redeploy. Ausente, o editor volta ao upload multipart e os bytes ficam em `data/uploads/`, com fallback em memória em disco somente-leitura. **O store precisa ser criado com acesso "Private"** — ver "Store privado" abaixo; a Vercel não deixa trocar o modo de acesso depois de criado. |
