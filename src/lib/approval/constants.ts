@@ -116,7 +116,7 @@ export function batchStage(batch: Batch) {
   return batch.stage ?? "em-aprovacao";
 }
 
-export function batchProgress(batch: Batch) {
+export function batchProgress(batch: { pieces: Pick<Piece, "status">[] }) {
   const total = batch.pieces.length;
   const aprovadas = batch.pieces.filter((p) => p.status === "aprovado").length;
   const ajuste = batch.pieces.filter((p) => p.status === "ajuste").length;

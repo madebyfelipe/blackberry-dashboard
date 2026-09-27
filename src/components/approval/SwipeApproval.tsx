@@ -2,7 +2,8 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import type { Batch, Piece, PieceStatus } from "@/lib/approval/types";
+import type { PieceStatus } from "@/lib/approval/types";
+import { PUBLIC_REASON_MAX, type PublicBatch, type PublicPiece } from "@/lib/approval/public";
 import { PieceThumb } from "./PieceThumb";
 import { StatusBadge } from "./StatusBadge";
 import { CheckIcon, XIcon } from "@/components/icons";
@@ -10,8 +11,8 @@ import { CheckIcon, XIcon } from "@/components/icons";
 const THRESHOLD = 120;
 const FLING_MS = 260;
 
-export function SwipeApproval({ batch }: { batch: Batch }) {
-  const [pieces, setPieces] = useState<Piece[]>(batch.pieces);
+export function SwipeApproval({ batch }: { batch: PublicBatch }) {
+  const [pieces, setPieces] = useState<PublicPiece[]>(batch.pieces);
   const [index, setIndex] = useState(0);
   const [drag, setDrag] = useState({ dx: 0, dy: 0, active: false });
   const [fling, setFling] = useState<null | "left" | "right">(null);
@@ -277,6 +278,7 @@ export function SwipeApproval({ batch }: { batch: Batch }) {
               value={reason.text}
               onChange={(e) => setReason((r) => ({ ...r, text: e.target.value }))}
               rows={4}
+              maxLength={PUBLIC_REASON_MAX}
               placeholder="Ex.: trocar a cor do texto para melhorar a leitura."
               className="mt-4 w-full resize-none rounded-panel border border-border-strong bg-bg px-4 py-3 text-[14px] text-fg-soft placeholder:text-muted focus:border-fg-3 focus:outline-none"
             />
@@ -308,7 +310,7 @@ function PieceCard({
   piece,
   children,
 }: {
-  piece: Piece;
+  piece: PublicPiece;
   children?: React.ReactNode;
 }) {
   return (
@@ -343,7 +345,7 @@ function DoneScreen({
   pieces,
   onReset,
 }: {
-  pieces: Piece[];
+  pieces: PublicPiece[];
   onReset: () => void;
 }) {
   const aprovadas = pieces.filter((p) => p.status === "aprovado").length;

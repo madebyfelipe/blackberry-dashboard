@@ -12,6 +12,7 @@
  * que requisições em paralelo também esbarrem no limite.
  *
  * Função pura sobre um mapa injetável, testada em `tests/auth-attempts.test.ts`.
+ * O link público de aprovação usa o mesmo freio, com outro teto (`limits`).
  */
 
 export const MAX_ATTEMPTS = 8;
@@ -19,12 +20,15 @@ export const WINDOW_MS = 10 * 60_000;
 
 type Entry = { count: number; since: number };
 
-export function createAttempts(now: () => number = Date.now) {
+export function createAttempts(
+  now: () => number = Date.now,
+  limits: { max: number; windowMs: number } = { max: MAX_ATTEMPTS, windowMs: WINDOW_MS },
+) {
   const map = new Map<string, Entry>();
 
   function live(key: string): Entry | undefined {
     const e = map.get(key);
-    if (e && now() - e.since > WINDOW_MS) {
+    if (e && now() - e.since > limits.windowMs) {
       map.delete(key);
       return undefined;
     }
@@ -33,8 +37,8 @@ export function createAttempts(now: () => number = Date.now) {
 
   function blockedFor(key: string): number {
     const e = live(key);
-    if (!e || e.count < MAX_ATTEMPTS) return 0;
-    return Math.ceil((WINDOW_MS - (now() - e.since)) / 1000);
+    if (!e || e.count < limits.max) return 0;
+    return Math.ceil((limits.windowMs - (now() - e.since)) / 1000);
   }
 
   return {
