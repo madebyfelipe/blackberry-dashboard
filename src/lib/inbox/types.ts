@@ -83,6 +83,18 @@ export type InboxMember = {
   notify: NotifyPrefs;
 };
 
+/**
+ * Alguém do time como os **outros** o enxergam no Inbox (a lista, a conversa
+ * aberta). Só o que a tela mostra: nada do convite — o token é o que coloca
+ * alguém dentro da agência, e vazava para qualquer membro (issue #72) —, nem
+ * pedido de entrada, e-mail ou avisos. O convite só viaja em Usuários, para
+ * quem administra (`team/rows.ts`). Montado por `publicMember` (`view.ts`).
+ */
+export type PublicMember = Pick<
+  InboxMember,
+  "id" | "agencyId" | "name" | "handle" | "presence" | "role" | "status" | "title" | "photoUrl"
+>;
+
 /** Ajustes do time de uma agência — hoje, o domínio do convite automático. */
 export type TeamSettings = {
   /** "estudionorte.com" — `null` desliga o convite automático. */
@@ -228,5 +240,5 @@ export type ConversationSummary = {
 /** A conversa aberta: o resumo + as mensagens e quem participa. */
 export type ConversationDetail = ConversationSummary & {
   messages: Message[];
-  members: InboxMember[];
+  members: PublicMember[];
 };

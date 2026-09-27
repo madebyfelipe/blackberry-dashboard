@@ -8,7 +8,7 @@ import { conversationChannel, memberChannel } from "@/lib/realtime/channels";
 import type {
   ConversationDetail,
   ConversationSummary,
-  InboxMember,
+  PublicMember,
   Message,
 } from "@/lib/inbox/types";
 import { sortSummaries } from "@/lib/inbox/view";
@@ -172,7 +172,7 @@ export function InboxView({
   );
 
   /** A equipe com a presença de agora — é dela que sai o "adicionar alguém". */
-  const team = useMemo<InboxMember[]>(() => {
+  const team = useMemo<PublicMember[]>(() => {
     // Convidado sem conta, inativo e arquivado não entram em conversa nova.
     const working = state.members.filter((m) => m.status === "ativo");
     return aoVivoOk

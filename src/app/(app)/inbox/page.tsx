@@ -6,7 +6,7 @@ import {
   listConversations,
   listMembers,
 } from "@/lib/inbox/repository";
-import { sortSummaries } from "@/lib/inbox/view";
+import { publicMember, sortSummaries } from "@/lib/inbox/view";
 import { currentInboxSession } from "@/lib/inbox/viewer";
 
 export const dynamic = "force-dynamic";
@@ -47,7 +47,8 @@ export default async function InboxPage({
 
   return (
     <InboxView
-      snapshot={{ me: session.me, members, conversations }}
+      // Sem convite nem e-mail dos outros — ver `PublicMember` (issue #72).
+      snapshot={{ me: session.me, members: members.map(publicMember), conversations }}
       initialConversation={initial ?? null}
       live={await ablyReady()}
       blobUploads={Boolean(process.env.BLOB_READ_WRITE_TOKEN)}

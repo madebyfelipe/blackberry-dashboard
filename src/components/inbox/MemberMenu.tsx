@@ -1,6 +1,6 @@
 "use client";
 
-import type { InboxMember } from "@/lib/inbox/types";
+import type { PublicMember } from "@/lib/inbox/types";
 import { PresenceDot } from "./PresenceDot";
 
 /*
@@ -15,7 +15,7 @@ export function MemberMenuPanel({
   emptyText,
   onSelect,
 }: {
-  members: InboxMember[];
+  members: PublicMember[];
   /** Uma linha acima da lista dizendo o que o clique faz. */
   heading?: string;
   emptyText: string;

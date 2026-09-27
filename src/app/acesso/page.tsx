@@ -10,7 +10,8 @@ export const metadata = { title: "Acesso" };
 /*
  * Para quem tem conta mas não pode usar a agência agora:
  * - chegou pelo convite automático do domínio e espera aprovação;
- * - foi arquivado (arquivar tira o acesso).
+ * - foi arquivado (arquivar tira o acesso), ou o convite foi excluído ou não
+ *   foi aceito pelo link (issue #72).
  * Quem pode entrar é devolvido ao app; sem sessão, ao login.
  */
 export default async function AcessoPage() {
@@ -25,7 +26,7 @@ export default async function AcessoPage() {
       subtitle={
         access === "aguardando"
           ? `Seu e-mail é do domínio da ${user.agency}, então você já tem um convite para o time. Falta um Admin ou Gerente aprovar sua entrada em Usuários.`
-          : `Sua conta foi arquivada no time da ${user.agency}. Se foi engano, fale com um Admin ou Gerente da agência.`
+          : `Sua conta não tem acesso ao time da ${user.agency} — foi arquivada, ou o convite não vale mais. Se foi engano, fale com um Admin ou Gerente da agência.`
       }
     >
       <p className="text-[13px] text-muted">

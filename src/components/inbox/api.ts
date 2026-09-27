@@ -3,13 +3,14 @@ import type {
   ConversationDetail,
   ConversationSummary,
   InboxMember,
+  PublicMember,
   Presence,
 } from "@/lib/inbox/types";
 
 /** O que a tela do Inbox precisa saber de uma vez só. */
 export type InboxSnapshot = {
   me: InboxMember;
-  members: InboxMember[];
+  members: PublicMember[];
   conversations: ConversationSummary[];
 };
 

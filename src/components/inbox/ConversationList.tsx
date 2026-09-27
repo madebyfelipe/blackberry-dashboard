@@ -7,6 +7,7 @@ import { BellOffIcon, PhoneIcon, SearchIcon, SlidersIcon, SquarePenIcon } from "
 import type {
   ConversationSummary,
   InboxMember,
+  PublicMember,
 } from "@/lib/inbox/types";
 import { listTime, matchesQuery, splitByKind } from "@/lib/inbox/view";
 import { MemberMenuPanel } from "./MemberMenu";
@@ -35,7 +36,7 @@ export function ConversationList({
   className,
 }: {
   conversations: ConversationSummary[];
-  members: InboxMember[];
+  members: PublicMember[];
   me: InboxMember;
   openId: string | null;
   query: string;
@@ -170,7 +171,7 @@ function NewDirect({
   me,
   onSelect,
 }: {
-  members: InboxMember[];
+  members: PublicMember[];
   me: InboxMember;
   onSelect: (memberId: string) => void;
 }) {

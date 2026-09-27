@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { listConversations, listMembers } from "@/lib/inbox/repository";
 import { currentInboxSession } from "@/lib/inbox/viewer";
+import { publicMember } from "@/lib/inbox/view";
 import { ablyReady, livekitEnabled } from "@/lib/realtime/server";
 import { unauthorized } from "@/lib/auth/session";
 
@@ -25,7 +26,9 @@ export async function GET() {
 
   return NextResponse.json({
     me: session.me,
-    members,
+    // Sem convite nem e-mail: o token do convite é de quem administra, e só
+    // viaja em Usuários (issue #72).
+    members: members.map(publicMember),
     conversations,
     /*
      * O que está ligado neste ambiente. A tela usa isso para decidir entre

@@ -18,7 +18,7 @@ import {
   TrashIcon,
 } from "@/components/icons";
 import { MESSAGE_EDIT_WINDOW_MS, canChangeMessage } from "@/lib/inbox/constants";
-import type { Attachment, InboxMember, Message } from "@/lib/inbox/types";
+import type { Attachment, InboxMember, Message, PublicMember } from "@/lib/inbox/types";
 import { memberName, messageText, messageTime, startsBlock } from "@/lib/inbox/view";
 import { formatBytes } from "@/lib/media/constants";
 import { VoicePlayer } from "./VoicePlayer";
@@ -55,7 +55,7 @@ export function MessageRow({
   previous?: Message;
   /** A conversa inteira — é daqui que sai a mensagem respondida. */
   messages: Message[];
-  members: InboxMember[];
+  members: PublicMember[];
   me: InboxMember;
   /** Enquanto a busca está aberta, todo bloco abre: o vizinho pode ter sumido. */
   query: string;
