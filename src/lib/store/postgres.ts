@@ -24,6 +24,15 @@ let pool: Pool | null = null;
 function getPool(): Pool {
   if (!pool) {
     pool = new Pool({ connectionString: process.env.DATABASE_URL });
+    // Conexão ociosa que o servidor derruba (Neon suspendendo o compute,
+    // restart, queda de rede) vira um evento `error` no pool. Sem ouvinte, o
+    // Node trata como exceção não capturada e o processo sai, levando junto as
+    // requisições em curso (issue #75). O pool já descarta o cliente morto e
+    // abre outro no próximo uso — aqui só falta registrar. Só a mensagem: o
+    // erro carrega o cliente inteiro (`err.client`), que poluiria o log.
+    pool.on("error", (err) => {
+      console.error("[pg] conexão ociosa caiu:", err.message);
+    });
   }
   return pool;
 }
@@ -40,7 +49,15 @@ function ensureSchema(): Promise<void> {
            updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
          )`,
       )
-      .then(() => undefined);
+      .then(() => undefined)
+      .catch((err: unknown) => {
+        // Banco fora do ar na primeira chamada (cold start do Neon, timeout):
+        // esquece a tentativa, para a próxima chamada tentar de novo. Guardar
+        // a Promise rejeitada devolvia o mesmo erro para sempre, mesmo com o
+        // banco de volta, até a instância reiniciar (issue #75).
+        schemaReady = null;
+        throw err;
+      });
   }
   return schemaReady;
 }
