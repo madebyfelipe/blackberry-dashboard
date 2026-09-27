@@ -1,7 +1,12 @@
 import assert from "node:assert/strict";
 import test, { describe } from "node:test";
 
-import { domainProblem, emailDomain, normalizeDomain } from "../src/lib/inbox/domain";
+import {
+  domainProblem,
+  domainUsedElsewhere,
+  emailDomain,
+  normalizeDomain,
+} from "../src/lib/inbox/domain";
 
 /*
  * O domínio da agência decide quem ganha convite automático — um domínio
@@ -34,6 +39,9 @@ describe("domainProblem", () => {
 
   test("recusa e-mail pessoal, mesmo sendo o seu", () => {
     assert.ok(domainProblem("gmail.com", "felipe@gmail.com"));
+    for (const d of ["pm.me", "zoho.com", "gmx.net", "globo.com", "yahoo.co.uk"]) {
+      assert.ok(domainProblem(d, `alguem@${d}`), d);
+    }
   });
 
   test("recusa domínio que não é o seu", () => {
@@ -42,5 +50,22 @@ describe("domainProblem", () => {
 
   test("recusa vazio", () => {
     assert.ok(domainProblem("", "felipe@blackberry.app"));
+  });
+});
+
+describe("domainUsedElsewhere", () => {
+  const membros = [
+    { agencyId: "a", email: "dona@bigcorp.com" },
+    { agencyId: "b", email: "ana@BigCorp.com" },
+    { agencyId: "b", email: "" },
+  ];
+
+  test("domínio com gente em outra agência não é só desta (issue #92)", () => {
+    assert.equal(domainUsedElsewhere("bigcorp.com", "a", membros), true);
+  });
+
+  test("gente da própria agência não conta", () => {
+    assert.equal(domainUsedElsewhere("bigcorp.com", "a", membros.slice(0, 1)), false);
+    assert.equal(domainUsedElsewhere("estudionorte.com", "a", membros), false);
   });
 });

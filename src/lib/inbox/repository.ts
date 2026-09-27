@@ -2,7 +2,7 @@ import type { AgencyScope } from "@/lib/agency/types";
 import { ATTACHMENTS_MAX, MESSAGE_MAX, canChangeMessage, isPresence } from "./constants";
 import { handleProblem, normalizeHandle, suggestHandle } from "./handle";
 import { TITLE_MAX, canManageTeam, isMemberRole, isMemberStatus, isWorking } from "./users";
-import { domainProblem, emailDomain, normalizeDomain } from "./domain";
+import { domainProblem, domainUsedElsewhere, emailDomain, normalizeDomain } from "./domain";
 import { read, transaction } from "./store";
 import { normalizeNotifyPrefs } from "./notifyPrefs";
 import type {
@@ -342,7 +342,8 @@ export async function getTeamSettings(scope: AgencyScope): Promise<TeamSettings>
 
 /**
  * Liga, troca ou desliga o domínio do convite automático. Só Admin e Gerente,
- * e só um domínio do próprio e-mail de quem configura (ver `domainProblem`).
+ * só um domínio do próprio e-mail de quem configura (ver `domainProblem`), e
+ * só um domínio que ninguém de outra agência usa (issue #92).
  */
 export async function setTeamDomain(
   scope: AgencyScope,
@@ -358,9 +359,12 @@ export async function setTeamDomain(
       domain = normalizeDomain(input.domain);
       const problem = domainProblem(domain, viewer.email);
       if (problem) throw new ValidationError(problem);
-      const taken = Object.entries(data.settings).some(
-        ([agencyId, s]) => agencyId !== scope.agencyId && s.domain === domain,
-      );
+      // Mesma mensagem nos dois casos: dizer "tem gente de lá em outra
+      // agência" contaria quem usa o produto.
+      const taken =
+        Object.entries(data.settings).some(
+          ([agencyId, s]) => agencyId !== scope.agencyId && s.domain === domain,
+        ) || domainUsedElsewhere(domain, scope.agencyId, data.members);
       if (taken) throw new ValidationError(`${domain} já é o domínio de outra agência.`);
     }
     const role = input.domainRole ?? current.domainRole;
