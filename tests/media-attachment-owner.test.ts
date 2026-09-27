@@ -40,7 +40,7 @@ describe("tipo com nome do protótipo", () => {
       for (const policy of [ART_POLICY, ATTACHMENT_POLICY]) {
         await assert.rejects(() => saveMedia(PNG, { mime, name: "x" }, policy), MediaError);
       }
-      assert.equal(blobPathnameFor("arte", mime), "media/arte.bin");
+      assert.match(blobPathnameFor("arte", mime), /^media\/arte-[0-9a-f]{16}\.bin$/);
     });
   }
 });
