@@ -3,12 +3,14 @@ import {
   ForbiddenError,
   ValidationError,
   deleteMember,
+  listConversations,
   updateMember,
   type MemberPatch,
 } from "@/lib/inbox/repository";
 import { currentInboxSession } from "@/lib/inbox/viewer";
 import { unauthorized } from "@/lib/auth/session";
 import { toUserRow } from "@/lib/team/rows";
+import { revokeRealtime } from "@/lib/realtime/server";
 
 export const dynamic = "force-dynamic";
 
@@ -39,6 +41,15 @@ export async function PATCH(req: Request, { params }: Ctx) {
   try {
     const member = await updateMember(session.scope, session.me.id, id, patch);
     if (!member) return NextResponse.json({ error: "Usuário não encontrado." }, { status: 404 });
+    if (patch.status === "arquivado" && member.status === "arquivado") {
+      /*
+       * Arquivar tira o acesso às telas na hora, mas o crachá do tempo real
+       * que já estava na mão seguia valendo até vencer (issue #94): revoga o
+       * do Ably e tira a pessoa das chamadas abertas das conversas dela.
+       */
+      const conversations = await listConversations(session.scope, member.id);
+      await revokeRealtime(session.scope, member.id, conversations.map((c) => c.id));
+    }
     return NextResponse.json({ user: toUserRow(member, session.me) });
   } catch (err) {
     return fail(err);

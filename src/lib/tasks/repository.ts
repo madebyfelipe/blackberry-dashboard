@@ -101,7 +101,8 @@ export async function createTask(
   const title = input.title?.trim();
   if (!title) throw new ValidationError("Título é obrigatório.");
   const client = (input.client ?? "").trim();
-  const clientId = await resolveClientId(scope, client);
+  const clientId =
+    input.clientId !== undefined ? input.clientId : await resolveClientId(scope, client);
   const status = isTaskStatus(input.status) ? input.status : "a-fazer";
   const assignee = ((await resolveAssignee(scope, input.assignee)) ?? "").trim() || "—";
   const priority = isTaskPriority(input.priority) ? input.priority : "sem";

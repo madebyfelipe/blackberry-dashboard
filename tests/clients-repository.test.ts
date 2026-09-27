@@ -101,6 +101,21 @@ describe("updateClient", () => {
     );
   });
 
+  // Issue #95: o `in` enxergava o protótipo, e o cliente sumia de todas as abas.
+  test("recusa nomes do protótipo como status", async () => {
+    const c = await criar({ status: "vip" });
+    for (const nome of ["constructor", "toString", "__proto__", "hasOwnProperty"]) {
+      await assert.rejects(
+        () => updateClient(AGENCIA_A, c.id, { status: nome as never }),
+        ValidationError,
+        nome,
+      );
+      const novo = await criar({ status: nome as never });
+      assert.equal(novo.status, "novo", `criação com status ${nome} cai no padrão`);
+    }
+    assert.equal((await getClient(AGENCIA_A, c.id))?.status, "vip", "nada foi gravado");
+  });
+
   test("valida antes de abrir a transação", async () => {
     const c = await criar({ billingDay: 10 });
     await assert.rejects(

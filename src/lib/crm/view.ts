@@ -541,7 +541,7 @@ export function buildActivities(input: {
   for (const b of input.batches) {
     for (const p of b.pieces) {
       for (const h of p.history) {
-        if (!h.at || !APPROVAL_VERBS[h.title]) continue;
+        if (!h.at || !Object.hasOwn(APPROVAL_VERBS, h.title)) continue;
         const who = h.who.split(" · ")[0] || "—";
         const hour = Math.floor(new Date(h.at).getTime() / 3_600_000);
         const key = `${b.id}|${h.title}|${who}|${hour}`;

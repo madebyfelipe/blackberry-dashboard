@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import type { Batch, Piece } from "@/lib/approval/types";
+import type { Piece } from "@/lib/approval/types";
+import type { PublicBatch, PublicPiece } from "@/lib/approval/public";
 import { batchProgress } from "@/lib/approval/constants";
 import { formatPieceDate } from "@/lib/format";
 import { cn } from "@/lib/cn";
@@ -56,7 +57,7 @@ export function ApprovalIntro({
   agencyLogoUrl = null,
   onStart,
 }: {
-  batch: Batch;
+  batch: PublicBatch;
   /** O logo da agência (Configurações › Agência). Sem ele, o do black berry. */
   agencyLogoUrl?: string | null;
   onStart: () => void;
@@ -194,7 +195,7 @@ export function ApprovalIntro({
   );
 }
 
-function MainCard({ piece }: { piece: Piece }) {
+function MainCard({ piece }: { piece: PublicPiece }) {
   return (
     <article className="flex h-[260px] w-[200px] shrink-0 flex-col gap-2.5 rounded-[20px] border-[1.5px] border-dim bg-surface-2 p-3 sm:h-[310px] sm:w-[250px] sm:rounded-card sm:p-3.5">
       <CardHead size="lg" />
@@ -227,7 +228,7 @@ function MainCard({ piece }: { piece: Piece }) {
   );
 }
 
-function PeekCard({ piece, className }: { piece: Piece; className?: string }) {
+function PeekCard({ piece, className }: { piece: PublicPiece; className?: string }) {
   return (
     <article
       className={cn(
@@ -303,7 +304,7 @@ function SliderBtn({
   );
 }
 
-function Summary({ batch, onBack }: { batch: Batch; onBack: () => void }) {
+function Summary({ batch, onBack }: { batch: PublicBatch; onBack: () => void }) {
   const progress = batchProgress(batch);
   return (
     <section className="w-full max-w-[560px] overflow-hidden rounded-card border border-border bg-surface-2">

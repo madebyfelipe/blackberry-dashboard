@@ -132,6 +132,15 @@ export type Flow = {
   steps: FlowStep[];
   /** Onde a tarefa entra ("Definir como início"); `null` = a primeira. */
   startStepId: string | null;
+  /**
+   * Os "Clientes específicos" escolhidos enquanto o fluxo ainda não está
+   * pronto para receber trabalho (rascunho, inativo ou sem etapa). Cliente
+   * fica em um fluxo só, e entrar neste o tiraria do fluxo em que está — por
+   * isso a lista espera aqui e só é aplicada quando o fluxo fica pronto (ver
+   * `flows/clients.ts`). `null` = nada esperando: quem segue o fluxo é quem
+   * tem `Client.flowId` apontando para ele.
+   */
+  pendingClientIds: string[] | null;
   /** ISO — a "Última edição há 2 dias por Camila M." do cabeçalho. */
   updatedAt: string;
   updatedBy: string;

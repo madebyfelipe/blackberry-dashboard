@@ -1,3 +1,4 @@
+import { randomBytes } from "node:crypto";
 import { read, transaction } from "./store";
 import {
   formatFromDimensions,
@@ -6,6 +7,7 @@ import {
   sizeFromDimensions,
 } from "./constants";
 import { slugify } from "./clients";
+import { PIECE_HISTORY_MAX, PUBLIC_REASON_MAX, PUBLIC_WHO_MAX } from "./public";
 import { deleteMedia } from "@/lib/media/store";
 import { resolveClientId } from "@/lib/clients/repository";
 import type { AgencyScope } from "@/lib/agency/types";
@@ -119,7 +121,7 @@ export async function addPiece(
         : "feed";
     const meta = PIECE_FORMATS.find((f) => f.id === format) ?? PIECE_FORMATS[0];
     const piece: Piece = {
-      id: "p" + Math.random().toString(36).slice(2, 8),
+      id: shortId("p"),
       name: media ? fileLabel(media.name) : `Peça ${String(n).padStart(2, "0")}`,
       size:
         media?.width && media?.height
@@ -135,7 +137,7 @@ export async function addPiece(
       media: media ? [media] : undefined,
       history: [
         {
-          id: "h" + Math.random().toString(36).slice(2, 8),
+          id: shortId("h"),
           at: new Date().toISOString(),
           title: media ? "Arte enviada para o lote" : "Peça criada no lote",
           who: agencyStamp(scope),
@@ -193,7 +195,7 @@ export async function addPieceMedia(
 
     piece.history = [
       {
-        id: "h" + Math.random().toString(36).slice(2, 8),
+        id: shortId("h"),
         at: new Date().toISOString(),
         title: wasEmpty ? "Arte enviada" : "Arte adicionada ao carrossel",
         who: agencyStamp(scope),
@@ -227,7 +229,7 @@ export async function removePieceMedia(
     piece.media = piece.media.filter((m) => m.id !== mediaId);
     piece.history = [
       {
-        id: "h" + Math.random().toString(36).slice(2, 8),
+        id: shortId("h"),
         at: new Date().toISOString(),
         title: "Arte removida",
         who: agencyStamp(scope),
@@ -259,7 +261,7 @@ export async function sendBatchForApproval(
       if (piece.status !== "pendente") continue;
       piece.history = [
         {
-          id: "h" + Math.random().toString(36).slice(2, 8),
+          id: shortId("h"),
           at: new Date().toISOString(),
           title: "Enviada para aprovação",
           who,
@@ -359,11 +361,19 @@ export async function setBatchLinkRevoked(
   });
 }
 
+/**
+ * O token é a autorização inteira do link público, então sai do `crypto`,
+ * como o id da mídia (issue #77). `Math.random` tem estado recuperável a
+ * partir das saídas — e qualquer conta logada vê saídas dele. Tokens antigos
+ * (15 caracteres) continuam valendo: a busca é por igualdade.
+ */
 function randomToken(): string {
-  const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
-  let out = "";
-  for (let i = 0; i < 15; i++) out += chars[Math.floor(Math.random() * chars.length)];
-  return out;
+  return randomBytes(16).toString("base64url");
+}
+
+/** Id de peça e de evento do histórico: curto, legível e fora do `Math.random`. */
+function shortId(prefix: string): string {
+  return prefix + randomBytes(5).toString("hex");
 }
 
 /**
@@ -385,7 +395,7 @@ export async function approvePieceByAgency(
     piece.reason = undefined;
     piece.history = [
       {
-        id: "h" + Math.random().toString(36).slice(2, 8),
+        id: shortId("h"),
         at: new Date().toISOString(),
         title: "Aprovada pela agência",
         who: agencyStamp(scope),
@@ -411,7 +421,7 @@ export async function markPieceRedone(
     piece.reason = undefined;
     piece.history = [
       {
-        id: "h" + Math.random().toString(36).slice(2, 8),
+        id: shortId("h"),
         at: new Date().toISOString(),
         title: "Marcada como refeita",
         who: agencyStamp(scope),
@@ -462,9 +472,10 @@ export async function decidePiece(
     if (!piece) return undefined;
 
     piece.status = decision;
-    if (decision === "ajuste" && opts?.reason) piece.reason = opts.reason;
+    // A rota já recusa o que passa do teto; o corte aqui é a rede embaixo.
+    if (decision === "ajuste" && opts?.reason) piece.reason = opts.reason.slice(0, PUBLIC_REASON_MAX);
 
-    const who = (opts?.who || "Cliente") + " · " + nowStamp();
+    const who = (opts?.who?.slice(0, PUBLIC_WHO_MAX) || "Cliente") + " · " + nowStamp();
     const title =
       decision === "aprovado"
         ? "Aprovada pelo cliente"
@@ -472,15 +483,17 @@ export async function decidePiece(
           ? "Ajuste pedido pelo cliente"
           : "Marcada como pendente";
     const event: DecisionEvent = {
-      id: "h" + Math.random().toString(36).slice(2, 8),
+      id: shortId("h"),
       at: new Date().toISOString(),
       title,
       who,
-      ip: opts?.ip,
+      // Um IPv6 inteiro cabe em 45; o cabeçalho que traz o IP vem de fora.
+      ip: opts?.ip?.slice(0, 64),
       // Exact content the client saw when deciding — protects against later edits.
       snapshot: { caption: piece.caption, kind: piece.kind, size: piece.size },
     };
-    piece.history = [event, ...piece.history];
+    // Teto de eventos por peça: o mais antigo sai (issue #77).
+    piece.history = [event, ...piece.history].slice(0, PIECE_HISTORY_MAX);
     return { ...piece };
   });
 }

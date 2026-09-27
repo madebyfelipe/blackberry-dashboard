@@ -24,12 +24,19 @@ import path from "node:path";
 
 const DATA_DIR = path.join(process.cwd(), "data");
 
+/** Sem permissão de escrita no disco — a única falha que não passa sozinha. */
+function isReadOnlyDisk(err: unknown): boolean {
+  const code = (err as NodeJS.ErrnoException | null)?.code;
+  return code === "EROFS" || code === "EACCES" || code === "EPERM";
+}
+
 export type JsonStore<T> = {
   /** Cópia do estado atual — nunca a estrutura viva. */
   read(): Promise<T>;
   /**
-   * Seção crítica em processo: `mutate` recebe o estado vivo e o que ele
-   * devolver volta para quem chamou; a gravação acontece depois.
+   * Seção crítica em processo: `mutate` recebe um rascunho do estado e o que
+   * ele devolver volta para quem chamou; a gravação acontece depois. Se
+   * `mutate` lançar ou a gravação falhar, nada do rascunho fica valendo.
    */
   transaction<R>(mutate: (data: T) => R): Promise<R>;
 };
@@ -56,18 +63,35 @@ export function createJsonStore<T>(options: {
     }
   }
 
+  /**
+   * Grava `data` e só então passa a servi-lo como o estado atual: falhou a
+   * gravação, o cache continua com o que estava antes.
+   */
   async function persist(data: T): Promise<void> {
-    if (!canPersist) return;
-    try {
-      await fs.mkdir(DATA_DIR, { recursive: true });
-      const tmp = filePath + ".tmp";
-      await fs.writeFile(tmp, JSON.stringify(data, null, 2), "utf8");
-      await fs.rename(tmp, filePath);
-      cacheMtimeMs = await mtime();
-    } catch {
-      // Disco somente-leitura: daqui em diante vale a memória do processo.
-      canPersist = false;
+    if (canPersist) {
+      try {
+        await fs.mkdir(DATA_DIR, { recursive: true });
+        const tmp = filePath + ".tmp";
+        await fs.writeFile(tmp, JSON.stringify(data, null, 2), "utf8");
+        await fs.rename(tmp, filePath);
+        const gravado = await mtime();
+        cache = data;
+        cacheMtimeMs = gravado;
+        return;
+      } catch (err) {
+        // Falha passageira (disco cheio, arquivos abertos demais, arquivo
+        // ocupado) não desliga a persistência: isso perderia em silêncio tudo
+        // o que viesse depois (issue #76). Esta gravação falha e a próxima
+        // tenta de novo.
+        if (!isReadOnlyDisk(err)) {
+          console.error(`[store] falha ao gravar ${options.file}`, err);
+          throw err;
+        }
+        // Disco somente-leitura: daqui em diante vale a memória do processo.
+        canPersist = false;
+      }
     }
+    cache = data;
   }
 
   async function load(): Promise<T> {
@@ -106,9 +130,14 @@ export function createJsonStore<T>(options: {
 
   function transaction<R>(mutate: (data: T) => R): Promise<R> {
     const run = async (): Promise<R> => {
-      const data = await load();
-      const result = mutate(data);
-      await persist(data);
+      // `mutate` trabalha num rascunho, e o rascunho só vira o cache depois de
+      // gravado (`persist`). Mexer direto no cache deixava na memória o que uma
+      // validação recusou no meio do caminho — e a próxima gravação deste
+      // arquivo levava a alteração recusada para o disco (issue #76). É o
+      // equivalente ao ROLLBACK do store de Postgres.
+      const draft = structuredClone(await load());
+      const result = mutate(draft);
+      await persist(draft);
       return result;
     };
     const next = chain.then(run, run);

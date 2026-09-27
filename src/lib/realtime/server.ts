@@ -8,6 +8,7 @@ import {
   memberChannel,
   type RealtimeEvent,
 } from "./channels";
+import { ABLY_TOKEN_TTL_MS, LIVEKIT_TOKEN_TTL, revokeMember } from "./revoke";
 
 /*
  * O lado servidor do tempo real. Dois serviços, dois trabalhos diferentes:
@@ -105,8 +106,9 @@ export async function ablyTokenRequest(
     clientId: memberId,
     capability: capabilityFor(scope.agencyId, conversationIds, memberId),
     // Curto de propósito: a permissão envelhece junto com a lista de
-    // conversas, e o cliente renova sozinho pelo authUrl.
-    ttl: 60 * 60 * 1000,
+    // conversas, e o cliente renova sozinho pelo authUrl. É também a janela
+    // de quem foi arquivado, se a revogação falhar (ver `revoke.ts`).
+    ttl: ABLY_TOKEN_TTL_MS,
   });
 }
 
@@ -192,7 +194,11 @@ async function publish(channels: string[], event: RealtimeEvent): Promise<void> 
   }
 }
 
-/** O crachá da chamada: sala da conversa, identidade do membro, 2h de validade. */
+/**
+ * O crachá da chamada: sala da conversa, identidade do membro, validade curta
+ * (`LIVEKIT_TOKEN_TTL`) — ele só serve para entrar, e quem já está na sala
+ * segue com os crachás que o LiveKit renova.
+ */
 export async function livekitToken(
   scope: AgencyScope,
   conversationId: string,
@@ -208,7 +214,7 @@ export async function livekitToken(
   const at = new AccessToken(apiKey, apiSecret, {
     identity: member.id,
     name: member.name,
-    ttl: "2h",
+    ttl: LIVEKIT_TOKEN_TTL,
   });
   at.addGrant({
     room,
@@ -220,4 +226,41 @@ export async function livekitToken(
     canPublishData: true,
   });
   return { url, token: await at.toJwt(), room };
+}
+
+/**
+ * Tira do tempo real quem acabou de ser arquivado (issue #94): revoga o token
+ * do Ably pelo `clientId` e remove a pessoa das salas do LiveKit das
+ * conversas dela. Sem as variáveis de ambiente não há o que revogar, e a
+ * função não faz nada.
+ *
+ * A revogação do Ably só vale para chave com "Revocable tokens" ligado (no
+ * painel do Ably, nas opções da chave). Sem isso, o log avisa e o que sobra é
+ * o TTL curto do token.
+ */
+export async function revokeRealtime(
+  scope: AgencyScope,
+  memberId: string,
+  conversationIds: string[],
+): Promise<void> {
+  const key = env("ABLY_API_KEY");
+  const url = env("LIVEKIT_URL");
+  const apiKey = env("LIVEKIT_API_KEY");
+  const apiSecret = env("LIVEKIT_API_SECRET");
+  if (!key && !(url && apiKey && apiSecret)) return;
+
+  const ably = key ? (await rest(key)).auth : undefined;
+  const livekit =
+    url && apiKey && apiSecret
+      ? new (await import("livekit-server-sdk")).RoomServiceClient(url, apiKey, apiSecret)
+      : undefined;
+  const result = await revokeMember({ ably, livekit }, scope.agencyId, memberId, conversationIds);
+  if (result.errors.length > 0) {
+    console.error(
+      "[realtime] revogar o acesso de quem foi arquivado falhou em parte (no Ably, a chave precisa de " +
+        '"Revocable tokens"); vale o TTL curto do token',
+      memberId,
+      result.errors,
+    );
+  }
 }

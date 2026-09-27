@@ -1,3 +1,4 @@
+import { businessDay } from "@/lib/business-date";
 import type { Flow, FlowStatus, FlowStep, StepAssignee } from "./types";
 
 /*
@@ -26,15 +27,32 @@ export function flowMeta(flow: Flow): string {
 }
 
 /**
+ * O fluxo pronto para receber trabalho: ativo e com uma etapa ligada por onde
+ * a tarefa entre. Rascunho, inativo ou sem etapa não pega cliente nenhum.
+ */
+export function isFlowReady(flow: Flow): boolean {
+  return flow.status === "ativo" && !!startStep(flow);
+}
+
+/**
  * O fluxo que o criativo de um cliente segue, entre os fluxos da agência: o
- * escolhido na ficha dele, se estiver ativo; senão o primeiro ativo marcado
- * "Todos os clientes". Fluxo "Clientes específicos" nunca pega cliente de
- * fora. Fluxo sem etapa ligada não tem por onde a tarefa entrar — fica de
- * fora também, e o cliente cai no padrão (ou em nenhum).
+ * escolhido na ficha dele, se estiver pronto; senão o "Todos os clientes"
+ * ativo **mais recente**. Dois padrões ativos ao mesmo tempo é o normal de
+ * quem cria um fluxo novo antes de desligar o antigo — e o novo é o que a
+ * agência quer usar (é o que o Novo fluxo promete ao dizer "N clientes seguem
+ * este fluxo"). Fluxo "Clientes específicos" nunca pega cliente de fora.
+ * Fluxo sem etapa ligada não tem por onde a tarefa entrar — fica de fora
+ * também, e o cliente cai no padrão (ou em nenhum).
  */
 export function pickFlowForClient(flows: Flow[], clientFlowId: string | null | undefined): Flow | undefined {
-  const usable = flows.filter((f) => f.status === "ativo" && startStep(f));
-  return usable.find((f) => f.id === clientFlowId) ?? usable.find((f) => f.appliesTo === "todos");
+  const usable = flows.filter(isFlowReady);
+  const own = usable.find((f) => f.id === clientFlowId);
+  if (own) return own;
+  let fallback: Flow | undefined;
+  for (const f of usable) {
+    if (f.appliesTo === "todos" && (!fallback || f.createdAt > fallback.createdAt)) fallback = f;
+  }
+  return fallback;
 }
 
 /** Onde a tarefa entra: a etapa marcada como início, ou a primeira ligada. */
@@ -96,13 +114,18 @@ export function assigneeFor(
   return squad.find(exists) ?? null;
 }
 
-/** Soma dias úteis (seg–sex) a uma data. */
+/**
+ * Soma dias úteis (seg–sex) a uma data. O dia da semana é o de Brasília
+ * (`businessDay`), não o do processo: quinta 22h aqui já é sexta em UTC, e
+ * "+1 dia útil" contado no servidor caía no domingo. Brasília não tem mais
+ * horário de verão, então somar 24h mantém a mesma hora do relógio.
+ */
 export function addBusinessDays(from: Date, days: number): Date {
   const d = new Date(from);
   let left = Math.max(0, Math.floor(days));
   while (left > 0) {
-    d.setDate(d.getDate() + 1);
-    const wd = d.getDay();
+    d.setTime(d.getTime() + 86_400_000);
+    const wd = businessDay(d).weekday;
     if (wd !== 0 && wd !== 6) left--;
   }
   return d;

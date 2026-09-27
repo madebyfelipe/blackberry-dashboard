@@ -9,10 +9,13 @@ usarDataDirTemporario("flows");
 escreverData("flows.json", []);
 escreverData("clients.json", []);
 
-const { ValidationError, createFlow, getFlow, updateFlow, flowForClient } = await import(
+const { ValidationError, createFlow, duplicateFlow, getFlow, updateFlow, flowForClient } = await import(
   "../src/lib/flows/repository"
 );
-const { createClient, getClient, setFlowClients } = await import("../src/lib/clients/repository");
+const { syncFlowClients } = await import("../src/lib/flows/clients");
+const { createClient, findClientByName, findClientForRecord, getClient, setFlowClients, updateClient } = await import(
+  "../src/lib/clients/repository"
+);
 
 describe("createFlow (Novo fluxo)", () => {
   test("o modelo traz as etapas e a identidade; o passo Detalhes vence", async () => {
@@ -126,5 +129,104 @@ describe("clientes do fluxo", () => {
     assert.equal((await getClient(AGENCIA_B, deB.id))?.flowId, null, "id de outra agência é ignorado");
 
     assert.deepEqual(await setFlowClients(AGENCIA_A, "f1", [a.id, c.id]), [], "nada muda: nada volta");
+  });
+});
+
+describe("o cliente do lote sai do clientId, não do nome (#80)", () => {
+  test("renomear a ficha mantém o fluxo próprio e o squad dos criativos novos", async () => {
+    escreverData("flows.json", []);
+    escreverData("clients.json", []);
+    await createFlow(AGENCIA_A, { name: "Todos os clientes", by: "a", template: "social-media", appliesTo: "todos" });
+    const paid = await createFlow(AGENCIA_A, { name: "Paid Media", by: "a", template: "paid-media", appliesTo: "especificos", status: "ativo" });
+    const aurora = await createClient(AGENCIA_A, { name: "Aurora", squad: ["m-ana"], owner: "Ana" });
+    await setFlowClients(AGENCIA_A, paid.id, [aurora.id]);
+    // O lote gravou "Aurora" e o id; depois a ficha foi renomeada.
+    const lote = { client: "Aurora", clientId: aurora.id };
+    await updateClient(AGENCIA_A, aurora.id, { name: "Clínica Aurora" });
+
+    assert.equal(await findClientByName(AGENCIA_A, lote.client), undefined, "pelo nome, o cliente sumiu");
+    const ficha = await findClientForRecord(AGENCIA_A, lote);
+    assert.equal(ficha?.id, aurora.id);
+    assert.deepEqual(ficha?.squad, ["m-ana"]);
+    assert.equal((await flowForClient(AGENCIA_A, ficha?.flowId))?.id, paid.id, "não cai no padrão");
+  });
+
+  test("sem clientId (ou com id de ficha apagada), o nome ainda resolve", async () => {
+    escreverData("clients.json", []);
+    const bloom = await createClient(AGENCIA_A, { name: "Casa Bloom" });
+    assert.equal((await findClientForRecord(AGENCIA_A, { client: "casa bloom", clientId: null }))?.id, bloom.id);
+    assert.equal((await findClientForRecord(AGENCIA_A, { client: "Casa Bloom", clientId: "apagado" }))?.id, bloom.id);
+    assert.equal(await findClientForRecord(AGENCIA_A, { client: "Ninguém", clientId: null }), undefined);
+  });
+
+  test("clientId de outra agência não vale", async () => {
+    escreverData("clients.json", []);
+    const deB = await createClient(AGENCIA_B, { name: "De B" });
+    assert.equal(await findClientForRecord(AGENCIA_A, { client: "", clientId: deB.id }), undefined);
+  });
+});
+
+describe("Clientes específicos de fluxo que ainda não recebe trabalho (#96)", () => {
+  async function cenario() {
+    escreverData("flows.json", []);
+    escreverData("clients.json", []);
+    await createFlow(AGENCIA_A, { name: "Todos", by: "a", template: "social-media", appliesTo: "todos" });
+    const paid = await createFlow(AGENCIA_A, { name: "Paid", by: "a", template: "paid-media", appliesTo: "especificos", status: "ativo" });
+    const aurora = await createClient(AGENCIA_A, { name: "Aurora" });
+    await setFlowClients(AGENCIA_A, paid.id, [aurora.id]);
+    const fluxoDe = async (id: string) => (await flowForClient(AGENCIA_A, (await getClient(AGENCIA_A, id))?.flowId))?.id;
+    return { paid, aurora, fluxoDe };
+  }
+
+  test("salvar rascunho não tira ninguém do fluxo atual — a lista fica guardada", async () => {
+    const { paid, aurora, fluxoDe } = await cenario();
+    const rascunho = await createFlow(AGENCIA_A, { name: "Novo", by: "a", template: "social-media", appliesTo: "especificos", status: "rascunho" });
+    const salvo = await syncFlowClients(AGENCIA_A, rascunho, [aurora.id]);
+
+    assert.deepEqual(salvo.pendingClientIds, [aurora.id]);
+    assert.equal((await getClient(AGENCIA_A, aurora.id))?.flowId, paid.id, "continua no Paid");
+    assert.equal(await fluxoDe(aurora.id), paid.id, "o criativo segue indo para o Paid, não para o padrão");
+  });
+
+  test("ativo mas sem etapa (Começar do zero) também espera", async () => {
+    const { paid, aurora, fluxoDe } = await cenario();
+    const zero = await createFlow(AGENCIA_A, { name: "Zero", by: "a", template: "zero", appliesTo: "especificos", status: "ativo" });
+    await syncFlowClients(AGENCIA_A, zero, [aurora.id]);
+    assert.equal(await fluxoDe(aurora.id), paid.id);
+  });
+
+  test("editar o rascunho sem mandar a lista não mexe nela", async () => {
+    const { aurora } = await cenario();
+    const rascunho = await createFlow(AGENCIA_A, { name: "Novo", by: "a", template: "social-media", status: "rascunho" });
+    await syncFlowClients(AGENCIA_A, rascunho, [aurora.id]);
+    const editado = (await updateFlow(AGENCIA_A, rascunho.id, { name: "Novo 2" }, "a"))!;
+    assert.deepEqual((await syncFlowClients(AGENCIA_A, editado)).pendingClientIds, [aurora.id]);
+  });
+
+  test("ficou pronto: a lista guardada é aplicada e some", async () => {
+    const { aurora, fluxoDe } = await cenario();
+    const rascunho = await createFlow(AGENCIA_A, { name: "Novo", by: "a", template: "social-media", status: "rascunho" });
+    await syncFlowClients(AGENCIA_A, rascunho, [aurora.id]);
+
+    const ativado = (await updateFlow(AGENCIA_A, rascunho.id, { status: "ativo" }, "a"))!;
+    const final = await syncFlowClients(AGENCIA_A, ativado);
+    assert.equal(final.pendingClientIds, null);
+    assert.equal((await getClient(AGENCIA_A, aurora.id))?.flowId, rascunho.id);
+    assert.equal(await fluxoDe(aurora.id), rascunho.id);
+  });
+
+  test("fluxo que já nasce pronto leva os clientes na hora, como antes", async () => {
+    const { aurora, fluxoDe } = await cenario();
+    const pronto = await createFlow(AGENCIA_A, { name: "Pronto", by: "a", template: "blog", appliesTo: "especificos", status: "ativo" });
+    const salvo = await syncFlowClients(AGENCIA_A, pronto, [aurora.id]);
+    assert.equal(salvo.pendingClientIds, null);
+    assert.equal(await fluxoDe(aurora.id), pronto.id);
+  });
+
+  test("a cópia do fluxo não leva a lista guardada", async () => {
+    const { aurora } = await cenario();
+    const rascunho = await createFlow(AGENCIA_A, { name: "Novo", by: "a", template: "social-media", status: "rascunho" });
+    await syncFlowClients(AGENCIA_A, rascunho, [aurora.id]);
+    assert.equal((await duplicateFlow(AGENCIA_A, rascunho.id, "a"))?.pendingClientIds, null);
   });
 });

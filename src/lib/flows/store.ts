@@ -22,6 +22,11 @@ import type { Flow, FlowStep, StepAssignee, StepApprover } from "./types";
  * etapa sai daqui sempre inteira, com cada campo no formato certo.
  */
 
+/** Ids de cliente sem repetição, no máximo 500 — quem existe é conferido ao aplicar (`setFlowClients`). */
+export function cleanClientIds(ids: unknown[]): string[] {
+  return [...new Set(ids.map((v) => String(v).trim()).filter(Boolean))].slice(0, 500);
+}
+
 function num(v: unknown, max: number): number | null {
   if (v === null || v === undefined || v === "") return null;
   const n = Math.floor(Number(v));
@@ -95,6 +100,7 @@ function normalize(raw: Partial<Flow> & { id: string }): Flow {
     // "Próxima" e "início" que apontam para etapa que não existe mais caem no padrão.
     steps: steps.map((s) => (s.nextStepId && !ids.has(s.nextStepId) ? { ...s, nextStepId: null } : s)),
     startStepId: raw.startStepId && ids.has(raw.startStepId) ? raw.startStepId : null,
+    pendingClientIds: Array.isArray(raw.pendingClientIds) ? cleanClientIds(raw.pendingClientIds) : null,
     updatedAt: String(raw.updatedAt ?? new Date().toISOString()),
     updatedBy: String(raw.updatedBy ?? "—"),
     createdAt: String(raw.createdAt ?? new Date().toISOString()),

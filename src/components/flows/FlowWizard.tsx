@@ -116,7 +116,11 @@ export function FlowWizard({
   const [step, setStep] = useState<Step>(editing ? 1 : 0);
   const [draft, setDraft] = useState<FlowDraft>(() =>
     flow
-      ? draftFromFlow(flow, clients.filter((c) => c.flowId === flow.id).map((c) => c.id))
+      ? draftFromFlow(
+          flow,
+          // Fluxo que ainda não recebe trabalho guarda a escolha à parte (ver `flows/clients.ts`).
+          flow.pendingClientIds ?? clients.filter((c) => c.flowId === flow.id).map((c) => c.id),
+        )
       : draftFor("social-media"),
   );
   const [error, setError] = useState<ReturnType<typeof draftError>>(null);

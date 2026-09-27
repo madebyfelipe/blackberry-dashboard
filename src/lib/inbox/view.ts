@@ -3,8 +3,8 @@ import { attachmentsLabel, isOnline } from "./constants";
 import type {
   Conversation,
   ConversationSummary,
-  InboxMember,
   Message,
+  PublicMember,
 } from "./types";
 
 /*
@@ -146,20 +146,39 @@ export function startsBlock(message: Message, previous?: Message): boolean {
   return !(gap >= 0 && gap <= BLOCK_GAP_MS);
 }
 
-export function memberName(members: InboxMember[], id: string): string {
+/**
+ * O membro sem o que é só dele e de quem administra (ver `PublicMember`).
+ * Campo a campo de propósito: um campo novo em `InboxMember` fica de fora até
+ * alguém decidir que ele pode viajar.
+ */
+export function publicMember(m: PublicMember): PublicMember {
+  return {
+    id: m.id,
+    agencyId: m.agencyId,
+    name: m.name,
+    handle: m.handle,
+    presence: m.presence,
+    role: m.role,
+    status: m.status,
+    title: m.title,
+    photoUrl: m.photoUrl,
+  };
+}
+
+export function memberName(members: PublicMember[], id: string): string {
   return members.find((m) => m.id === id)?.name ?? "—";
 }
 
 /** Quem está do outro lado — todo mundo menos quem está olhando. */
 export function otherMembers(
   conversation: Conversation,
-  members: InboxMember[],
+  members: PublicMember[],
   viewerId: string,
-): InboxMember[] {
+): PublicMember[] {
   return conversation.memberIds
     .filter((id) => id !== viewerId)
     .map((id) => members.find((m) => m.id === id))
-    .filter((m): m is InboxMember => !!m);
+    .filter((m): m is PublicMember => !!m);
 }
 
 /**
@@ -167,7 +186,7 @@ export function otherMembers(
  * alguém" numa direta): quem está nele, sem você — "Marina e Ana",
  * "Marina, Ana e Pedro", "Marina, Ana e mais 3".
  */
-export function groupFallbackTitle(others: InboxMember[]): string {
+export function groupFallbackTitle(others: PublicMember[]): string {
   const names = others.map((m) => m.name);
   if (names.length === 0) return "Grupo";
   if (names.length === 1) return names[0];
@@ -180,7 +199,7 @@ export function groupFallbackTitle(others: InboxMember[]): string {
 /** Grupo mostra o nome dele; direta mostra quem está do outro lado. */
 export function conversationTitle(
   conversation: Conversation,
-  members: InboxMember[],
+  members: PublicMember[],
   viewerId: string,
 ): string {
   if (conversation.kind === "grupo") {
@@ -212,7 +231,7 @@ export function lastMessage(conversation: Conversation): Message | undefined {
  */
 export function previewOf(
   conversation: Conversation,
-  members: InboxMember[],
+  members: PublicMember[],
   viewerId: string,
 ): string {
   const message = lastMessage(conversation);
@@ -259,7 +278,7 @@ export function unreadCount(conversation: Conversation, viewerId: string): numbe
 /** A conversa resolvida para quem está olhando. */
 export function summarize(
   conversation: Conversation,
-  members: InboxMember[],
+  members: PublicMember[],
   viewerId: string,
   now = Date.now(),
 ): ConversationSummary {
@@ -267,7 +286,7 @@ export function summarize(
   const title = conversationTitle(conversation, members, viewerId);
   const participants = conversation.memberIds
     .map((id) => members.find((m) => m.id === id))
-    .filter((m): m is InboxMember => !!m);
+    .filter((m): m is PublicMember => !!m);
   const last = lastMessage(conversation);
 
   return {

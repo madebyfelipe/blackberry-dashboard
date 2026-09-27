@@ -1,8 +1,8 @@
 import type { AgencyScope } from "@/lib/agency/types";
 import { ATTACHMENTS_MAX, MESSAGE_MAX, canChangeMessage, isPresence } from "./constants";
 import { handleProblem, normalizeHandle, suggestHandle } from "./handle";
-import { TITLE_MAX, canManageTeam, isMemberRole, isMemberStatus } from "./users";
-import { domainProblem, emailDomain, normalizeDomain } from "./domain";
+import { TITLE_MAX, canManageTeam, isMemberRole, isMemberStatus, isWorking } from "./users";
+import { domainProblem, domainUsedElsewhere, emailDomain, normalizeDomain } from "./domain";
 import { read, transaction } from "./store";
 import { normalizeNotifyPrefs } from "./notifyPrefs";
 import type {
@@ -25,7 +25,7 @@ import {
   settleCall,
   type Settled,
 } from "./call";
-import { callSummary, memberName, summarize } from "./view";
+import { callSummary, memberName, publicMember, summarize } from "./view";
 
 /*
  * Tudo que o app lê e grava do Inbox passa por aqui.
@@ -73,9 +73,11 @@ function detail(
   return structuredClone({
     ...summarize(conversation, members, viewerId),
     messages: conversation.messages,
+    // Sem convite, e-mail nem avisos: a conversa vai para todo mundo dela.
     members: conversation.memberIds
       .map((id) => members.find((m) => m.id === id))
-      .filter((m): m is InboxMember => !!m),
+      .filter((m): m is InboxMember => !!m)
+      .map(publicMember),
   });
 }
 
@@ -98,10 +100,10 @@ function memberIdFromEmail(email: string): string {
 /**
  * Quem está olhando a tela, como membro da equipe.
  *
- * Enquanto não existir convite de equipe (ver `agency/id.ts`), é esta função
- * que povoa a agência: quem entra no app pela primeira vez vira membro. O
- * vínculo é pelo e-mail da conta — é o que liga a conta de demonstração ao
- * "Felipe" do seed em vez de criar um segundo Felipe ao lado dele.
+ * O vínculo é pelo e-mail da conta — é o que liga a conta de demonstração ao
+ * "Felipe" do seed em vez de criar um segundo Felipe ao lado dele. Criar
+ * membro aqui é o caso do fundador (agência vazia): numa agência com gente,
+ * quem não é membro nem chega até aqui (`memberAccess`).
  */
 export async function ensureMember(
   scope: AgencyScope,
@@ -132,12 +134,9 @@ export async function ensureMember(
       // A pessoa trocou o nome em Configurações: a conversa acompanha.
       member.name = name;
       member.lastSeenAt = stamp;
-      // O convite vira gente: a primeira entrada é o aceite. O pedido pelo
-      // domínio, não — ele espera um Admin aprovar.
-      if (member.status === "convite" && !member.joinRequest) {
-        member.status = "ativo";
-        member.invite = null;
-      }
+      // Convite pendente não vira gente aqui: o aceite é o cadastro pelo
+      // link (`acceptInvite`). Entrar com o mesmo e-mail por outra porta não
+      // prova nada — o produto não confirma e-mail (issue #72).
       return { ...member };
     }
     let id = memberIdFromEmail(email);
@@ -187,7 +186,7 @@ function newInviteToken(): string {
 /**
  * "Adicionar usuário": a pessoa entra no time como convite pendente, com o
  * @ já reservado e um token para o link de cadastro. Ela vira ativa quando
- * cria a conta por esse link e entra pela primeira vez (`ensureMember`).
+ * cria a conta por esse link (`acceptInvite`).
  */
 export async function inviteMember(
   scope: AgencyScope,
@@ -343,7 +342,8 @@ export async function getTeamSettings(scope: AgencyScope): Promise<TeamSettings>
 
 /**
  * Liga, troca ou desliga o domínio do convite automático. Só Admin e Gerente,
- * e só um domínio do próprio e-mail de quem configura (ver `domainProblem`).
+ * só um domínio do próprio e-mail de quem configura (ver `domainProblem`), e
+ * só um domínio que ninguém de outra agência usa (issue #92).
  */
 export async function setTeamDomain(
   scope: AgencyScope,
@@ -359,9 +359,12 @@ export async function setTeamDomain(
       domain = normalizeDomain(input.domain);
       const problem = domainProblem(domain, viewer.email);
       if (problem) throw new ValidationError(problem);
-      const taken = Object.entries(data.settings).some(
-        ([agencyId, s]) => agencyId !== scope.agencyId && s.domain === domain,
-      );
+      // Mesma mensagem nos dois casos: dizer "tem gente de lá em outra
+      // agência" contaria quem usa o produto.
+      const taken =
+        Object.entries(data.settings).some(
+          ([agencyId, s]) => agencyId !== scope.agencyId && s.domain === domain,
+        ) || domainUsedElsewhere(domain, scope.agencyId, data.members);
       if (taken) throw new ValidationError(`${domain} já é o domínio de outra agência.`);
     }
     const role = input.domainRole ?? current.domainRole;
@@ -390,6 +393,22 @@ export async function agencyForEmail(
   return { agencyId, agencyName: invite?.agencyName ?? "" };
 }
 
+const JOIN_TAKEN = "Este e-mail já tem um convite para o time — entre pelo link que você recebeu.";
+
+/**
+ * O cadastro pelo domínio pode seguir? Quem chama é a rota de cadastro,
+ * **antes** de criar a conta: um e-mail que já está no time (em geral um
+ * convite pendente) só entra pelo link do convite. Devolve o erro, ou `null`.
+ */
+export async function domainJoinProblem(
+  agencyId: InboxMember["agencyId"],
+  email: string,
+): Promise<string | null> {
+  const e = email.trim().toLowerCase();
+  const taken = (await read()).members.some((m) => m.agencyId === agencyId && m.email === e);
+  return taken ? JOIN_TAKEN : null;
+}
+
 /**
  * O pedido de entrada de quem se cadastrou com o domínio da agência: a
  * pessoa vira membro "convite pendente", marcada como pedido, com a função
@@ -404,7 +423,13 @@ export async function requestJoin(
   return transaction((data) => {
     const members = data.members.filter((m) => m.agencyId === agencyId);
     const existing = members.find((m) => m.email === email);
-    if (existing) return { ...existing };
+    if (existing) {
+      if (existing.joinRequest) return { ...existing };
+      // Um convite (ou alguém do time) com este e-mail: o domínio não é
+      // atalho para ele. Devolver o membro intacto ativaria o convite — com a
+      // função do convite — sem o token (issue #72).
+      throw new ValidationError(JOIN_TAKEN);
+    }
     let id = memberIdFromEmail(email);
     while (data.members.some((m) => m.id === id)) id = `${id}-${Math.random().toString(36).slice(2, 5)}`;
     const created: InboxMember = {
@@ -430,18 +455,26 @@ export async function requestJoin(
 /**
  * Se a conta pode usar a agência agora. É a trava de `requireAgency`:
  * arquivado não entra mais (arquivar é tirar o acesso), e o pedido pelo
- * domínio espera aprovação. Quem ainda não é membro entra — é o primeiro
- * acesso, e `ensureMember` o registra.
+ * domínio espera aprovação.
+ *
+ * Quem ainda não é membro só entra se a agência não tiver ninguém — é o
+ * fundador no primeiro acesso, e `ensureMember` o registra como Admin. Numa
+ * agência que já tem gente, conta sem membro é conta que perdeu o lugar: o
+ * convite foi excluído depois do cadastro, ou o pedido pelo domínio não chegou
+ * a ser gravado (issue #72). Convite que não foi aceito pelo link também não
+ * entra — o aceite é o cadastro com o token (`acceptInvite`).
  */
 export async function memberAccess(
   agencyId: InboxMember["agencyId"],
   email: string,
 ): Promise<"ok" | "aguardando" | "bloqueado"> {
   const e = email.trim().toLowerCase();
-  const m = (await read()).members.find((x) => x.agencyId === agencyId && x.email === e);
-  if (!m) return "ok";
+  const members = (await read()).members.filter((x) => x.agencyId === agencyId);
+  const m = members.find((x) => x.email === e);
+  if (!m) return members.length === 0 ? "ok" : "bloqueado";
   if (m.status === "arquivado") return "bloqueado";
   if (m.joinRequest) return "aguardando";
+  if (m.status === "convite") return "bloqueado";
   return "ok";
 }
 
@@ -457,6 +490,29 @@ export async function findInvite(token: string): Promise<
   const m = (await read()).members.find((x) => x.status === "convite" && x.invite?.token === token);
   if (!m || !m.invite) return undefined;
   return { email: m.email, name: m.name, agencyId: m.agencyId, agencyName: m.invite.agencyName };
+}
+
+/**
+ * O aceite do convite: a conta acabou de nascer pelo link (`/criar-conta?
+ * convite=…`) com o e-mail convidado. O convite vira membro ativo, com a
+ * função que o convite trazia, e o token morre — um link usado não serve de
+ * novo. Roda sem sessão, como `findInvite`: quem autoriza é o token.
+ *
+ * É o **único** caminho de convite para ativo (issue #72). Antes a primeira
+ * entrada de qualquer conta com aquele e-mail valia como aceite, e o e-mail
+ * não é confirmado.
+ */
+export async function acceptInvite(token: string, email: string): Promise<InboxMember | undefined> {
+  if (!/^[a-f0-9]{36}$/.test(token)) return undefined;
+  const e = email.trim().toLowerCase();
+  return transaction((data) => {
+    const m = data.members.find((x) => x.status === "convite" && x.invite?.token === token);
+    if (!m || m.email !== e) return undefined;
+    m.status = "ativo";
+    m.invite = null;
+    m.joinRequest = false;
+    return { ...m };
+  });
 }
 
 /**
@@ -635,6 +691,9 @@ export async function getConversation(
   return conversation && detail(conversation, membersOf(data, scope), viewerId);
 }
 
+/** Convidado sem conta, inativo e arquivado não entram em conversa nova. */
+const NOT_WORKING = "Só dá para conversar com quem está ativo no time.";
+
 /**
  * Abre a direta com alguém do time — a mesma de sempre, se já existir. Duas
  * diretas com a mesma pessoa seriam duas metades do mesmo histórico.
@@ -652,6 +711,7 @@ export async function openDirect(
     const other = members.find((m) => m.id === otherId);
     const viewer = members.find((m) => m.id === viewerId);
     if (!other || !viewer) return undefined;
+    if (!isWorking(other)) throw new ValidationError(NOT_WORKING);
 
     const existing = data.conversations.find(
       (c) =>
@@ -969,6 +1029,9 @@ export async function createGroup(
     if (![viewerId, ...others].every((id) => members.some((m) => m.id === id))) {
       return undefined;
     }
+    if (!others.every((id) => isWorking(members.find((m) => m.id === id)!))) {
+      throw new ValidationError(NOT_WORKING);
+    }
     const now = new Date().toISOString();
     const created: Conversation = {
       id: makeId("g"),
@@ -1008,6 +1071,7 @@ export async function addGroupMember(
     const members = membersOf(data, scope);
     const added = members.find((m) => m.id === memberId);
     if (!added) return undefined;
+    if (!isWorking(added)) throw new ValidationError(NOT_WORKING);
     if (conversation.memberIds.includes(memberId)) {
       throw new ValidationError(`${added.name} já está no grupo.`);
     }

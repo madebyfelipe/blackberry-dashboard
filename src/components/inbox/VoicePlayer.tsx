@@ -223,7 +223,7 @@ export function VoicePlayer({ attachment }: { attachment: Attachment }) {
               ArrowLeft: -KEY_STEP_SECONDS,
               ArrowDown: -KEY_STEP_SECONDS,
             };
-            if (e.key in step) seek(time + step[e.key]);
+            if (Object.hasOwn(step, e.key)) seek(time + step[e.key]);
             else if (e.key === "Home") seek(0);
             else if (e.key === "End") seek(duration);
             else if (e.key === " " || e.key === "Enter") toggle();

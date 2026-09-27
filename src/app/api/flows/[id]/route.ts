@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { ValidationError, updateFlow, type FlowPatch } from "@/lib/flows/repository";
-import { setFlowClients } from "@/lib/clients/repository";
+import { syncFlowClients } from "@/lib/flows/clients";
 import { requireAgency, unauthorized } from "@/lib/auth/session";
 
 export const dynamic = "force-dynamic";
@@ -36,11 +36,17 @@ export async function PATCH(req: Request, { params }: Ctx) {
     return NextResponse.json({ error: "JSON inválido." }, { status: 400 });
   }
   try {
-    const flow = await updateFlow(session.scope, id, pickPatch(body), session.user.name);
-    if (!flow) return NextResponse.json({ error: "Fluxo não encontrado." }, { status: 404 });
+    const updated = await updateFlow(session.scope, id, pickPatch(body), session.user.name);
+    if (!updated) return NextResponse.json({ error: "Fluxo não encontrado." }, { status: 404 });
     // "Clientes específicos" editado no passo "Detalhes": a lista inteira, de uma vez.
+    // Fluxo que ainda não recebe trabalho só guarda a lista; o que acabou de
+    // ficar pronto (ativado, ganhou etapa) aplica a que estava guardada.
     const clientIds = (body as Record<string, unknown> | null)?.clientIds;
-    if (Array.isArray(clientIds)) await setFlowClients(session.scope, flow.id, clientIds.map(String));
+    const flow = await syncFlowClients(
+      session.scope,
+      updated,
+      Array.isArray(clientIds) ? clientIds.map(String) : undefined,
+    );
     return NextResponse.json({ flow });
   } catch (err) {
     if (err instanceof ValidationError) {

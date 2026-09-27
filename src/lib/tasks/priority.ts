@@ -25,8 +25,9 @@ export const PRIORITY_BY_ID: Record<TaskPriority, PriorityMeta> =
     PriorityMeta
   >;
 
+/** `Object.hasOwn`, não `in` — ver `isTaskStatus` (issue #95). */
 export function isTaskPriority(v: unknown): v is TaskPriority {
-  return typeof v === "string" && v in PRIORITY_BY_ID;
+  return typeof v === "string" && Object.hasOwn(PRIORITY_BY_ID, v);
 }
 
 /** "sem" é o padrão e não vira chip/pílula em lugar nenhum. */

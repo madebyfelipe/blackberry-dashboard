@@ -120,6 +120,7 @@ describe("rascunho do Novo fluxo", () => {
       status: "ativo",
       steps: [],
       startStepId: null,
+      pendingClientIds: null,
       updatedAt: "",
       updatedBy: "",
       createdAt: "",

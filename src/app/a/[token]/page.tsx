@@ -3,6 +3,7 @@ import { getBatchByToken } from "@/lib/approval/repository";
 import { isBatchLinkActive } from "@/lib/approval/constants";
 import { ApprovalFlow } from "@/components/approval/ApprovalFlow";
 import { getAgencySettings } from "@/lib/agency/repository";
+import { toPublicBatch } from "@/lib/approval/public";
 
 export const dynamic = "force-dynamic";
 
@@ -22,13 +23,11 @@ export default async function ApprovalLinkPage({
   if (!batch) notFound();
   if (!isBatchLinkActive(batch)) return <ExpiredLink client={batch.client} />;
   /*
-   * O briefing do designer é da agência: sai daqui antes de a peça virar
-   * props de um componente de cliente (e, portanto, HTML na tela dele).
+   * Props de componente de cliente viram HTML na tela dele — e o link
+   * circula por WhatsApp. Só passa o que a tela mostra (issue #77): nada de
+   * briefing, histórico com IP, ids internos da agência ou pathname do Blob.
    */
-  const publicBatch = {
-    ...batch,
-    pieces: batch.pieces.map(({ briefing: _briefing, ...piece }) => piece),
-  };
+  const publicBatch = toPublicBatch(batch);
   // O logo da agência dona do lote — o lote diz de quem é, o token autoriza.
   const { logoUrl } = await getAgencySettings({ agencyId: batch.agencyId, agencyName: "" });
   return <ApprovalFlow batch={publicBatch} agencyLogoUrl={logoUrl} />;

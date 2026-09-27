@@ -29,7 +29,8 @@ export function PieceThumb({
 }: {
   size: string;
   status?: PieceStatus;
-  media?: MediaAsset;
+  /** Só o que a miniatura lê — o link público manda a arte enxuta. */
+  media?: Pick<MediaAsset, "url" | "kind" | "name">;
   /** Total de artes do carrossel — mostra "1/N" quando mais de uma. */
   count?: number;
   /** URL direta, quando não há um MediaAsset (compatibilidade). */

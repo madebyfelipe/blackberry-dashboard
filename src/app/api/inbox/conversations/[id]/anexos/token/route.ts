@@ -4,6 +4,7 @@ import { unauthorized } from "@/lib/auth/session";
 import { getConversation } from "@/lib/inbox/repository";
 import { currentInboxSession } from "@/lib/inbox/viewer";
 import { ATTACHMENT_POLICY, isMediaBlobPathname } from "@/lib/media/constants";
+import { UPLOAD_TARGET, issueUploadGrant } from "@/lib/media/upload-grants";
 
 export const dynamic = "force-dynamic";
 
@@ -14,6 +15,7 @@ type Ctx = { params: Promise<{ id: string }> };
  * lote (ver a rota `media/token` das peças e o README, "O teto de 4,5 MB"),
  * com as regras do anexo: estar na conversa, pasta `anexos/`, os tipos da
  * conversa e 20 MB. O Blob passa a impor tipo e tamanho por conta própria.
+ * O pathname fica anotado como de quem pediu, nesta conversa (issue #73).
  */
 export async function POST(req: Request, { params }: Ctx) {
   const session = await currentInboxSession();
@@ -44,6 +46,12 @@ export async function POST(req: Request, { params }: Ctx) {
         if (!isMediaBlobPathname(pathname, ATTACHMENT_POLICY.prefix)) {
           throw new Error("Caminho de anexo inválido.");
         }
+        const granted = await issueUploadGrant(pathname, {
+          agencyId: session.scope.agencyId,
+          uploaderId: session.me.id,
+          target: UPLOAD_TARGET.conversa(id),
+        });
+        if (!granted) throw new Error("Caminho de anexo já em uso. Tente enviar de novo.");
         return {
           allowedContentTypes: Object.keys(ATTACHMENT_POLICY.accepted),
           maximumSizeInBytes: ATTACHMENT_POLICY.maxBytes,

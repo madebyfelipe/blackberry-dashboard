@@ -38,7 +38,9 @@ régua de formatos das peças, a revalidação do store de arquivo e a régua do
 Inbox (título, prévia, não lidas, agrupamento por dia, carimbos de hora e o
 registro da chamada, mais o isolamento por agência *e* por participante). O que
 depende de requisição (route handlers, `next/headers`) fica de fora — esse
-caminho é conferido subindo o app.
+caminho é conferido subindo o app. A exceção é o freio do login
+(`tests/auth-login-route.test.ts`), que chama a rota de verdade com 200
+tentativas em paralelo: o caminho de senha errada não toca `next/headers`.
 
 O mesmo trio roda no CI (`.github/workflows/ci.yml`) a cada push e pull
 request: `npm run typecheck`, `npm test` e `npm run build`.
@@ -51,6 +53,9 @@ O seed cria uma conta de demonstração na primeira execução:
 | --- | --- |
 | `felipe@blackberry.app` | `blackberry` (ou `DEMO_PASSWORD`) |
 
+Em produção a senha pública não vale: com o banco ainda sem contas, o seed
+exige `DEMO_PASSWORD` (mín. 12 caracteres) e recusa semear sem ela.
+
 Dá para criar outra conta em `/criar-conta` — o cadastro já entra logado.
 
 ### Variáveis de ambiente
@@ -58,7 +63,7 @@ Dá para criar outra conta em `/criar-conta` — o cadastro já entra logado.
 | Variável | Para quê |
 | --- | --- |
 | `AUTH_SECRET` | Chave que assina o cookie de sessão. **Obrigatória em produção** (mín. 16 caracteres): sem ela o servidor recusa subir e qualquer assinatura/conferência de cookie lança. Gere com `openssl rand -base64 32` e defina em Vercel → Settings → Environment Variables. Fora de produção o app cai num segredo de desenvolvimento, que não protege nada e invalida as sessões a cada deploy. |
-| `DEMO_PASSWORD` | Senha da conta semeada, para instalações compartilhadas. |
+| `DEMO_PASSWORD` | Senha da conta semeada, para instalações compartilhadas. **Obrigatória em produção no primeiro boot de um banco vazio** (mín. 12 caracteres): sem ela o seed de contas lança em vez de gravar a senha `blackberry` do README. Instância que já tem contas não precisa dela. |
 | `DATABASE_URL` | String de conexão do Postgres (Neon, criado pelo marketplace da Vercel — Storage → Marketplace Database Providers → Neon). Presente, os cinco stores (tarefas, clientes, lotes, contas, índice de mídia — e o Inbox) passam a gravar lá. Ausente, o app usa arquivo JSON local (dev) — nunca em produção sem disco gravável. |
 | `TENOR_API_KEY` · `GIPHY_API_KEY` | A biblioteca de GIFs do Inbox (uma das duas basta; com as duas vale o Giphy — o Tenor anunciou o fim da API). A chave fica no servidor — o navegador busca por `/api/inbox/gifs`. Sem nenhuma, o botão de GIF diz o que configurar. |
 | `BLOB_READ_WRITE_TOKEN` | Token do Vercel Blob (Storage → Create Database → Blob), injetado automaticamente ao conectar o projeto. Presente, a arte vai do navegador **direto** para o Blob (sem passar pela função, ver "O teto de 4,5 MB") e sobrevive a redeploy. Ausente, o editor volta ao upload multipart e os bytes ficam em `data/uploads/`, com fallback em memória em disco somente-leitura. **O store precisa ser criado com acesso "Private"** — ver "Store privado" abaixo; a Vercel não deixa trocar o modo de acesso depois de criado. |
@@ -225,7 +230,7 @@ duas direções**:
   CDN, não da função — só que agora com uma URL que expira sozinha, porque o
   store é privado.
 
-Duas regras ao mexer nisso:
+Três regras ao mexer nisso:
 
 1. **Nada que o navegador manda entra no registro.** Do cliente vem só o
    `pathname` (validado por `isMediaBlobPathname`) e o nome do arquivo; tamanho,
@@ -235,6 +240,13 @@ Duas regras ao mexer nisso:
    `localhost`, então registrar a arte por ali faria o dev local se comportar
    diferente da produção — exatamente a diferença que escondeu o `413`. Quem
    registra é o navegador, depois que o upload termina.
+3. **Só registra quem pediu o token (issue #73).** O pathname não é segredo
+   (vai no `Location` do 307), então "existe no Blob" não prova de quem é. A
+   rota do token anota o pathname pedido para agência + pessoa + destino
+   (`lib/media/upload-grants.ts`; o nonce de `blobPathnameFor` faz cada pedido
+   ser único), `saveBlobMedia` só aceita pathname dessa permissão e nunca um
+   já registrado, e `deleteMedia` não apaga objeto que outro registro ainda
+   usa. `tests/media-blob-owner.test.ts` roda o ataque.
 
 Sem `BLOB_READ_WRITE_TOKEN` nada disso liga: o editor volta ao multipart e os
 bytes vão para o disco, como sempre foi em dev.
@@ -474,6 +486,10 @@ Ably (`{ tipo: "notificacao" }`); sem tempo real, o notificador relê a cada
   segundo depois de abrir o Inbox. `ablyReady()` (`lib/realtime/server.ts`)
   confere o que a chave concede (a cada 10 min por instância); faltando
   permissão, o app trata o tempo real como desligado e o log diz o que ligar.
+- **Ligue também "Revocable tokens" na chave.** Arquivar alguém revoga o
+  token do Ably dele na hora e o tira das chamadas abertas no LiveKit
+  (`lib/realtime/revoke.ts`). Sem a opção, a revogação do Ably falha (o log
+  avisa) e o que sobra é o TTL do token: 10 min, o mesmo do crachá da chamada.
 
 ## App de desktop
 

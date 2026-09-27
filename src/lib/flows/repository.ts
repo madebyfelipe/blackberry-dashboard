@@ -1,4 +1,4 @@
-import { read, transaction, normalizeStep } from "./store";
+import { cleanClientIds, read, transaction, normalizeStep } from "./store";
 import {
   FLOW_DESCRIPTION_MAX,
   FLOW_NAME_MAX,
@@ -45,8 +45,8 @@ export async function getFlow(scope: AgencyScope, id: string): Promise<Flow | un
 
 /**
  * O fluxo que a tarefa de um criativo segue: o escolhido na ficha do cliente,
- * se ainda estiver ativo; senão o fluxo ativo marcado "Todos os clientes"
- * (ver `pickFlowForClient`). Sem nenhum, `undefined` — a tarefa nasce fora de
+ * se ainda estiver ativo; senão o fluxo ativo mais recente marcado "Todos os
+ * clientes" (ver `pickFlowForClient`). Sem nenhum, `undefined` — a tarefa nasce fora de
  * fluxo, como sempre nasceu.
  */
 export async function flowForClient(
@@ -92,6 +92,7 @@ export async function createFlow(scope: AgencyScope, input: NewFlow): Promise<Fl
     status: input.status ?? (template.activate ? "ativo" : "inativo"),
     steps: template.steps(),
     startStepId: null,
+    pendingClientIds: null,
     updatedAt: now,
     updatedBy: input.by,
     createdAt: now,
@@ -172,6 +173,25 @@ export async function updateFlow(
   });
 }
 
+/**
+ * Guarda (ou limpa, com `null`) os "Clientes específicos" que esperam o
+ * fluxo ficar pronto — ver `Flow.pendingClientIds` e `flows/clients.ts`.
+ * Não conta como edição do fluxo: quem salvou já está no `updatedBy`.
+ */
+export async function setPendingClients(
+  scope: AgencyScope,
+  id: string,
+  clientIds: string[] | null,
+): Promise<Flow | undefined> {
+  const pending = clientIds === null ? null : cleanClientIds(clientIds);
+  return transaction((flows) => {
+    const f = flows.find((x) => x.id === id && x.agencyId === scope.agencyId);
+    if (!f) return undefined;
+    f.pendingClientIds = pending;
+    return structuredClone(f);
+  });
+}
+
 export async function duplicateFlow(
   scope: AgencyScope,
   id: string,
@@ -187,6 +207,8 @@ export async function duplicateFlow(
       name: `${f.name} (cópia)`.slice(0, FLOW_NAME_MAX),
       // A cópia nasce desligada: dois fluxos iguais ativos disputariam tarefa.
       status: "inativo",
+      // Clientes não se copiam — nem os que seguem o original, nem os que esperam por ele.
+      pendingClientIds: null,
       updatedAt: now,
       updatedBy: by,
       createdAt: now,

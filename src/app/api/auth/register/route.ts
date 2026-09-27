@@ -1,7 +1,14 @@
 import { NextResponse } from "next/server";
 import { AuthError, registerUser } from "@/lib/auth/repository";
 import { startSession } from "@/lib/auth/session";
-import { agencyForEmail, findInvite, requestJoin } from "@/lib/inbox/repository";
+import {
+  ValidationError,
+  acceptInvite,
+  agencyForEmail,
+  domainJoinProblem,
+  findInvite,
+  requestJoin,
+} from "@/lib/inbox/repository";
 import { agencyNameOf } from "@/lib/auth/repository";
 
 export const dynamic = "force-dynamic";
@@ -51,6 +58,10 @@ export async function POST(req: Request) {
   if (!joinAgency) {
     const agency = await agencyForEmail(String(email ?? ""));
     if (agency) {
+      // E-mail com convite pendente só entra pelo link — o domínio ativaria o
+      // convite sem o token (issue #72).
+      const problem = await domainJoinProblem(agency.agencyId, String(email ?? ""));
+      if (problem) return NextResponse.json({ error: problem }, { status: 422 });
       const agencyName = (await agencyNameOf(agency.agencyId)) ?? agency.agencyName;
       joinAgency = { agencyId: agency.agencyId as never, agencyName };
       domainJoin = true;
@@ -67,11 +78,15 @@ export async function POST(req: Request) {
       joinAgency,
     });
     if (domainJoin) await requestJoin(user.agencyId, { name: user.name, email: user.email });
+    // O cadastro pelo link é o aceite: o convite vira membro ativo e o token
+    // morre. Se o convite sumiu no meio (excluído, link renovado), a conta
+    // fica sem lugar na agência — e `memberAccess` a barra.
+    if (convite) await acceptInvite(String(convite), user.email);
     // Cadastro já entra logado — é o comportamento esperado do "Criar conta".
     await startSession(user.id);
     return NextResponse.json({ user, pending: domainJoin }, { status: 201 });
   } catch (err) {
-    if (err instanceof AuthError) {
+    if (err instanceof AuthError || err instanceof ValidationError) {
       return NextResponse.json({ error: err.message }, { status: 422 });
     }
     throw err;

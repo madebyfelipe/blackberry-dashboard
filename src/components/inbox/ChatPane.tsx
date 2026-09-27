@@ -18,7 +18,7 @@ import {
   XIcon,
 } from "@/components/icons";
 import { PRESENCE_BY_ID } from "@/lib/inbox/constants";
-import type { ConversationDetail, InboxMember, Message } from "@/lib/inbox/types";
+import type { ConversationDetail, InboxMember, Message, PublicMember } from "@/lib/inbox/types";
 import { groupByDay, memberName, searchMessages } from "@/lib/inbox/view";
 import type { OutgoingExtra } from "./api";
 import { Composer } from "./Composer";
@@ -74,7 +74,7 @@ export function ChatPane({
   onBack: () => void;
   onUndesigned: (what: string) => void;
   /** A equipe da agência, com a presença de agora — de onde sai o "adicionar". */
-  team: InboxMember[];
+  team: PublicMember[];
   /** Direta: cria um grupo com quem já estava e a pessoa nova. Grupo: adiciona. */
   onAddPerson: (memberId: string) => void;
   className?: string;
@@ -377,7 +377,7 @@ function AddPerson({
 }: {
   detail: ConversationDetail;
   me: InboxMember;
-  team: InboxMember[];
+  team: PublicMember[];
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSelect: (memberId: string) => void;

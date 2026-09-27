@@ -6,6 +6,7 @@ import { currentInboxSession } from "@/lib/inbox/viewer";
 import { voiceMeta } from "@/lib/inbox/voice";
 import { ATTACHMENT_POLICY } from "@/lib/media/constants";
 import { MediaError, saveBlobMedia, saveMedia } from "@/lib/media/store";
+import { UPLOAD_TARGET } from "@/lib/media/upload-grants";
 
 export const dynamic = "force-dynamic";
 
@@ -47,6 +48,11 @@ export async function POST(req: Request, { params }: Ctx) {
         {
           pathname,
           name: typeof body?.name === "string" ? body.name.slice(0, 160) : "",
+          grant: {
+            agencyId: owner.agencyId,
+            uploaderId: owner.uploaderId,
+            target: UPLOAD_TARGET.conversa(id),
+          },
           owner,
           audio: voiceMeta(body),
         },

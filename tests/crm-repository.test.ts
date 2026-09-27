@@ -92,6 +92,26 @@ describe("faturas", () => {
   });
 });
 
+describe("fuso: o mês é o de Brasília, não o do servidor (#97)", () => {
+  // 30 set, 22h em Brasília — no servidor em UTC já é 1º de outubro, 01h.
+  const NOITE = new Date("2026-09-30T22:00:00-03:00");
+
+  test("entregas gravadas às 22h do último dia contam para o mês de Brasília", async () => {
+    let a = await addService(AGENCIA_A, "fuso", { name: "Instagram", monthlyValue: 100000, quota: 8, delivered: 2 }, NOITE);
+    assert.equal(a.services[0].deliveredMonth, "2026-09");
+    a = (await updateService(AGENCIA_A, "fuso", a.services[0].id, { delivered: 3 }, NOITE))!;
+    assert.equal(a.services[0].deliveredMonth, "2026-09");
+  });
+
+  test("gerar cobrança às 22h do dia do faturamento fatura o mês de Brasília", async () => {
+    const a = await generateInvoice(AGENCIA_A, "fuso", { billingDay: 30, now: NOITE });
+    const i = a.invoices[0];
+    assert.equal(i.competence, "2026-09", "em UTC seria outubro");
+    assert.equal(i.dueDate, "2026-09-30", "hoje conta — e hoje, em Brasília, ainda é 30");
+    assert.equal(i.createdAt, NOITE.toISOString(), "o carimbo continua sendo o instante de verdade");
+  });
+});
+
 describe("contrato e pagamento", () => {
   test("guarda só o final do cartão e recusa o número inteiro", async () => {
     const a = await updateContract(AGENCIA_A, "c3", {

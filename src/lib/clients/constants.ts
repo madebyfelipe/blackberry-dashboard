@@ -61,8 +61,9 @@ export const CLIENT_STATUS_BY_ID: Record<ClientStatus, ClientStatusMeta> =
     ClientStatusMeta
   >;
 
+/** `Object.hasOwn`, não `in` — ver `isTaskStatus` (issue #95). */
 export function isClientStatus(v: unknown): v is ClientStatus {
-  return typeof v === "string" && v in CLIENT_STATUS_BY_ID;
+  return typeof v === "string" && Object.hasOwn(CLIENT_STATUS_BY_ID, v);
 }
 
 export function clientStatusLabel(id: ClientStatus): string {

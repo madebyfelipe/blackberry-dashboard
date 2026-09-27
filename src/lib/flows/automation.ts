@@ -1,7 +1,7 @@
 import "server-only";
 import type { AgencyScope } from "@/lib/agency/types";
 import type { Batch, Piece } from "@/lib/approval/types";
-import { findClientByName } from "@/lib/clients/repository";
+import { findClientForRecord } from "@/lib/clients/repository";
 import { notifyTaskChange } from "@/lib/notifications/dispatch";
 import { listMembers } from "@/lib/inbox/repository";
 import type { InboxMember } from "@/lib/inbox/types";
@@ -41,12 +41,21 @@ type Ctx = {
   owner: string | null;
 };
 
-async function contextFor(scope: AgencyScope, clientName: string): Promise<Ctx & { flowId: string | null }> {
+/**
+ * A ficha e o time de uma tarefa ou de um lote. A ficha sai do `clientId`
+ * (o nome só na falta dele — ver `findClientForRecord`): renomear o cliente
+ * não pode mandar o trabalho dele para o fluxo padrão, sem responsável.
+ */
+async function contextFor(
+  scope: AgencyScope,
+  record: { clientId: string | null; client: string },
+): Promise<Ctx & { flowId: string | null; clientId: string | null }> {
   const [client, team] = await Promise.all([
-    findClientByName(scope, clientName),
+    findClientForRecord(scope, record),
     listMembers(scope),
   ]);
   return {
+    clientId: client?.id ?? null,
     // Inativo e arquivado continuam no squad gravado, mas não recebem tarefa.
     team: team.filter(isWorking),
     squad: client?.squad ?? [],
@@ -83,7 +92,7 @@ export async function taskForPiece(
   piece: Piece,
   creator: string,
 ): Promise<Task> {
-  const ctx = await contextFor(scope, batch.client);
+  const ctx = await contextFor(scope, batch);
   const flow = await flowForClient(scope, ctx.flowId);
   const step = flow ? startStep(flow) : null;
 
@@ -99,6 +108,8 @@ export async function taskForPiece(
   const task = await createTask(scope, {
     title: pieceTaskTitle(batch, piece),
     client: batch.client,
+    // O vínculo do lote, não o nome: depois de renomear a ficha o nome não bate mais.
+    clientId: ctx.clientId,
     status: "a-fazer",
     assignee: assignee ?? undefined,
     creator,
@@ -133,7 +144,7 @@ export async function enterClientFlow(
   opts: { by: string; keepAssignee: boolean },
 ): Promise<Task | undefined> {
   if (task.flowId || !task.client) return undefined;
-  const ctx = await contextFor(scope, task.client);
+  const ctx = await contextFor(scope, task);
   if (!ctx.flowId) return undefined;
   const flow = await getFlow(scope, ctx.flowId);
   if (!flow || flow.status !== "ativo") return undefined;
@@ -223,7 +234,7 @@ async function enter(
   text: (quem: string) => string,
   expect?: Expect,
 ): Promise<Task | undefined> {
-  const ctx = await contextFor(scope, task.client);
+  const ctx = await contextFor(scope, task);
   const { member, name } = receiver(step, ctx);
   const note = text(who(member, name));
   const moved = await moveTaskToStep(scope, task.id, {

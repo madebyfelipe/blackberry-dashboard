@@ -79,7 +79,7 @@ describe("anexos no armazenamento", () => {
 
   test("pathname do anexo nasce em anexos/ e só é aceito lá", () => {
     const p = blobPathnameFor("Briefing Final.docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document", BLOB_ATTACHMENT_PREFIX);
-    assert.equal(p, "anexos/briefing-final.docx");
+    assert.match(p, /^anexos\/briefing-final-[0-9a-f]{16}\.docx$/);
     assert.ok(isMediaBlobPathname("anexos/briefing-final-AbC12.docx", BLOB_ATTACHMENT_PREFIX));
     assert.equal(isMediaBlobPathname("anexos/briefing-final.docx"), false);
     assert.equal(isMediaBlobPathname("media/../anexos/x.pdf", BLOB_ATTACHMENT_PREFIX), false);

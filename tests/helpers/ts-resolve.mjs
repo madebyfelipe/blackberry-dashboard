@@ -21,6 +21,10 @@ export async function resolve(specifier, context, nextResolve) {
   const relative = spec.startsWith("./") || spec.startsWith("../");
   const absolute = spec.startsWith("file:");
 
+  // O `next` não declara `exports`: em ESM puro, `next/server` só existe
+  // como `next/server.js`. Completa para os testes de route handler.
+  if (/^next\/[\w/-]+$/.test(spec)) return nextResolve(`${spec}.js`, context);
+
   // Pacote de verdade (node:test, react…): caminho normal.
   if (!relative && !absolute) return nextResolve(spec, context);
 

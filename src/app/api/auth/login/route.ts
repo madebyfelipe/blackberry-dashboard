@@ -20,7 +20,8 @@ export async function POST(req: Request) {
   }
   const { email, password } = (body ?? {}) as Record<string, unknown>;
   const key = attemptKey(String(email ?? ""), clientIp(req));
-  const wait = attempts.blockedFor(key);
+  // Reserva a vaga já aqui, antes do primeiro `await` (ver `reserve`).
+  const wait = attempts.reserve(key);
   if (wait > 0) {
     return NextResponse.json(
       { error: `Muitas tentativas. Tente de novo em ${Math.ceil(wait / 60)} min.` },
@@ -36,10 +37,11 @@ export async function POST(req: Request) {
     await startSession(user.id);
     return NextResponse.json({ user });
   } catch (err) {
+    // Senha errada: a vaga reservada fica contada.
     if (err instanceof AuthError) {
-      attempts.fail(key);
       return NextResponse.json({ error: err.message }, { status: 401 });
     }
+    attempts.release(key);
     throw err;
   }
 }

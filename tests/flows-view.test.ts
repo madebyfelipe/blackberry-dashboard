@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test, { describe } from "node:test";
 
 import { AGENCIA_A } from "./helpers/agency";
+import { businessDay, businessToday } from "../src/lib/business-date";
 import { blankStep } from "../src/lib/flows/constants";
 import { seedFlows, socialMediaTemplate } from "../src/lib/flows/seed";
 import type { Flow, FlowStep } from "../src/lib/flows/types";
@@ -10,6 +11,7 @@ import {
   assigneeFor,
   duplicateStep,
   flowMeta,
+  isFlowReady,
   moveStep,
   nextStep,
   pickFlowForClient,
@@ -36,6 +38,7 @@ function flow(steps: FlowStep[], over: Partial<Flow> = {}): Flow {
     status: "ativo",
     steps,
     startStepId: null,
+    pendingClientIds: null,
     updatedAt: "",
     updatedBy: "",
     createdAt: "",
@@ -133,6 +136,32 @@ describe("addBusinessDays", () => {
     assert.equal(d.getDate(), 21);
     assert.equal(addBusinessDays(new Date(2026, 8, 18, 10), 0).getDate(), 18);
   });
+
+  test("o dia da semana é o de Brasília, seja qual for o fuso do servidor (#97)", () => {
+    // Quinta, 24 set, 22h em Brasília = sexta 01h em UTC. +1 dia útil = sexta
+    // 22h — contado em UTC, caía no domingo.
+    const d = addBusinessDays(new Date("2026-09-24T22:00:00-03:00"), 1);
+    assert.equal(d.toISOString(), "2026-09-26T01:00:00.000Z");
+    assert.equal(businessDay(d).weekday, 5, "sexta");
+    // Sexta 22h + 1 dia útil = segunda 22h.
+    assert.equal(
+      addBusinessDays(new Date("2026-09-25T22:00:00-03:00"), 1).toISOString(),
+      "2026-09-29T01:00:00.000Z",
+    );
+  });
+});
+
+describe("businessDay / businessToday (#97)", () => {
+  test("22h em Brasília ainda é hoje, mesmo com o UTC já no dia (e no mês) seguinte", () => {
+    const noite = new Date("2026-09-30T22:00:00-03:00");
+    assert.deepEqual(businessDay(noite), { year: 2026, month: 9, day: 30, weekday: 3 });
+    const hoje = businessToday(noite);
+    assert.deepEqual([hoje.getFullYear(), hoje.getMonth(), hoje.getDate(), hoje.getHours()], [2026, 8, 30, 0]);
+  });
+
+  test("meia-noite em Brasília já é o dia seguinte", () => {
+    assert.deepEqual(businessDay(new Date("2026-10-01T00:00:00-03:00")), { year: 2026, month: 10, day: 1, weekday: 4 });
+  });
 });
 
 describe("modelo Social Media", () => {
@@ -148,6 +177,16 @@ describe("modelo Social Media", () => {
   });
 });
 
+describe("isFlowReady", () => {
+  test("pronto é ativo e com uma etapa ligada", () => {
+    assert.equal(isFlowReady(flow([s("a")])), true);
+    assert.equal(isFlowReady(flow([s("a")], { status: "rascunho" })), false);
+    assert.equal(isFlowReady(flow([s("a")], { status: "inativo" })), false);
+    assert.equal(isFlowReady(flow([])), false);
+    assert.equal(isFlowReady(flow([s("a", { disabled: true })])), false);
+  });
+});
+
 describe("pickFlowForClient", () => {
   const todos = flow([s("a")], { id: "todos", appliesTo: "todos" });
   const espec = flow([s("a")], { id: "espec", appliesTo: "especificos" });
@@ -160,6 +199,15 @@ describe("pickFlowForClient", () => {
   test("sem fluxo próprio: só um 'Todos os clientes' pega o cliente", () => {
     assert.equal(pickFlowForClient([espec, todos], null)?.id, "todos");
     assert.equal(pickFlowForClient([espec], null), undefined, "específico não pega cliente de fora");
+  });
+
+  test("dois 'Todos os clientes' ativos: vale o mais recente (#96)", () => {
+    const antigo = flow([s("a")], { id: "antigo", appliesTo: "todos", createdAt: "2026-01-10T12:00:00.000Z" });
+    const novo = flow([s("a")], { id: "novo", appliesTo: "todos", createdAt: "2026-09-20T12:00:00.000Z" });
+    assert.equal(pickFlowForClient([antigo, novo], null)?.id, "novo");
+    assert.equal(pickFlowForClient([novo, antigo], null)?.id, "novo", "a ordem da lista não importa");
+    assert.equal(pickFlowForClient([antigo, { ...novo, status: "rascunho" }], null)?.id, "antigo", "o novo só vale pronto");
+    assert.equal(pickFlowForClient([antigo, novo, espec], "espec")?.id, "espec", "fluxo próprio continua vencendo");
   });
 
   test("rascunho e fluxo sem etapa ligada ficam de fora", () => {
