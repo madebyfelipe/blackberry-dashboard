@@ -13,6 +13,7 @@ import {
   BLOB_STORE_NOT_PRIVATE,
 } from "./constants";
 import type { MediaAsset } from "./types";
+import { hasUploadGrant, releaseUploadGrant, type UploadGrantOwner } from "./upload-grants";
 
 /*
  * Armazenamento das artes.
@@ -208,15 +209,34 @@ export async function readMedia(
   }
 }
 
-/** Apaga arte e registro. Silencioso se já não existir. */
+/** Se dois registros apontam para o mesmo objeto do Blob. */
+function sameBlob(a: MediaAsset, b: MediaAsset): boolean {
+  return (
+    (!!a.blobPathname && a.blobPathname === b.blobPathname) ||
+    (!!a.blobUrl && a.blobUrl === b.blobUrl)
+  );
+}
+
+/**
+ * Apaga arte e registro. Silencioso se já não existir.
+ *
+ * O objeto do Blob só sai se nenhum outro registro aponta para ele (issue
+ * #73): antes da amarração do upload ao dono, dava para registrar o pathname
+ * da arte de outra agência, e apagar essa cópia levava o arquivo da vítima.
+ * O registro novo não deixa mais nascer cópia; isto protege as que já
+ * existem.
+ */
 export async function deleteMedia(id: string): Promise<void> {
-  const asset = await getMedia(id);
-  if (!asset) return;
-  await index.transaction((map) => {
+  if (!(await getMedia(id))) return;
+  const { asset, shared } = await index.transaction((map) => {
+    const asset = map[id];
+    if (!asset) return { asset: undefined, shared: false };
     delete map[id];
+    return { asset, shared: Object.values(map).some((other) => sameBlob(other, asset)) };
   });
+  if (!asset) return;
   if (asset.blobUrl) {
-    await deleteBlob(asset.blobUrl);
+    if (!shared) await deleteBlob(asset.blobUrl);
     return;
   }
   memoryBytes.delete(id);
@@ -271,11 +291,18 @@ async function readBlobHeader(pathname: string): Promise<Uint8Array | undefined>
  *
  * O id continua nascendo aqui, aleatório e longo, porque é ele que protege
  * `/api/media/<id>` — servido sem sessão para o link de aprovação.
+ *
+ * E o objeto precisa ser de quem registra (issue #73): o pathname não é
+ * segredo (vai no `Location` do 307 de `/api/media/<id>`), então só entra
+ * pathname que a rota do token autorizou para esta mesma agência, pessoa e
+ * destino (`grant`, ver `upload-grants.ts`), e nunca um que já tem registro —
+ * senão uma conta qualquer registrava a arte alheia e a apagava depois.
  */
 export async function saveBlobMedia(
   meta: {
     pathname: string;
     name: string;
+    grant: UploadGrantOwner;
     owner?: MediaAsset["owner"];
     audio?: AudioMeta;
   },
@@ -287,6 +314,14 @@ export async function saveBlobMedia(
   if (!isMediaBlobPathname(meta.pathname, policy.prefix)) {
     throw new MediaError("Envio inválido.");
   }
+  if (!(await hasUploadGrant(meta.pathname, meta.grant))) {
+    throw new MediaError("Envio não autorizado. Tente enviar de novo.");
+  }
+  const taken = (map: Record<string, MediaAsset>) =>
+    Object.values(map).some((a) => a.blobPathname === meta.pathname);
+  if (taken(await index.read())) {
+    throw new MediaError("Esse arquivo já foi registrado. Tente enviar de novo.");
+  }
 
   const { head } = await import("@vercel/blob");
   let found: Awaited<ReturnType<typeof head>>;
@@ -295,6 +330,8 @@ export async function saveBlobMedia(
   } catch {
     throw new MediaError("Arte não chegou ao armazenamento. Tente enviar de novo.");
   }
+  // A permissão e a unicidade foram conferidas por este pathname.
+  if (found.pathname !== meta.pathname) throw new MediaError("Envio inválido.");
 
   const mime = baseMime(found.contentType);
   const accepted = policy.accepted[mime];
@@ -321,9 +358,15 @@ export async function saveBlobMedia(
     ...(meta.owner ? { owner: meta.owner } : {}),
   };
 
-  await index.transaction((map) => {
+  // De novo dentro da transação: dois registros do mesmo pathname ao mesmo
+  // tempo não podem passar os dois pela conferência de cima.
+  const saved = await index.transaction((map) => {
+    if (taken(map)) return false;
     map[id] = asset;
+    return true;
   });
+  if (!saved) throw new MediaError("Esse arquivo já foi registrado. Tente enviar de novo.");
+  await releaseUploadGrant(meta.pathname);
 
   return asset;
 }

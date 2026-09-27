@@ -23,11 +23,16 @@ export default async function ApprovalLinkPage({
   if (!isBatchLinkActive(batch)) return <ExpiredLink client={batch.client} />;
   /*
    * O briefing do designer é da agência: sai daqui antes de a peça virar
-   * props de um componente de cliente (e, portanto, HTML na tela dele).
+   * props de um componente de cliente (e, portanto, HTML na tela dele). O
+   * endereço da arte no Blob também (issue #73): a tela abre a arte por
+   * `/api/media/<id>`, e o pathname não tem o que fazer no navegador.
    */
   const publicBatch = {
     ...batch,
-    pieces: batch.pieces.map(({ briefing: _briefing, ...piece }) => piece),
+    pieces: batch.pieces.map(({ briefing: _briefing, ...piece }) => ({
+      ...piece,
+      media: piece.media?.map(({ blobUrl: _url, blobPathname: _pathname, ...m }) => m),
+    })),
   };
   // O logo da agência dona do lote — o lote diz de quem é, o token autoriza.
   const { logoUrl } = await getAgencySettings({ agencyId: batch.agencyId, agencyName: "" });

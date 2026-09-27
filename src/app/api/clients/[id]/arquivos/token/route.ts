@@ -3,6 +3,7 @@ import { handleUpload } from "@vercel/blob/client";
 import { requireAgency, unauthorized } from "@/lib/auth/session";
 import { getClient } from "@/lib/clients/repository";
 import { CLIENT_FILE_POLICY, isMediaBlobPathname } from "@/lib/media/constants";
+import { UPLOAD_TARGET, issueUploadGrant } from "@/lib/media/upload-grants";
 
 export const dynamic = "force-dynamic";
 
@@ -13,6 +14,7 @@ type Ctx = { params: Promise<{ id: string }> };
  * lote e dos anexos do Inbox (ver "O teto de 4,5 MB" no README), com as
  * regras da ficha: cliente desta agência, pasta `clientes/`, os tipos do
  * anexo e 50 MB. O Blob passa a impor tipo e tamanho por conta própria.
+ * O pathname fica anotado como de quem pediu, para este cliente (issue #73).
  */
 export async function POST(req: Request, { params }: Ctx) {
   const session = await requireAgency();
@@ -43,6 +45,12 @@ export async function POST(req: Request, { params }: Ctx) {
         if (!isMediaBlobPathname(pathname, CLIENT_FILE_POLICY.prefix)) {
           throw new Error("Caminho de arquivo inválido.");
         }
+        const granted = await issueUploadGrant(pathname, {
+          agencyId: session.scope.agencyId,
+          uploaderId: session.user.id,
+          target: UPLOAD_TARGET.cliente(id),
+        });
+        if (!granted) throw new Error("Caminho de arquivo já em uso. Tente enviar de novo.");
         return {
           allowedContentTypes: Object.keys(CLIENT_FILE_POLICY.accepted),
           maximumSizeInBytes: CLIENT_FILE_POLICY.maxBytes,

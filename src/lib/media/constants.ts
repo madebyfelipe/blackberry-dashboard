@@ -118,11 +118,14 @@ export const BLOB_MEDIA_PREFIX = "media/";
 export const BLOB_MULTIPART_THRESHOLD = 8 * 1024 * 1024;
 
 /**
- * Pathname pedido pelo navegador: `media/<nome-limpo>.<ext>`.
+ * Pathname pedido pelo navegador: `media/<nome-limpo>-<nonce>.<ext>`.
  *
- * O nome é só para o store ficar legível — quem garante unicidade é o
- * `addRandomSuffix` que o servidor impõe ao emitir o token, e o id da arte
- * (esse sim aleatório) nasce no servidor, no registro.
+ * O nome é só para o store ficar legível. O nonce faz cada pedido ser único:
+ * a rota do token anota para quem autorizou aquele pathname e não autoriza o
+ * mesmo para outra pessoa (issue #73, ver `upload-grants.ts`) — sem ele, dois
+ * "arte.png" de agências diferentes disputariam a mesma permissão. O
+ * `addRandomSuffix` que o servidor impõe ao emitir o token continua
+ * valendo, e o id da arte nasce no servidor, no registro.
  */
 export function blobPathnameFor(
   name: string,
@@ -138,7 +141,13 @@ export function blobPathnameFor(
     .replace(/^-+|-+$/g, "")
     .slice(0, 60)
     .toLowerCase();
-  return `${prefix}${base || "arte"}.${ext}`;
+  return `${prefix}${base || "arte"}-${uploadNonce()}.${ext}`;
+}
+
+/** 16 caracteres hexadecimais aleatórios — roda no navegador e no Node. */
+function uploadNonce(): string {
+  const bytes = crypto.getRandomValues(new Uint8Array(8));
+  return Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
 }
 
 /** O servidor só aceita registrar (e só emite token para) este formato. */

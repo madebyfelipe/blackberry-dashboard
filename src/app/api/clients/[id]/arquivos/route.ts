@@ -6,6 +6,7 @@ import { isFileFolder } from "@/lib/crm/constants";
 import type { FileFolder } from "@/lib/crm/types";
 import { CLIENT_FILE_POLICY } from "@/lib/media/constants";
 import { MediaError, deleteMedia, saveBlobMedia, saveMedia } from "@/lib/media/store";
+import { UPLOAD_TARGET } from "@/lib/media/upload-grants";
 
 export const dynamic = "force-dynamic";
 
@@ -35,7 +36,15 @@ export async function POST(req: Request, { params }: Ctx) {
       if (!pathname) return NextResponse.json({ error: "Envio inválido." }, { status: 400 });
       if (isFileFolder(body.folder)) folder = body.folder;
       media = await saveBlobMedia(
-        { pathname, name: typeof body?.name === "string" ? body.name.slice(0, 160) : "" },
+        {
+          pathname,
+          name: typeof body?.name === "string" ? body.name.slice(0, 160) : "",
+          grant: {
+            agencyId: session.scope.agencyId,
+            uploaderId: session.user.id,
+            target: UPLOAD_TARGET.cliente(id),
+          },
+        },
         CLIENT_FILE_POLICY,
       );
     } else {

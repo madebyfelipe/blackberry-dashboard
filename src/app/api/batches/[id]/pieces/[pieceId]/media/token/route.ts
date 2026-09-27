@@ -7,6 +7,7 @@ import {
   MAX_UPLOAD_BYTES,
   isMediaBlobPathname,
 } from "@/lib/media/constants";
+import { UPLOAD_TARGET, issueUploadGrant } from "@/lib/media/upload-grants";
 
 export const dynamic = "force-dynamic";
 
@@ -20,7 +21,9 @@ type Ctx = { params: Promise<{ id: string; pieceId: string }> };
  * o formato do pathname, e os limites que o Blob passa a impor por conta
  * própria (`allowedContentTypes`, `maximumSizeInBytes`). Quem tem o token só
  * consegue gravar um arquivo aceito, do tamanho permitido, dentro de
- * `media/` — e por pouco tempo.
+ * `media/` — e por pouco tempo. E o pathname fica anotado como desta
+ * agência, desta pessoa e desta peça: o registro só aceita o que saiu daqui
+ * (issue #73, ver `media/upload-grants.ts`).
  *
  * Nada de `onUploadCompleted`: a Vercel não consegue chamar de volta um
  * `localhost`, então registrar a arte por aí faria o dev local se comportar
@@ -61,6 +64,12 @@ export async function POST(req: Request, { params }: Ctx) {
         if (!isMediaBlobPathname(pathname)) {
           throw new Error("Caminho de arte inválido.");
         }
+        const granted = await issueUploadGrant(pathname, {
+          agencyId: session.scope.agencyId,
+          uploaderId: session.user.id,
+          target: UPLOAD_TARGET.peca(id, pieceId),
+        });
+        if (!granted) throw new Error("Caminho de arte já em uso. Tente enviar de novo.");
         return {
           allowedContentTypes: Object.keys(ACCEPTED_MIME),
           maximumSizeInBytes: MAX_UPLOAD_BYTES,

@@ -16,28 +16,28 @@ import {
 
 describe("blobPathnameFor", () => {
   test("mantém o nome legível e troca a extensão pela do mime", () => {
-    assert.equal(
+    assert.match(
       blobPathnameFor("Campanha Verão.PNG", "image/png"),
-      "media/campanha-verao.png",
+      /^media\/campanha-verao-[0-9a-f]{16}\.png$/,
     );
   });
 
   test("tira acento, espaço e pontuação do nome", () => {
-    assert.equal(
+    assert.match(
       blobPathnameFor("Ação 2026 — final (v2).jpeg", "image/jpeg"),
-      "media/acao-2026-final-v2.jpg",
+      /^media\/acao-2026-final-v2-[0-9a-f]{16}\.jpg$/,
     );
   });
 
   test("nome que não sobra nada ainda dá um caminho válido", () => {
     const pathname = blobPathnameFor("###.png", "image/png");
-    assert.equal(pathname, "media/arte.png");
+    assert.match(pathname, /^media\/arte-[0-9a-f]{16}\.png$/);
     assert.ok(isMediaBlobPathname(pathname));
   });
 
   test("nome muito longo é cortado, e o que sai é aceito", () => {
     const pathname = blobPathnameFor(`${"a".repeat(200)}.png`, "image/png");
-    assert.ok(pathname.length < 80);
+    assert.ok(pathname.length < 100);
     assert.ok(isMediaBlobPathname(pathname));
   });
 

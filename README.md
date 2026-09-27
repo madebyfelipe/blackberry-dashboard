@@ -230,7 +230,7 @@ duas direções**:
   CDN, não da função — só que agora com uma URL que expira sozinha, porque o
   store é privado.
 
-Duas regras ao mexer nisso:
+Três regras ao mexer nisso:
 
 1. **Nada que o navegador manda entra no registro.** Do cliente vem só o
    `pathname` (validado por `isMediaBlobPathname`) e o nome do arquivo; tamanho,
@@ -240,6 +240,13 @@ Duas regras ao mexer nisso:
    `localhost`, então registrar a arte por ali faria o dev local se comportar
    diferente da produção — exatamente a diferença que escondeu o `413`. Quem
    registra é o navegador, depois que o upload termina.
+3. **Só registra quem pediu o token (issue #73).** O pathname não é segredo
+   (vai no `Location` do 307), então "existe no Blob" não prova de quem é. A
+   rota do token anota o pathname pedido para agência + pessoa + destino
+   (`lib/media/upload-grants.ts`; o nonce de `blobPathnameFor` faz cada pedido
+   ser único), `saveBlobMedia` só aceita pathname dessa permissão e nunca um
+   já registrado, e `deleteMedia` não apaga objeto que outro registro ainda
+   usa. `tests/media-blob-owner.test.ts` roda o ataque.
 
 Sem `BLOB_READ_WRITE_TOKEN` nada disso liga: o editor volta ao multipart e os
 bytes vão para o disco, como sempre foi em dev.

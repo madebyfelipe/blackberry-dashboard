@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { addPieceMedia, getBatch, removePieceMedia } from "@/lib/approval/repository";
 import { MediaError, saveBlobMedia, saveMedia } from "@/lib/media/store";
 import { requireAgency } from "@/lib/auth/session";
+import { UPLOAD_TARGET } from "@/lib/media/upload-grants";
 
 export const dynamic = "force-dynamic";
 
@@ -56,7 +57,14 @@ export async function POST(req: Request, { params }: Ctx) {
 
   try {
     const media = blob
-      ? await saveBlobMedia(blob)
+      ? await saveBlobMedia({
+          ...blob,
+          grant: {
+            agencyId: session.scope.agencyId,
+            uploaderId: session.user.id,
+            target: UPLOAD_TARGET.peca(id, pieceId),
+          },
+        })
       : await saveMedia(new Uint8Array(await file!.arrayBuffer()), {
           mime: file!.type,
           name: file!.name,
