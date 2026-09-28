@@ -1,7 +1,7 @@
 import type { AgencyScope } from "@/lib/agency/types";
 import { ATTACHMENTS_MAX, MESSAGE_MAX, canChangeMessage, isPresence } from "./constants";
 import { handleProblem, normalizeHandle, suggestHandle } from "./handle";
-import { TITLE_MAX, canManageTeam, isMemberRole, isMemberStatus, isWorking } from "./users";
+import { TITLE_MAX, canManageTeam, isAdmin, isMemberRole, isMemberStatus, isWorking } from "./users";
 import { domainProblem, domainUsedElsewhere, emailDomain, normalizeDomain } from "./domain";
 import { read, transaction } from "./store";
 import { normalizeNotifyPrefs } from "./notifyPrefs";
@@ -170,11 +170,19 @@ const LAST_SEEN_EVERY_MS = 5 * 60_000;
 /** Quem pede não pode mexer no time — a regra não é da tela, é daqui. */
 export class ForbiddenError extends Error {}
 
-function assertManager(data: InboxData, scope: AgencyScope, viewerId: string) {
+function assertManager(data: InboxData, scope: AgencyScope, viewerId: string): InboxMember {
   const viewer = membersOf(data, scope).find((m) => m.id === viewerId);
   if (!viewer || !canManageTeam(viewer)) {
     throw new ForbiddenError("Só Admin e Gerente mexem no time.");
   }
+  return viewer;
+}
+
+/** Se sobra algum outro Admin ativo além de `excludeId` — a agência nunca fica sem um. */
+function hasOtherActiveAdmin(data: InboxData, scope: AgencyScope, excludeId: string): boolean {
+  return membersOf(data, scope).some(
+    (m) => m.id !== excludeId && m.role === "admin" && m.status === "ativo",
+  );
 }
 
 function newInviteToken(): string {
@@ -200,7 +208,10 @@ export async function inviteMember(
   if (!isMemberRole(input.role)) throw new ValidationError("Função inválida.");
 
   return transaction((data) => {
-    assertManager(data, scope, viewerId);
+    const viewer = assertManager(data, scope, viewerId);
+    if (input.role === "admin" && !isAdmin(viewer)) {
+      throw new ForbiddenError("Só Admin convida outro Admin.");
+    }
     const members = membersOf(data, scope);
     if (members.some((m) => m.email === email)) {
       throw new ValidationError("Esse e-mail já está no time.");
@@ -256,9 +267,32 @@ export async function updateMember(
   }
 
   return transaction((data) => {
-    assertManager(data, scope, viewerId);
+    const viewer = assertManager(data, scope, viewerId);
     const m = membersOf(data, scope).find((x) => x.id === id);
     if (!m) return undefined;
+
+    // Só Admin mexe em outro Admin — Gerente não edita, arquiva nem aprova um.
+    if (id !== viewerId && m.role === "admin" && !isAdmin(viewer)) {
+      throw new ForbiddenError("Só Admin edita ou arquiva outro Admin.");
+    }
+    // Só Admin concede ou retira o papel de Admin — de si ou de outro.
+    if (
+      patch.role !== undefined &&
+      patch.role !== m.role &&
+      (patch.role === "admin" || m.role === "admin") &&
+      !isAdmin(viewer)
+    ) {
+      throw new ForbiddenError("Só Admin concede ou retira a administração.");
+    }
+    // A agência nunca fica sem nenhum Admin ativo — nem o próprio Admin tira o último.
+    const seguiriaAdminAtivo =
+      (patch.role ?? m.role) === "admin" && (patch.status ?? m.status) === "ativo";
+    if (m.role === "admin" && m.status === "ativo" && !seguiriaAdminAtivo) {
+      if (!hasOtherActiveAdmin(data, scope, id)) {
+        throw new ValidationError("A agência não pode ficar sem nenhum Admin ativo.");
+      }
+    }
+
     if (id === viewerId && patch.status !== undefined && patch.status !== "ativo") {
       throw new ValidationError("Você não pode arquivar nem desativar a si mesmo.");
     }
