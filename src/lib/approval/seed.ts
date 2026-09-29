@@ -1,5 +1,17 @@
+import { randomBytes } from "node:crypto";
 import { LEGACY_AGENCY_ID, LEGACY_AGENCY_NAME } from "@/lib/agency/id";
 import type { Batch } from "./types";
+
+/**
+ * Token do link público — sai do `crypto`, nunca de um valor fixo no
+ * código-fonte (issue #105): um token escrito aqui fica no histórico do git
+ * para sempre, e qualquer um que leia o repositório abriria o lote de
+ * demonstração em produção, incluindo `POST /api/approve/<token>`. Mesma
+ * régua de `randomToken` em `repository.ts`.
+ */
+function randomToken(): string {
+  return randomBytes(16).toString("base64url");
+}
 
 /** Seed mirrors the "Clínica Aurora - Lote" export, plus a second demo lote. */
 export function seedBatches(): Batch[] {
@@ -11,7 +23,7 @@ export function seedBatches(): Batch[] {
       client: "Clínica Aurora",
       clientId: null,
       label: "Lote setembro · 01-30 set",
-      token: "BJnMavwFGlmU67F",
+      token: randomToken(),
       pieces: [
         piece("p1", "Peça 01", "1080 x 1080", "2026-09-02", "aprovado", "Feed · imagem única"),
         piece("p2", "Peça 02", "1080 x 1350", "2026-09-05", "aprovado", "Feed · retrato"),
@@ -38,7 +50,7 @@ export function seedBatches(): Batch[] {
       client: "Montê bar",
       clientId: null,
       label: "Lote setembro · 01-30 set",
-      token: "Mn7bQrLZ2kTv0aX",
+      token: randomToken(),
       pieces: [
         piece("m1", "Peça 01", "1080 x 1080", "2026-09-03", "aprovado", "Feed · imagem única"),
         piece("m2", "Peça 02", "1080 x 1350", "2026-09-07", "pendente", "Feed · retrato"),
