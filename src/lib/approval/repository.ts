@@ -257,12 +257,17 @@ export async function sendBatchForApproval(
     batch.stage = "em-aprovacao";
     batch.draftSavedAt = new Date().toISOString();
     const who = agencyStamp(scope);
+    const now = new Date().toISOString();
     for (const piece of batch.pieces) {
+      // Marca a peça como vista pelo cliente — é o que o link público confere
+      // antes de mostrar ou decidir sobre ela (issue #106). Peça já enviada
+      // num envio anterior mantém o instante de quando foi mesmo.
+      if (!piece.sentAt) piece.sentAt = now;
       if (piece.status !== "pendente") continue;
       piece.history = [
         {
           id: shortId("h"),
-          at: new Date().toISOString(),
+          at: now,
           title: "Enviada para aprovação",
           who,
         },
@@ -468,7 +473,10 @@ export async function decidePiece(
     const batch = findByToken(batches, token);
     if (!batch) return undefined;
     if (!isBatchLinkActive(batch)) return "inactive-link" as const;
-    const piece = batch.pieces.find((p) => p.id === pieceId);
+    // Peça sem `sentAt` é rascunho: nunca passou pelo "Enviar para
+    // aprovação" (ou nasceu depois do último), então o link nem sabe que
+    // ela existe (issue #106) — mesma resposta de peça inexistente.
+    const piece = batch.pieces.find((p) => p.id === pieceId && p.sentAt);
     if (!piece) return undefined;
 
     piece.status = decision;

@@ -67,6 +67,8 @@ function piece(
     status,
     kind,
     caption: "Legenda da peça — texto de apoio para o cliente avaliar.",
+    // Os dois lotes de demonstração já nascem enviados ao cliente.
+    sentAt: date + "T08:00:00.000Z",
     history: [
       { id: id + "-c", title: "Peça criada no lote", who: LEGACY_AGENCY_NAME + " · " + shortPt(date) },
     ],
