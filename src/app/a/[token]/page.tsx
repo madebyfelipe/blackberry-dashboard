@@ -28,6 +28,9 @@ export default async function ApprovalLinkPage({
    * briefing, histórico com IP, ids internos da agência ou pathname do Blob.
    */
   const publicBatch = toPublicBatch(batch);
+  // Lote sem nenhuma peça enviada (nunca mandado, ou peça nova depois do
+  // último envio) não é assunto do cliente ainda — issue #106.
+  if (publicBatch.pieces.length === 0) notFound();
   // O logo da agência dona do lote — o lote diz de quem é, o token autoriza.
   const { logoUrl } = await getAgencySettings({ agencyId: batch.agencyId, agencyName: "" });
   return <ApprovalFlow batch={publicBatch} agencyLogoUrl={logoUrl} />;

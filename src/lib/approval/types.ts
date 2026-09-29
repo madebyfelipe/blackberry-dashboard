@@ -37,6 +37,13 @@ export type Piece = {
   status: PieceStatus;
   /** e.g. "Story · sequência de 2" */
   kind: string;
+  /**
+   * ISO — quando a peça passou a valer para o link público, por
+   * `sendBatchForApproval`. Sem ela, o link não mostra nem decide sobre a
+   * peça: é o que separa rascunho de conteúdo já mandado ao cliente (issue
+   * #106) — peça criada depois do último envio fica de fora até o próximo.
+   */
+  sentAt?: string;
   caption?: string;
   /** hashtags sem "#", separadas por espaço */
   hashtags?: string;

@@ -9,9 +9,8 @@ usarDataDirTemporario("approval-public");
 escreverData("batches.json", []);
 escreverData("clients.json", []);
 
-const { addPiece, createBatch, decidePiece, getBatchByToken, regenerateBatchToken } = await import(
-  "../src/lib/approval/repository"
-);
+const { addPiece, createBatch, decidePiece, getBatchByToken, regenerateBatchToken, sendBatchForApproval } =
+  await import("../src/lib/approval/repository");
 const {
   PIECE_HISTORY_MAX,
   PUBLIC_BODY_MAX,
@@ -98,6 +97,7 @@ describe("decidePiece — a escrita tem teto", () => {
   test("o histórico da peça não passa do teto, por mais que se repita", async () => {
     const lote = await novoLote();
     const peca = await addPiece(AGENCIA_A, lote!.id);
+    await sendBatchForApproval(AGENCIA_A, lote!.id);
     let ultima;
     for (let i = 0; i < PIECE_HISTORY_MAX + 20; i++) {
       ultima = await decidePiece(lote!.token, peca!.id, i % 2 ? "aprovado" : "ajuste", { reason: "de novo" });
@@ -110,6 +110,7 @@ describe("decidePiece — a escrita tem teto", () => {
   test("motivo, nome e IP são cortados mesmo se a rota deixar passar", async () => {
     const lote = await novoLote();
     const peca = await addPiece(AGENCIA_A, lote!.id);
+    await sendBatchForApproval(AGENCIA_A, lote!.id);
     const r = await decidePiece(lote!.token, peca!.id, "ajuste", {
       reason: "m".repeat(3 * 1024 * 1024),
       who: "w".repeat(3 * 1024 * 1024),
@@ -119,6 +120,38 @@ describe("decidePiece — a escrita tem teto", () => {
     assert.equal(r.reason?.length, PUBLIC_REASON_MAX);
     assert.ok(r.history[0].who.length < PUBLIC_WHO_MAX + 20);
     assert.equal(r.history[0].ip?.length, 64);
+  });
+});
+
+describe("peça em rascunho não é assunto do cliente (issue #106)", () => {
+  test("lote nunca enviado: nenhuma peça aparece nem se decide pelo link", async () => {
+    const lote = await novoLote();
+    const peca = await addPiece(AGENCIA_A, lote!.id);
+    const batch = await getBatchByToken(lote!.token);
+    assert.deepEqual(toPublicBatch(batch!).pieces, []);
+    assert.equal(await decidePiece(lote!.token, peca!.id, "aprovado"), undefined);
+  });
+
+  test("peça criada depois do envio some do link até o próximo envio", async () => {
+    const lote = await novoLote();
+    const p1 = await addPiece(AGENCIA_A, lote!.id);
+    await sendBatchForApproval(AGENCIA_A, lote!.id);
+
+    const p2 = await addPiece(AGENCIA_A, lote!.id);
+    const batch = await getBatchByToken(lote!.token);
+    const ids = toPublicBatch(batch!).pieces.map((p) => p.id);
+    assert.deepEqual(ids, [p1!.id], "a peça nova ainda não foi mandada");
+    assert.equal(await decidePiece(lote!.token, p2!.id, "aprovado"), undefined);
+
+    await sendBatchForApproval(AGENCIA_A, lote!.id);
+    const depois = await getBatchByToken(lote!.token);
+    assert.deepEqual(
+      toPublicBatch(depois!).pieces.map((p) => p.id).sort(),
+      [p1!.id, p2!.id].sort(),
+      "o próximo envio manda a peça nova também",
+    );
+    const decidida = await decidePiece(lote!.token, p2!.id, "aprovado");
+    assert.ok(decidida && decidida !== "inactive-link");
   });
 });
 
@@ -157,6 +190,7 @@ describe("toPublicBatch — o que vai para a tela do cliente", () => {
       blobPathname: "media/capa-SEGREDO.png",
     };
     const peca = await addPiece(AGENCIA_A, lote!.id, media);
+    await sendBatchForApproval(AGENCIA_A, lote!.id);
     await decidePiece(lote!.token, peca!.id, "ajuste", { reason: "Trocar a cor", ip: "203.0.113.9" });
     const batch = await getBatchByToken(lote!.token);
     batch!.pieces[0].briefing = "Briefing interno da peça";

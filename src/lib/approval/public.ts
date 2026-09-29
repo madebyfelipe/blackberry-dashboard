@@ -113,5 +113,11 @@ export function toPublicPiece(p: Piece): PublicPiece {
 }
 
 export function toPublicBatch(b: Batch): PublicBatch {
-  return { token: b.token, client: b.client, label: b.label, pieces: b.pieces.map(toPublicPiece) };
+  return {
+    token: b.token,
+    client: b.client,
+    label: b.label,
+    // Só peça já enviada (`sentAt`) — rascunho não é do cliente (issue #106).
+    pieces: b.pieces.filter((p) => p.sentAt).map(toPublicPiece),
+  };
 }
