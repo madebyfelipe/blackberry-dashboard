@@ -274,6 +274,16 @@ export async function sendBatchForApproval(
 }
 
 /**
+ * Teto do texto livre do lote (issue #107): cliente e título formam o id
+ * dele (`slugify`), e todos os lotes de todas as agências moram numa linha
+ * só — sem teto, um campo gigante deixa lenta a leitura de todo mundo.
+ */
+const BATCH_CLIENT_MAX = 80;
+const BATCH_TITLE_MAX = 120;
+const BATCH_PERIOD_MAX = 40;
+const BATCH_DESCRIPTION_MAX = 2000;
+
+/**
  * Cria um lote vazio para um cliente da agência — o "Novo lote" da lista de
  * lotes. Nasce como rascunho e já com link público próprio: quem decide
  * quando ele sai é o "Enviar para aprovação" do editor, não a criação.
@@ -293,10 +303,10 @@ export async function createBatch(
     description?: string;
   },
 ): Promise<Batch | undefined> {
-  const client = input.client.trim();
-  const title = input.title.trim();
-  const period = input.period?.trim();
-  const description = input.description?.trim();
+  const client = input.client.trim().slice(0, BATCH_CLIENT_MAX);
+  const title = input.title.trim().slice(0, BATCH_TITLE_MAX);
+  const period = input.period?.trim().slice(0, BATCH_PERIOD_MAX);
+  const description = input.description?.trim().slice(0, BATCH_DESCRIPTION_MAX);
   if (!client || !title) return undefined;
   const clientId = await resolveClientId(scope, client);
 

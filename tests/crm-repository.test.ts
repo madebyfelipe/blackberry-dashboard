@@ -58,6 +58,13 @@ describe("serviços", () => {
     const a = await addService(AGENCIA_A, "c1", { name: "Negativo", monthlyValue: -500 });
     assert.equal(a.services.at(-1)?.monthlyValue, 0);
   });
+
+  // Issue #107: `responsibleId` era o único campo do serviço sem teto
+  // (o resto já passa por `text()` em `normalizeService`).
+  test("responsibleId sem teto era o único campo do serviço sem `text()`", async () => {
+    const a = await addService(AGENCIA_A, "c1", { name: "Com id gigante", responsibleId: "x".repeat(200) as never });
+    assert.equal(a.services.at(-1)?.responsibleId?.length, 64);
+  });
 });
 
 describe("faturas", () => {

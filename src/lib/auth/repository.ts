@@ -13,6 +13,18 @@ export function isRole(v: unknown): v is Role {
   return typeof v === "string" && (ROLES as string[]).includes(v);
 }
 
+/** Teto do nome e do nome da agência (issue #107) — cadastro é aberto, sem login. */
+const NAME_MAX = 80;
+
+/** Texto livre vindo do corpo da requisição: tipo certo, dentro do teto. */
+function cleanText(value: unknown, max: number, label: string): string {
+  if (value === undefined || value === null) return "";
+  if (typeof value !== "string") throw new AuthError(`${label} inválido.`);
+  const trimmed = value.trim();
+  if (trimmed.length > max) throw new AuthError(`${label} vai até ${max} caracteres.`);
+  return trimmed;
+}
+
 export function toPublic(user: User): PublicUser {
   const { passwordHash: _hash, ...rest } = user;
   return rest;
@@ -54,7 +66,7 @@ export async function listUsers(): Promise<PublicUser[]> {
 }
 
 export async function registerUser(input: NewUser): Promise<PublicUser> {
-  const name = input.name?.trim();
+  const name = cleanText(input.name, NAME_MAX, "Nome");
   const email = normalizeEmail(input.email ?? "");
   const password = input.password ?? "";
 
@@ -65,6 +77,7 @@ export async function registerUser(input: NewUser): Promise<PublicUser> {
   if (password.length < 8) {
     throw new AuthError("A senha precisa de pelo menos 8 caracteres.");
   }
+  const agencyInput = cleanText(input.agency, NAME_MAX, "Agência");
 
   // Hash fora da transação: scrypt é caro e não deve segurar a fila.
   const passwordHash = await hashPassword(password);
@@ -75,7 +88,7 @@ export async function registerUser(input: NewUser): Promise<PublicUser> {
     }
     const agency = input.joinAgency
       ? input.joinAgency.agencyName
-      : (input.agency ?? "").trim() || `Agência de ${name.split(" ")[0]}`;
+      : agencyInput || `Agência de ${name.split(" ")[0]}`;
     const user: User = {
       id: "u" + Math.random().toString(36).slice(2, 9),
       name,
@@ -124,7 +137,7 @@ export async function updateProfile(
   userId: string,
   patch: { name?: string; agency?: string },
 ): Promise<PublicUser> {
-  const name = patch.name?.trim();
+  const name = patch.name === undefined ? undefined : cleanText(patch.name, NAME_MAX, "Nome");
   if (patch.name !== undefined && !name) {
     throw new AuthError("O nome não pode ficar vazio.");
   }
@@ -133,7 +146,7 @@ export async function updateProfile(
     if (!user) throw new AuthError("Usuário não encontrado.");
     if (name) user.name = name;
     if (patch.agency !== undefined) {
-      const agency = patch.agency.trim();
+      const agency = cleanText(patch.agency, NAME_MAX, "Agência");
       if (!agency) throw new AuthError("O nome da agência não pode ficar vazio.");
       user.agency = agency;
     }

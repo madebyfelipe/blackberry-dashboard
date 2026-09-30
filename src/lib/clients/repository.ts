@@ -34,6 +34,21 @@ function makeId(): string {
   return "c" + Math.random().toString(36).slice(2, 9);
 }
 
+/** Teto de nome, segmento e responsável — os únicos campos da ficha sem cleanContact. */
+const NAME_MAX = 80;
+const SEGMENT_MAX = 60;
+
+/** Texto livre obrigatório (nome): tipo certo, dentro do teto, sem ficar vazio. */
+function cleanText(value: unknown, max: number, label: string): string {
+  if (value === undefined || value === null) return "";
+  if (typeof value !== "string") throw new ValidationError(`${label} inválido.`);
+  const trimmed = value.trim();
+  if (trimmed.length > max) {
+    throw new ValidationError(`${label} vai até ${max} caracteres.`);
+  }
+  return trimmed;
+}
+
 /** Serviços: sem espaço sobrando, sem repetição, no máximo 8. */
 function cleanServices(input: unknown): string[] {
   const list = Array.isArray(input)
@@ -101,7 +116,7 @@ export async function createClient(
   scope: AgencyScope,
   input: NewClient,
 ): Promise<Client> {
-  const name = input.name?.trim();
+  const name = cleanText(input.name, NAME_MAX, "Nome");
   if (!name) throw new ValidationError("Nome é obrigatório.");
   const billingDay = cleanBillingDay(input.billingDay);
   const email = cleanEmail(input.email);
@@ -112,14 +127,14 @@ export async function createClient(
     // Dona é a agência da sessão. `NewClient` nem tem o campo.
     agencyId: scope.agencyId,
     name,
-    segment: (input.segment ?? "").trim(),
+    segment: cleanText(input.segment, SEGMENT_MAX, "Segmento"),
     services: cleanServices(input.services),
     city: cleanContact(input.city),
     email,
     phone: cleanContact(input.phone, 40),
     contactName: cleanContact(input.contactName),
     nps,
-    owner: (input.owner ?? "").trim() || "—",
+    owner: cleanText(input.owner, NAME_MAX, "Responsável") || "—",
     billingDay,
     status: isClientStatus(input.status) ? input.status : "novo",
     squad: cleanSquad(input.squad),
@@ -141,9 +156,15 @@ export async function updateClient(
   if (patch.status !== undefined && !isClientStatus(patch.status)) {
     throw new ValidationError("Status inválido.");
   }
-  if (patch.name !== undefined && !patch.name.trim()) {
+  const name =
+    patch.name === undefined ? undefined : cleanText(patch.name, NAME_MAX, "Nome");
+  if (name !== undefined && !name) {
     throw new ValidationError("Nome não pode ficar vazio.");
   }
+  const segment =
+    patch.segment === undefined ? undefined : cleanText(patch.segment, SEGMENT_MAX, "Segmento");
+  const owner =
+    patch.owner === undefined ? undefined : cleanText(patch.owner, NAME_MAX, "Responsável");
   // Valida antes de abrir a transação.
   const billingDay =
     patch.billingDay === undefined ? undefined : cleanBillingDay(patch.billingDay);
@@ -155,15 +176,15 @@ export async function updateClient(
       (x) => x.id === id && x.agencyId === scope.agencyId,
     );
     if (!c) return undefined;
-    if (patch.name !== undefined) c.name = patch.name.trim();
-    if (patch.segment !== undefined) c.segment = patch.segment.trim();
+    if (name !== undefined) c.name = name;
+    if (segment !== undefined) c.segment = segment;
     if (patch.services !== undefined) c.services = cleanServices(patch.services);
     if (patch.city !== undefined) c.city = cleanContact(patch.city);
     if (email !== undefined) c.email = email;
     if (patch.phone !== undefined) c.phone = cleanContact(patch.phone, 40);
     if (patch.contactName !== undefined) c.contactName = cleanContact(patch.contactName);
     if (nps !== undefined) c.nps = nps;
-    if (patch.owner !== undefined) c.owner = patch.owner.trim() || "—";
+    if (owner !== undefined) c.owner = owner || "—";
     if (patch.status !== undefined) c.status = patch.status;
     if (billingDay !== undefined) c.billingDay = billingDay;
     if (patch.squad !== undefined) c.squad = cleanSquad(patch.squad);
