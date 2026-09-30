@@ -90,6 +90,10 @@ export function sizeFromDimensions(width: number, height: number): string {
 /** Limite de caracteres da legenda no Instagram — usado no contador do editor. */
 export const CAPTION_LIMIT = 2200;
 
+/** Teto das hashtags e do nome da peça (issue #107): sem limite no servidor, o editor deixava passar. */
+export const HASHTAGS_LIMIT = 500;
+export const PIECE_NAME_LIMIT = 120;
+
 /**
  * Peças antigas só têm `kind` livre ("Story · sequência de 2"). O editor lê o
  * formato daí enquanto o campo novo não é preenchido.

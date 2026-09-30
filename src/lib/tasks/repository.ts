@@ -24,6 +24,25 @@ import type { NewTask, Task, TaskComment, TaskPatch } from "./types";
  * para isso.
  */
 
+/**
+ * Teto de título e descrição — texto livre que qualquer conta grava, numa
+ * área que é um documento só para todas as agências (issue #107): sem
+ * limite, um campo gigante deixa lenta a leitura de todo mundo.
+ */
+const TITLE_MAX = 200;
+const DESCRIPTION_MAX = 10_000;
+
+/** Texto livre vindo do corpo da requisição: tipo certo, dentro do teto. */
+function cleanText(value: unknown, max: number, label: string): string {
+  if (value === undefined || value === null) return "";
+  if (typeof value !== "string") throw new ValidationError(`${label} inválido.`);
+  const trimmed = value.trim();
+  if (trimmed.length > max) {
+    throw new ValidationError(`${label} vai até ${max} caracteres.`);
+  }
+  return trimmed;
+}
+
 export async function listTasks(scope: AgencyScope): Promise<Task[]> {
   const tasks = await read();
   return tasks
@@ -79,7 +98,7 @@ async function resolveAssignee(
   raw: string | undefined,
 ): Promise<string | undefined> {
   if (raw === undefined) return undefined;
-  const value = raw.trim();
+  const value = cleanText(raw, TITLE_MAX, "Responsável");
   if (!value.startsWith("@")) return value;
   const member = await memberByHandle(scope, value);
   if (!member) throw new ValidationError(`Ninguém do time atende por ${value}.`);
@@ -98,14 +117,15 @@ export async function createTask(
   scope: AgencyScope,
   input: NewTask,
 ): Promise<Task> {
-  const title = input.title?.trim();
+  const title = cleanText(input.title, TITLE_MAX, "Título");
   if (!title) throw new ValidationError("Título é obrigatório.");
-  const client = (input.client ?? "").trim();
+  const client = cleanText(input.client, TITLE_MAX, "Cliente");
   const clientId =
     input.clientId !== undefined ? input.clientId : await resolveClientId(scope, client);
   const status = isTaskStatus(input.status) ? input.status : "a-fazer";
   const assignee = ((await resolveAssignee(scope, input.assignee)) ?? "").trim() || "—";
   const priority = isTaskPriority(input.priority) ? input.priority : "sem";
+  const description = cleanText(input.description, DESCRIPTION_MAX, "Descrição");
 
   const task: Task = {
     id: makeId(),
@@ -118,7 +138,7 @@ export async function createTask(
     status,
     assignee,
     createdAt: new Date().toISOString(),
-    description: (input.description ?? "").trim(),
+    description,
     priority,
     labels: cleanLabels(input.labels),
     creator: (input.creator ?? "").trim() || "—",
@@ -165,9 +185,17 @@ export async function updateTaskAtStep(
   if (patch.priority !== undefined && !isTaskPriority(patch.priority)) {
     throw new ValidationError("Prioridade inválida.");
   }
-  if (patch.title !== undefined && !patch.title.trim()) {
+  const title =
+    patch.title === undefined ? undefined : cleanText(patch.title, TITLE_MAX, "Título");
+  if (title !== undefined && !title) {
     throw new ValidationError("Título não pode ficar vazio.");
   }
+  const description =
+    patch.description === undefined
+      ? undefined
+      : cleanText(patch.description, DESCRIPTION_MAX, "Descrição");
+  const client =
+    patch.client === undefined ? undefined : cleanText(patch.client, TITLE_MAX, "Cliente");
   const assignee = await resolveAssignee(scope, patch.assignee);
   // Valida o prazo antes de abrir a transação.
   const dueDate =
@@ -175,17 +203,15 @@ export async function updateTaskAtStep(
   // Resolvido fora da transação, como o assignee: precisa de outra leitura
   // (a lista de clientes), e a transação só pode mexer no que já tem em mãos.
   const clientId =
-    patch.client === undefined
-      ? undefined
-      : await resolveClientId(scope, patch.client.trim());
+    client === undefined ? undefined : await resolveClientId(scope, client);
 
   return transaction((tasks) => {
     const t = tasks.find(
       (x) => x.id === id && x.agencyId === scope.agencyId,
     );
     if (!t) return undefined;
-    if (patch.title !== undefined) t.title = patch.title.trim();
-    if (patch.client !== undefined) t.client = patch.client.trim();
+    if (title !== undefined) t.title = title;
+    if (client !== undefined) t.client = client;
     if (clientId !== undefined) t.clientId = clientId;
     const stale =
       opts.expectStepId !== undefined && (t.stepId ?? null) !== opts.expectStepId;
@@ -196,10 +222,12 @@ export async function updateTaskAtStep(
       t.status = patch.status;
     }
     if (assignee !== undefined) t.assignee = assignee || "—";
-    if (patch.description !== undefined) t.description = patch.description.trim();
+    if (description !== undefined) t.description = description;
     if (patch.priority !== undefined) t.priority = patch.priority;
     if (patch.labels !== undefined) t.labels = cleanLabels(patch.labels);
-    if (patch.creator !== undefined) t.creator = patch.creator.trim() || "—";
+    if (patch.creator !== undefined) {
+      t.creator = cleanText(patch.creator, TITLE_MAX, "Criador") || "—";
+    }
     if (dueDate !== undefined) t.dueDate = dueDate;
     return { task: { ...t, labels: [...t.labels], comments: [...t.comments] }, completedNow };
   });

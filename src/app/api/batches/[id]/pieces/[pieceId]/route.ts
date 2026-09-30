@@ -1,6 +1,12 @@
 import { NextResponse } from "next/server";
 import { updatePieceDraft } from "@/lib/approval/repository";
-import { PIECE_CHANNELS, PIECE_FORMATS } from "@/lib/approval/constants";
+import {
+  CAPTION_LIMIT,
+  HASHTAGS_LIMIT,
+  PIECE_CHANNELS,
+  PIECE_FORMATS,
+  PIECE_NAME_LIMIT,
+} from "@/lib/approval/constants";
 import type { PieceChannel, PieceDraftPatch, PieceFormat } from "@/lib/approval/types";
 import { requireAgency, unauthorized } from "@/lib/auth/session";
 import { syncPieceTask } from "@/lib/flows/automation";
@@ -26,10 +32,12 @@ export async function PATCH(
   }
 
   const patch: PieceDraftPatch = {};
-  if (typeof body.caption === "string") patch.caption = body.caption;
-  if (typeof body.hashtags === "string") patch.hashtags = body.hashtags;
+  if (typeof body.caption === "string") patch.caption = body.caption.slice(0, CAPTION_LIMIT);
+  if (typeof body.hashtags === "string") patch.hashtags = body.hashtags.slice(0, HASHTAGS_LIMIT);
   if (typeof body.briefing === "string") patch.briefing = body.briefing.slice(0, 4000);
-  if (typeof body.name === "string" && body.name.trim()) patch.name = body.name.trim();
+  if (typeof body.name === "string" && body.name.trim()) {
+    patch.name = body.name.trim().slice(0, PIECE_NAME_LIMIT);
+  }
   if (typeof body.date === "string" && !Number.isNaN(Date.parse(body.date))) {
     patch.date = new Date(body.date).toISOString();
   }

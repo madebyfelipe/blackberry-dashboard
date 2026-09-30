@@ -189,6 +189,40 @@ describe("updateTask", () => {
   });
 });
 
+// Issue #107: sem teto, um campo gigante deixa lenta a leitura de todo mundo
+// (o documento é compartilhado por todas as agências) — e um corpo malformado
+// (não-string num campo de texto) não pode virar 500.
+describe("teto e tipo dos campos de texto", () => {
+  test("título e descrição acima do teto são recusados na criação", async () => {
+    await assert.rejects(() => criar({ title: "x".repeat(201) }), ValidationError);
+    await assert.rejects(() => criar({ description: "x".repeat(10_001) }), ValidationError);
+    // Exatamente no teto passa.
+    const t = await criar({ title: "x".repeat(200), description: "y".repeat(10_000) });
+    assert.equal(t.title.length, 200);
+    assert.equal(t.description.length, 10_000);
+  });
+
+  test("título e descrição acima do teto são recusados no patch", async () => {
+    const t = await criar();
+    await assert.rejects(() => updateTask(AGENCIA_A, t.id, { title: "x".repeat(201) }), ValidationError);
+    await assert.rejects(
+      () => updateTask(AGENCIA_A, t.id, { description: "x".repeat(10_001) }),
+      ValidationError,
+    );
+  });
+
+  test("corpo malformado (campo de texto que não é string) é 4xx, não 500", async () => {
+    await assert.rejects(() => criar({ title: { a: 1 } as never }), ValidationError);
+    const t = await criar();
+    await assert.rejects(() => updateTask(AGENCIA_A, t.id, { title: 123 as never }), ValidationError);
+    await assert.rejects(
+      () => updateTask(AGENCIA_A, t.id, { description: ["oi"] as never }),
+      ValidationError,
+    );
+    await assert.rejects(() => updateTask(AGENCIA_A, t.id, { client: {} as never }), ValidationError);
+  });
+});
+
 describe("deleteTask e leitura", () => {
   test("apaga uma vez e devolve false na segunda", async () => {
     const t = await criar();

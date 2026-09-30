@@ -74,6 +74,24 @@ describe("registerUser", () => {
     await assert.rejects(() => registerUser({ ...base, password: "curta" }), AuthError);
   });
 
+  // Issue #107: cadastro é aberto, sem login — nome e agência sem teto
+  // chegaram a 2 MB por campo.
+  test("nome e agência acima de 80 caracteres são recusados", async () => {
+    const base = { name: "A", email: `t${n++}@blackberry.app`, password: "blackberry" };
+    await assert.rejects(() => registerUser({ ...base, name: "x".repeat(81) }), AuthError);
+    await assert.rejects(
+      () => registerUser({ ...base, email: `t${n++}@blackberry.app`, agency: "x".repeat(81) }),
+      AuthError,
+    );
+  });
+
+  test("corpo malformado (nome que não é string) é 4xx, não 500", async () => {
+    await assert.rejects(
+      () => registerUser({ name: { a: 1 } as never, email: `m${n++}@blackberry.app`, password: "blackberry" }),
+      AuthError,
+    );
+  });
+
   test("isRole só aceita os papéis do produto", () => {
     assert.equal(isRole("coordenacao"), true);
     assert.equal(isRole("designer"), true);
@@ -172,6 +190,13 @@ describe("updateProfile", () => {
     await assert.rejects(() => updateProfile(user.id, { name: "  " }), AuthError);
     await assert.rejects(() => updateProfile(user.id, { agency: "  " }), AuthError);
     await assert.rejects(() => updateProfile("nao-existe", { name: "x" }), AuthError);
+  });
+
+  test("recusa nome e agência acima de 80 caracteres, e tipo errado", async () => {
+    const user = await novaConta();
+    await assert.rejects(() => updateProfile(user.id, { name: "x".repeat(81) }), AuthError);
+    await assert.rejects(() => updateProfile(user.id, { agency: "x".repeat(81) }), AuthError);
+    await assert.rejects(() => updateProfile(user.id, { name: 123 as never }), AuthError);
   });
 
   test("não mexe no e-mail nem no papel", async () => {

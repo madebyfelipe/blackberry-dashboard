@@ -130,6 +130,36 @@ describe("updateClient", () => {
   });
 });
 
+// Issue #107: nome, segmento e responsável não passavam por `cleanContact`
+// como o resto da ficha — sem teto, e um valor que não é string quebrava com
+// 500 em vez de responder 4xx.
+describe("teto e tipo de nome, segmento e responsável", () => {
+  test("nome, segmento e responsável acima do teto são recusados na criação", async () => {
+    await assert.rejects(() => criar({ name: "x".repeat(81) }), ValidationError);
+    await assert.rejects(() => criar({ segment: "x".repeat(61) }), ValidationError);
+    await assert.rejects(() => criar({ owner: "x".repeat(81) }), ValidationError);
+    const c = await criar({ name: "x".repeat(80), segment: "y".repeat(60), owner: "z".repeat(80) });
+    assert.equal(c.name.length, 80);
+    assert.equal(c.segment.length, 60);
+    assert.equal(c.owner.length, 80);
+  });
+
+  test("mesmo teto no patch", async () => {
+    const c = await criar();
+    await assert.rejects(() => updateClient(AGENCIA_A, c.id, { name: "x".repeat(81) }), ValidationError);
+    await assert.rejects(() => updateClient(AGENCIA_A, c.id, { segment: "x".repeat(61) }), ValidationError);
+    await assert.rejects(() => updateClient(AGENCIA_A, c.id, { owner: "x".repeat(81) }), ValidationError);
+  });
+
+  test("corpo malformado (campo de texto que não é string) é 4xx, não 500", async () => {
+    await assert.rejects(() => criar({ name: { a: 1 } as never }), ValidationError);
+    const c = await criar();
+    await assert.rejects(() => updateClient(AGENCIA_A, c.id, { name: 123 as never }), ValidationError);
+    await assert.rejects(() => updateClient(AGENCIA_A, c.id, { segment: [] as never }), ValidationError);
+    await assert.rejects(() => updateClient(AGENCIA_A, c.id, { owner: {} as never }), ValidationError);
+  });
+});
+
 describe("contato da ficha (cidade, e-mail, telefone)", () => {
   test("nasce vazio e entra aparado", async () => {
     const vazio = await criar({ name: "Sem contato" });

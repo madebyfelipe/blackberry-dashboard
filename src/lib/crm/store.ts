@@ -55,7 +55,7 @@ export function normalizeService(raw: Partial<ClientService> & { id: string }): 
     name: text(raw.name, 60) || "Serviço",
     kind: isServiceKind(raw.kind) ? raw.kind : "outro",
     scope: text(raw.scope, 80),
-    responsibleId: raw.responsibleId ? String(raw.responsibleId) : null,
+    responsibleId: raw.responsibleId ? text(raw.responsibleId, 64) || null : null,
     monthlyValue: cents(raw.monthlyValue),
     status: isServiceStatus(raw.status) ? raw.status : "ativo",
     quota,
