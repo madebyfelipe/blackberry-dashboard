@@ -1,6 +1,6 @@
 # Roadmap — black berry
 
-Documento vivo. Marca o que já existe, o que falta **desenhar** (você) e o que falta **construir** (Claude), até o fim do projeto. Última atualização: **27 set 2026** (revisão semanal: fila de issues arrumada a partir do Ultra review #83, release de Windows do desktop pelo GitHub Actions, contagem de testes em dia).
+Documento vivo. Marca o que já existe, o que falta **desenhar** (você) e o que falta **construir** (Claude), até o fim do projeto. Última atualização: **4 out 2026** (revisão semanal: contagem de testes em dia depois da leva de segurança do PR #103).
 
 Legenda: ✅ pronto · 🟡 parcial/placeholder · ⬜ não começado · 🎨 precisa de tela sua antes de eu construir
 
@@ -143,7 +143,7 @@ Legenda: ✅ pronto · 🟡 parcial/placeholder · ⬜ não começado · 🎨 pr
 - ✅ **Usuários** (`/equipe`, export "Usuários · Painel (Lista)"): função, status, último acesso; convite com link que entra na agência; **convite automático pelo domínio** (com aprovação, porque não há confirmação de e-mail); arquivar tira o acesso na hora
 - ✅ **@ por pessoa** (menção e atribuição no briefing, comentário, Inbox e responsável) · **chamada minimizável** no canto, como no Discord · não lidas do Inbox na lateral
 - ✅ **Design system v3** em Social media, Lote, Editor, Planejamento e Configurações; link público do cliente no celular fiel ao export mobile
-- ✅ **Testes automatizados** (`tests/`, runner do próprio Node, 612 casos das funções puras, incluindo o isolamento entre agências e a régua de clientes) **+ CI** (`.github/workflows/ci.yml`: tipos, testes e build a cada push e pull request)
+- ✅ **Testes automatizados** (`tests/`, runner do próprio Node, 695 casos das funções puras, incluindo o isolamento entre agências e a régua de clientes) **+ CI** (`.github/workflows/ci.yml`: tipos, testes e build a cada push e pull request)
 - ✅ **`npm run lint` volta a funcionar**: o Next 16 removeu o `next lint`; entrou ESLint direto (`eslint.config.mjs`, flat config) com `eslint-config-next/core-web-vitals` + `/typescript`. Duas regras novas do plugin de React Compiler (`react-hooks/set-state-in-effect`, `react-hooks/refs`) ficaram desligadas — pegam padrões usados de propósito em várias telas (sincronizar estado com uma prop que muda, ler `ref.current` para medir menu/toolbar); satisfazê-las seria reescrever esses componentes, não corrigir lint. Ainda fora do CI, que continua só com tipos/testes/build.
 
 ## Fora do MVP (não construir sem pedido)
