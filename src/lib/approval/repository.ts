@@ -303,7 +303,12 @@ export async function createBatch(
   return transaction((batches) => {
     const base = slugify(`${client}-${title}`) || "lote";
     let id = base;
-    for (let n = 2; batches.some((b) => b.id === id); n++) id = `${base}-${n}`;
+    // Só desta agência: toda leitura de lote já filtra por (id, agencyId), e
+    // olhar as outras aqui vazaria se elas têm um lote com o mesmo nome
+    // (issue #111).
+    for (let n = 2; batches.some((b) => b.id === id && b.agencyId === scope.agencyId); n++) {
+      id = `${base}-${n}`;
+    }
 
     let token = randomToken();
     while (batches.some((b) => b.token === token)) token = randomToken();

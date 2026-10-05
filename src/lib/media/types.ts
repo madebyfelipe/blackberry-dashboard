@@ -1,3 +1,5 @@
+import type { AgencyId } from "@/lib/agency/types";
+
 export type MediaKind = "image" | "video" | "audio" | "file";
 
 /** Arte enviada pela agência e anexada a uma peça do lote. */
@@ -21,6 +23,14 @@ export type MediaAsset = {
   duration?: number;
   waveform?: number[];
   createdAt: string;
+  /**
+   * Agência dona do arquivo, quando ele **não** pode ser servido sem sessão
+   * (contrato/arquivo da ficha do cliente, anexo de conversa — issue #111).
+   * `GET /api/media/<id>` confere isto contra a sessão de quem pede; ausente
+   * para o que precisa continuar público: arte do lote (link de aprovação),
+   * foto de perfil e logo da agência.
+   */
+  agencyId?: AgencyId;
   /** URL do objeto no Vercel Blob, quando `BLOB_READ_WRITE_TOKEN` está configurado. */
   blobUrl?: string;
   /**
