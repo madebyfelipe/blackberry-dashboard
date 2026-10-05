@@ -1,7 +1,13 @@
 import assert from "node:assert/strict";
 import test, { describe } from "node:test";
 
-import { MAX_ATTEMPTS, WINDOW_MS, attemptKey, createAttempts } from "../src/lib/auth/attempts";
+import {
+  MAX_ATTEMPTS,
+  WINDOW_MS,
+  attemptKey,
+  createAttempts,
+  trustedClientIp,
+} from "../src/lib/auth/attempts";
 
 describe("freio de tentativas do login", () => {
   test("bloqueia depois do limite e libera quando a janela passa", () => {
@@ -72,5 +78,39 @@ describe("freio de tentativas do login", () => {
     assert.equal(conferidas, MAX_ATTEMPTS);
     assert.equal(status.filter((s) => s === 401).length, MAX_ATTEMPTS);
     assert.equal(status.filter((s) => s === 429).length, 200 - MAX_ATTEMPTS);
+  });
+});
+
+/*
+ * Issue #108: `x-forwarded-for` é o próprio cliente quem escreve (ou pelo
+ * menos o primeiro salto dele) — trocar esse cabeçalho a cada tentativa
+ * bastava para nunca repetir a mesma chave e escapar do freio. Só
+ * `x-vercel-forwarded-for` (a Vercel) e `x-real-ip` (um proxy reverso de
+ * confiança) valem.
+ */
+describe("trustedClientIp", () => {
+  function pedido(headers: Record<string, string>): Request {
+    return new Request("http://localhost/api/auth/login", { headers });
+  }
+
+  test("x-forwarded-for sozinho não vale — é o que o atacante troca à vontade", () => {
+    assert.equal(trustedClientIp(pedido({ "x-forwarded-for": "1.2.3.4" })), null);
+  });
+
+  test("x-vercel-forwarded-for vale, e vence x-forwarded-for", () => {
+    assert.equal(
+      trustedClientIp(
+        pedido({ "x-vercel-forwarded-for": "9.9.9.9", "x-forwarded-for": "1.2.3.4" }),
+      ),
+      "9.9.9.9",
+    );
+  });
+
+  test("x-real-ip vale quando não há x-vercel-forwarded-for", () => {
+    assert.equal(trustedClientIp(pedido({ "x-real-ip": "8.8.8.8" })), "8.8.8.8");
+  });
+
+  test("sem nenhum dos dois, null — o freio cai para só o e-mail, mais estrito", () => {
+    assert.equal(trustedClientIp(pedido({})), null);
   });
 });

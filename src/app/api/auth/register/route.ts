@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { AuthError, registerUser } from "@/lib/auth/repository";
 import { startSession } from "@/lib/auth/session";
+import { createAttempts, trustedClientIp } from "@/lib/auth/attempts";
 import {
   ValidationError,
   acceptInvite,
@@ -13,7 +14,25 @@ import { agencyNameOf } from "@/lib/auth/repository";
 
 export const dynamic = "force-dynamic";
 
+/*
+ * Sem freio, o mesmo IP criava conta sem limite (issue #108) — diferente do
+ * login, aqui o que se limita é a criação em si, bem-sucedida ou não: conta
+ * de verdade é o próprio recurso que se quer escasso (spam de agência fake),
+ * não só a tentativa errada. Por isso, ao contrário do login e da troca de
+ * senha, um cadastro que dá certo **não** zera a contagem.
+ */
+const attempts = createAttempts();
+
 export async function POST(req: Request) {
+  const ipKey = trustedClientIp(req) ?? "?";
+  const wait = attempts.reserve(ipKey);
+  if (wait > 0) {
+    return NextResponse.json(
+      { error: `Muitas contas criadas. Tente de novo em ${Math.ceil(wait / 60)} min.` },
+      { status: 429, headers: { "retry-after": String(wait) } },
+    );
+  }
+
   let body: unknown;
   try {
     body = await req.json();

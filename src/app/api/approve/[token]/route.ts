@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { decidePiece, getBatchByToken } from "@/lib/approval/repository";
 import { onClientDecision, scopeOfBatch } from "@/lib/flows/automation";
-import { createAttempts } from "@/lib/auth/attempts";
+import { createAttempts, trustedClientIp } from "@/lib/auth/attempts";
 import {
   parsePublicDecision,
   PUBLIC_BODY_MAX,
@@ -36,7 +36,10 @@ export async function POST(
 ) {
   const { token } = await params;
   const ip = clientIp(req);
-  const key = `${token}|${ip ?? "?"}`;
+  // O freio usa só o IP de confiança (issue #108) — o `ip` acima continua
+  // sendo "o melhor que der" para o registro de auditoria da decisão
+  // (`snapshot`), que não é controle de segurança.
+  const key = `${token}|${trustedClientIp(req) ?? "?"}`;
   // Confere e conta num passo só, antes de qualquer await (mesmo freio do login).
   const wait = writes.reserve(key);
   if (wait > 0) {
