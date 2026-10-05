@@ -10,7 +10,12 @@
 
 const SRC = new URL("../../src/", import.meta.url);
 
-const HAS_EXTENSION = /\.[a-zA-Z0-9]+$/;
+// Só extensões de verdade — `.ts/.tsx/.js/...`. Um nome de arquivo com ponto
+// no meio (`next.config`) não é "já tem extensão": `/\.[a-zA-Z0-9]+$/` batia
+// no `.config` e desistia de completar `.ts`, e `../next.config` nunca
+// resolvia (issue #109, que foi o primeiro import relativo deste repo a
+// esbarrar nisso — nenhum outro arquivo do projeto tem ponto no nome).
+const HAS_EXTENSION = /\.(ts|tsx|js|jsx|mjs|cjs|json|mts|cts)$/;
 
 export async function resolve(specifier, context, nextResolve) {
   // "@/lib/store/json-file" → file:///…/src/lib/store/json-file
