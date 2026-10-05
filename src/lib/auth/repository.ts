@@ -1,6 +1,6 @@
 import { read, transaction } from "./store";
 import { newAgencyId } from "@/lib/agency/id";
-import { hashPassword, verifyPassword } from "./password";
+import { hashPassword, needsRehash, verifyDecoyPassword, verifyPassword } from "./password";
 import type { Credentials, NewUser, PublicUser, Role, User } from "./types";
 
 /** Toda leitura/escrita de usuário passa por aqui. */
@@ -101,7 +101,10 @@ export async function agencyNameOf(agencyId: string): Promise<string | undefined
 
 /**
  * Login. A mensagem de erro é a mesma para e-mail inexistente e senha errada —
- * não entrega quais e-mails existem na base.
+ * não entrega quais e-mails existem na base. O tempo de resposta também não
+ * (issue #110): e-mail inexistente confere contra um hash-chamariz do mesmo
+ * custo, em vez de voltar na hora — sem isso, "falhou rápido" já dizia que o
+ * e-mail não tinha conta.
  */
 export async function authenticate(
   credentials: Credentials,
@@ -110,8 +113,21 @@ export async function authenticate(
   const password = credentials.password ?? "";
   const user = (await read()).find((u) => u.email === email);
   const failure = new AuthError("E-mail ou senha incorretos.");
-  if (!user) throw failure;
+  if (!user) {
+    await verifyDecoyPassword(password);
+    throw failure;
+  }
   if (!(await verifyPassword(password, user.passwordHash))) throw failure;
+  // Custo antigo (ou formato antigo): regrava com a senha que acabou de
+  // conferir, sem mexer em `passwordVersion` — a senha não mudou, só como
+  // ela é guardada, então não há por que derrubar as sessões abertas.
+  if (needsRehash(user.passwordHash)) {
+    const passwordHash = await hashPassword(password);
+    await transaction((users) => {
+      const u = users.find((x) => x.id === user.id);
+      if (u) u.passwordHash = passwordHash;
+    });
+  }
   return toPublic(user);
 }
 
