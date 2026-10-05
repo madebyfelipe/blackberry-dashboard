@@ -81,3 +81,27 @@ export function createAttempts(
 export function attemptKey(email: string, ip: string | null): string {
   return `${email.trim().toLowerCase()}|${ip ?? "?"}`;
 }
+
+/**
+ * O IP de quem pediu, só de um cabeçalho que o cliente não escreve (issue
+ * #108). `x-forwarded-for` **não** entra mais aqui sozinho: é o próprio
+ * cliente quem manda o primeiro salto dele, então "trocar o cabeçalho a cada
+ * tentativa" bastava para o freio nunca contar o mesmo IP duas vezes.
+ *
+ * - `x-vercel-forwarded-for`: só a Vercel escreve este, sobrescrevendo
+ *   qualquer coisa que tenha vindo do navegador — é o de confiar em produção
+ *   e preview.
+ * - `x-real-ip`: o de um proxy reverso de confiança na frente do Node (não
+ *   existe por padrão no `next dev`, então não finge segurança ali).
+ *
+ * Sem nenhum dos dois (dev local, ou host sem proxy de confiança na frente),
+ * devolve `null` — o freio passa a valer só por e-mail (mais estrito, nunca
+ * mais frouxo) em vez de confiar num IP que o próprio atacante escreve.
+ */
+export function trustedClientIp(req: Request): string | null {
+  const vercel = req.headers.get("x-vercel-forwarded-for");
+  if (vercel) return vercel.split(",")[0].trim();
+  const real = req.headers.get("x-real-ip");
+  if (real) return real.trim();
+  return null;
+}

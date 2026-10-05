@@ -1,13 +1,9 @@
 import { NextResponse } from "next/server";
 import { authenticate, AuthError } from "@/lib/auth/repository";
 import { startSession } from "@/lib/auth/session";
-import { attemptKey, createAttempts } from "@/lib/auth/attempts";
+import { attemptKey, createAttempts, trustedClientIp } from "@/lib/auth/attempts";
 
 const attempts = createAttempts();
-
-function clientIp(req: Request): string | null {
-  return req.headers.get("x-forwarded-for")?.split(",")[0].trim() ?? req.headers.get("x-real-ip");
-}
 
 export const dynamic = "force-dynamic";
 
@@ -19,7 +15,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "JSON inválido." }, { status: 400 });
   }
   const { email, password } = (body ?? {}) as Record<string, unknown>;
-  const key = attemptKey(String(email ?? ""), clientIp(req));
+  const key = attemptKey(String(email ?? ""), trustedClientIp(req));
   // Reserva a vaga já aqui, antes do primeiro `await` (ver `reserve`).
   const wait = attempts.reserve(key);
   if (wait > 0) {
