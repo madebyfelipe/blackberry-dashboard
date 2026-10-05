@@ -44,6 +44,7 @@ export async function POST(req: Request, { params }: Ctx) {
             uploaderId: session.user.id,
             target: UPLOAD_TARGET.cliente(id),
           },
+          agencyId: session.scope.agencyId,
         },
         CLIENT_FILE_POLICY,
       );
@@ -57,7 +58,7 @@ export async function POST(req: Request, { params }: Ctx) {
       }
       media = await saveMedia(
         new Uint8Array(await file.arrayBuffer()),
-        { mime: file.type, name: file.name.slice(0, 160) },
+        { mime: file.type, name: file.name.slice(0, 160), agencyId: session.scope.agencyId },
         CLIENT_FILE_POLICY,
       );
     }

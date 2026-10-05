@@ -98,6 +98,20 @@ function memberIdFromEmail(email: string): string {
 }
 
 /**
+ * Id de membro novo, sempre com um sufixo aleatório — nunca só o slug do
+ * e-mail. Se o sufixo só aparecesse em caso de choque, o id devolvido (com
+ * ou sem ele) diria se aquele e-mail já é membro em outra agência, que é
+ * exatamente o oráculo da issue #111.
+ */
+function freshMemberId(email: string, taken: (id: string) => boolean): string {
+  let id: string;
+  do {
+    id = `${memberIdFromEmail(email)}-${Math.random().toString(36).slice(2, 5)}`;
+  } while (taken(id));
+  return id;
+}
+
+/**
  * Quem está olhando a tela, como membro da equipe.
  *
  * O vínculo é pelo e-mail da conta — é o que liga a conta de demonstração ao
@@ -139,8 +153,7 @@ export async function ensureMember(
       // prova nada — o produto não confirma e-mail (issue #72).
       return { ...member };
     }
-    let id = memberIdFromEmail(email);
-    while (data.members.some((m) => m.id === id)) id = `${id}-${Math.random().toString(36).slice(2, 5)}`;
+    const id = freshMemberId(email, (candidate) => data.members.some((m) => m.id === candidate));
     const created: InboxMember = {
       id,
       agencyId: scope.agencyId,
@@ -206,8 +219,7 @@ export async function inviteMember(
       throw new ValidationError("Esse e-mail já está no time.");
     }
     const inviter = members.find((m) => m.id === viewerId);
-    let id = memberIdFromEmail(email);
-    while (data.members.some((m) => m.id === id)) id = `${id}-${Math.random().toString(36).slice(2, 5)}`;
+    const id = freshMemberId(email, (candidate) => data.members.some((m) => m.id === candidate));
     const created: InboxMember = {
       id,
       agencyId: scope.agencyId,
@@ -430,8 +442,7 @@ export async function requestJoin(
       // função do convite — sem o token (issue #72).
       throw new ValidationError(JOIN_TAKEN);
     }
-    let id = memberIdFromEmail(email);
-    while (data.members.some((m) => m.id === id)) id = `${id}-${Math.random().toString(36).slice(2, 5)}`;
+    const id = freshMemberId(email, (candidate) => data.members.some((m) => m.id === candidate));
     const created: InboxMember = {
       id,
       agencyId,

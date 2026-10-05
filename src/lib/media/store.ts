@@ -135,7 +135,13 @@ type AudioMeta = Pick<MediaAsset, "duration" | "waveform">;
  */
 export async function saveMedia(
   bytes: Uint8Array,
-  meta: { mime: string; name: string; owner?: MediaAsset["owner"]; audio?: AudioMeta },
+  meta: {
+    mime: string;
+    name: string;
+    owner?: MediaAsset["owner"];
+    agencyId?: MediaAsset["agencyId"];
+    audio?: AudioMeta;
+  },
   policy: MediaPolicy = ART_POLICY,
 ): Promise<MediaAsset> {
   const mime = baseMime(meta.mime);
@@ -158,6 +164,7 @@ export async function saveMedia(
     ...(accepted.kind === "audio" ? meta.audio : {}),
     createdAt: new Date().toISOString(),
     ...(meta.owner ? { owner: meta.owner } : {}),
+    ...(meta.agencyId ? { agencyId: meta.agencyId } : {}),
   };
 
   // Bytes primeiro: um registro sem arquivo daria uma arte quebrada na tela.
@@ -305,6 +312,7 @@ export async function saveBlobMedia(
     name: string;
     grant: UploadGrantOwner;
     owner?: MediaAsset["owner"];
+    agencyId?: MediaAsset["agencyId"];
     audio?: AudioMeta;
   },
   policy: MediaPolicy = ART_POLICY,
@@ -357,6 +365,7 @@ export async function saveBlobMedia(
     blobUrl: found.url,
     blobPathname: found.pathname,
     ...(meta.owner ? { owner: meta.owner } : {}),
+    ...(meta.agencyId ? { agencyId: meta.agencyId } : {}),
   };
 
   // De novo dentro da transação: dois registros do mesmo pathname ao mesmo
