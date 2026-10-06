@@ -25,6 +25,12 @@ export async function resolve(specifier, context, nextResolve) {
   // como `next/server.js`. Completa para os testes de route handler.
   if (/^next\/[\w/-]+$/.test(spec)) return nextResolve(`${spec}.js`, context);
 
+  // `server-only` não é uma dependência instalada — o webpack do Next troca
+  // por um stub por dentro, mesmo sem o pacote. Ver `server-only-stub.mjs`.
+  if (spec === "server-only" || spec === "client-only") {
+    return nextResolve(new URL("./server-only-stub.mjs", import.meta.url).href, context);
+  }
+
   // Pacote de verdade (node:test, react…): caminho normal.
   if (!relative && !absolute) return nextResolve(spec, context);
 

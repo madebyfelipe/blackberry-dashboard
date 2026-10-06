@@ -40,6 +40,25 @@ export async function listTasksForClient(
   return (await listTasks(scope)).filter((t) => t.clientId === clientId);
 }
 
+/**
+ * Existe tarefa não concluída de um fluxo parada numa destas etapas? Usado
+ * para recusar a remoção de uma etapa que ainda tem trabalho nela (issue
+ * #81, achado 6) — sem o freio, a tarefa fica com um `stepId` que não existe
+ * mais e o fluxo dela termina em silêncio.
+ */
+export async function hasOpenTasksAtSteps(
+  scope: AgencyScope,
+  flowId: string,
+  stepIds: string[],
+): Promise<boolean> {
+  if (stepIds.length === 0) return false;
+  const ids = new Set(stepIds);
+  const tasks = await listTasks(scope);
+  return tasks.some(
+    (t) => t.flowId === flowId && t.stepId !== null && ids.has(t.stepId) && t.status !== "concluido",
+  );
+}
+
 export async function getTask(
   scope: AgencyScope,
   id: string,
