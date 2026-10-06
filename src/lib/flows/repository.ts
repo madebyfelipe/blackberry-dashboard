@@ -9,6 +9,7 @@ import {
 } from "./constants";
 import { flowTemplate } from "./templates";
 import { isFlowStatus, pickFlowForClient } from "./view";
+import { hasOpenTasksAtSteps } from "@/lib/tasks/repository";
 import type { AgencyScope } from "@/lib/agency/types";
 import type {
   Flow,
@@ -150,6 +151,16 @@ export async function updateFlow(
     const ids = new Set(steps.map((s) => s.id));
     if (ids.size !== steps.length) throw new ValidationError("Etapas repetidas.");
     steps = steps.map((s) => (s.nextStepId && !ids.has(s.nextStepId) ? { ...s, nextStepId: null } : s));
+
+    const before = await getFlow(scope, id);
+    if (before) {
+      const removedIds = before.steps.filter((s) => !ids.has(s.id)).map((s) => s.id);
+      if (removedIds.length && (await hasOpenTasksAtSteps(scope, id, removedIds))) {
+        throw new ValidationError(
+          "Esta etapa tem tarefa aberta nela. Mova ou conclua as tarefas antes de removê-la.",
+        );
+      }
+    }
   }
 
   return transaction((flows) => {

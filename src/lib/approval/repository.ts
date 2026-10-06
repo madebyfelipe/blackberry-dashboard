@@ -470,6 +470,10 @@ export async function decidePiece(
     if (!isBatchLinkActive(batch)) return "inactive-link" as const;
     const piece = batch.pieces.find((p) => p.id === pieceId);
     if (!piece) return undefined;
+    // A mesma decisão repetida (toque duplo, reload + reswipe, retry de rede)
+    // não grava um segundo evento — duplicaria o histórico e a taxa de
+    // aprovação (issue #81, achado 3). Decisão diferente da gravada segue normal.
+    if (piece.status === decision) return { ...piece };
 
     piece.status = decision;
     // A rota já recusa o que passa do teto; o corte aqui é a rede embaixo.

@@ -1,5 +1,6 @@
 import "server-only";
 import type { AgencyScope } from "@/lib/agency/types";
+import { getBatch } from "@/lib/approval/repository";
 import type { Batch, Piece } from "@/lib/approval/types";
 import { findClientForRecord } from "@/lib/clients/repository";
 import { notifyTaskChange } from "@/lib/notifications/dispatch";
@@ -285,7 +286,7 @@ export async function advanceTask(
   if (!next) {
     return noteOnly(scope, task, `${current.name} concluída por ${by} — fim do fluxo ${flow.name}.`, expect);
   }
-  return enter(
+  const moved = await enter(
     scope,
     task,
     flow,
@@ -293,6 +294,8 @@ export async function advanceTask(
     (quem) => `${current.name} concluída por ${by} → encaminhada para ${next.name}, com ${quem}.`,
     expect,
   );
+  if (!moved) return moved;
+  return (await followUpIfClientStep(scope, moved, next)) ?? moved;
 }
 
 /** A etapa anterior ligada — para onde volta o ajuste pedido pelo cliente. */
@@ -302,13 +305,102 @@ function previousStep(flow: Flow, stepId: string): FlowStep | null {
   return null;
 }
 
+/** A etapa do cliente no fluxo (a aprovação pelo link), se houver uma ligada. */
+function clientStepOf(flow: Flow): FlowStep | undefined {
+  return flow.steps.find((s) => s.assignee.kind === "cliente" && !s.disabled);
+}
+
 /**
- * A decisão do cliente chega na tarefa do criativo.
+ * Quem decidiu e o quê, lido do histórico da peça — para reaplicar uma
+ * decisão que já existia quando a tarefa ainda não tinha chegado na etapa do
+ * cliente (issue #81, achado 1). `null` quando a peça ainda está pendente.
+ */
+function pieceDecisionFor(
+  piece: Piece,
+): { decision: "aprovado" | "ajuste"; reason?: string; decidedBy: "cliente" | "agencia" } | null {
+  if (piece.status === "pendente") return null;
+  const decidedBy = piece.history[0]?.title === "Aprovada pela agência" ? "agencia" : "cliente";
+  return { decision: piece.status, reason: piece.reason, decidedBy };
+}
+
+/**
+ * A tarefa acabou de entrar numa etapa. Se for a etapa do cliente e a peça já
+ * tiver sido decidida antes de a tarefa chegar lá (aprovação ou ajuste
+ * adiantado), a decisão não fica esperando — é aplicada na hora.
+ */
+async function followUpIfClientStep(
+  scope: AgencyScope,
+  task: Task,
+  step: FlowStep,
+): Promise<Task | undefined> {
+  if (step.assignee.kind !== "cliente" || !task.source) return undefined;
+  const batch = await getBatch(scope, task.source.batchId);
+  const piece = batch?.pieces.find((p) => p.id === task.source!.pieceId);
+  const decided = piece && pieceDecisionFor(piece);
+  if (!decided) return undefined;
+  return applyPieceDecision(scope, task, decided.decision, decided.reason, decided.decidedBy);
+}
+
+/**
+ * O núcleo da decisão sobre o criativo — do cliente pelo link público, ou da
+ * agência aprovando por fora (`onAgencyApproval`).
  *
  * - **Aprovado** numa etapa do cliente: a etapa está feita, e a tarefa segue
- *   para a próxima (a publicação, no fluxo padrão).
- * - **Ajuste**: a tarefa volta uma etapa, com o motivo na conversa — quem
- *   produziu é quem precisa ler o que o cliente pediu.
+ *   para a próxima (a publicação, no fluxo padrão). Chegando antes da tarefa
+ *   alcançar a etapa do cliente, não faz nada agora — `followUpIfClientStep`
+ *   reaplica quando ela chegar lá.
+ * - **Ajuste**: a tarefa volta para a etapa **anterior à do cliente** no
+ *   fluxo, com o motivo na conversa — mesmo que ela já tenha avançado mais
+ *   (aprovação seguida de um novo pedido de ajuste). Sem etapa anterior (a
+ *   do cliente é a primeira do fluxo), a nota fica registrada e a tarefa
+ *   volta para quem toca a própria etapa do cliente — ninguém fica com um
+ *   ajuste que não chega a lugar nenhum.
+ */
+async function applyPieceDecision(
+  scope: AgencyScope,
+  task: Task,
+  decision: "aprovado" | "ajuste",
+  reason: string | undefined,
+  decidedBy: "cliente" | "agencia",
+): Promise<Task | undefined> {
+  if (!task.flowId || !task.stepId) return undefined;
+  const flow = await getFlow(scope, task.flowId);
+  const current = flow?.steps.find((s) => s.id === task.stepId);
+  if (!flow || !current) return undefined;
+  // A decisão vale para a etapa lida aqui. Se a tarefa andou no meio (a
+  // agência concluiu, ou a mesma decisão chegou duas vezes), nada é gravado.
+  const expect: Expect = { stepId: current.id };
+  const quemAprovou = decidedBy === "agencia" ? "Aprovada pela agência" : "Aprovada pelo cliente";
+
+  if (decision === "aprovado") {
+    if (current.assignee.kind !== "cliente") return undefined;
+    const next = nextStep(flow, current.id);
+    if (!next) {
+      return moveTaskToStep(scope, task.id, {
+        flowId: flow.id,
+        stepId: current.id,
+        status: "concluido",
+        dueDate: null,
+        note: { author: SYSTEM, text: `${quemAprovou} — fim do fluxo ${flow.name}.` },
+        expect: { stepId: current.id, status: task.status },
+      });
+    }
+    const moved = await enter(scope, task, flow, next, (quem) => `${quemAprovou} → encaminhada para ${next.name}, com ${quem}.`, expect);
+    if (!moved) return moved;
+    return (await followUpIfClientStep(scope, moved, next)) ?? moved;
+  }
+
+  // ajuste: sempre em relação à etapa do cliente no fluxo, não à etapa atual
+  // da tarefa — ela pode já ter avançado além dela.
+  const clientStep = clientStepOf(flow);
+  const back = (clientStep && previousStep(flow, clientStep.id)) ?? clientStep ?? current;
+  const motivo = reason?.trim() ? `: "${reason.trim()}"` : "";
+  const quemPediu = decidedBy === "agencia" ? "A agência marcou ajuste" : "O cliente pediu ajuste";
+  return enter(scope, task, flow, back, (quem) => `${quemPediu}${motivo} → de volta para ${back.name}, com ${quem}.`, expect);
+}
+
+/**
+ * A decisão do cliente pelo link público chega na tarefa do criativo.
  *
  * O `scope` aqui vem do lote que o token resolveu (ver `scopeOfBatch`).
  */
@@ -317,39 +409,23 @@ export async function onClientDecision(
   pieceId: string,
   decision: "aprovado" | "ajuste" | "pendente",
   reason?: string,
-): Promise<void> {
+): Promise<Task | undefined> {
+  if (decision === "pendente") return undefined;
   const task = await findTaskBySource(scope, pieceId);
-  if (!task?.flowId || !task.stepId) return;
-  const flow = await getFlow(scope, task.flowId);
-  const current = flow?.steps.find((s) => s.id === task.stepId);
-  if (!flow || !current) return;
-  // A decisão vale para a etapa lida aqui. Se a tarefa andou no meio (a
-  // agência concluiu, ou a mesma decisão chegou duas vezes), nada é gravado.
-  const expect: Expect = { stepId: current.id };
+  if (!task) return undefined;
+  return applyPieceDecision(scope, task, decision, reason, "cliente");
+}
 
-  if (decision === "aprovado" && current.assignee.kind === "cliente") {
-    const next = nextStep(flow, current.id);
-    if (!next) {
-      await moveTaskToStep(scope, task.id, {
-        flowId: flow.id,
-        stepId: current.id,
-        status: "concluido",
-        dueDate: null,
-        note: { author: SYSTEM, text: `Aprovada pelo cliente — fim do fluxo ${flow.name}.` },
-        expect: { stepId: current.id, status: task.status },
-      });
-      return;
-    }
-    await enter(scope, task, flow, next, (quem) => `Aprovada pelo cliente → encaminhada para ${next.name}, com ${quem}.`, expect);
-    return;
-  }
-
-  if (decision === "ajuste") {
-    const back = current.assignee.kind === "cliente" ? previousStep(flow, current.id) : current;
-    if (!back) return;
-    const motivo = reason?.trim() ? `: "${reason.trim()}"` : "";
-    await enter(scope, task, flow, back, (quem) => `O cliente pediu ajuste${motivo} → de volta para ${back.name}, com ${quem}.`, expect);
-  }
+/**
+ * A agência aprovou a peça por fora do link (`approvePieceByAgency`) — anda
+ * a tarefa pelo mesmo caminho do motor, com a nota dizendo que foi a agência
+ * (issue #81, achado 4): sem isto, uma peça aprovada pela agência enquanto o
+ * cliente não decide ficava presa na etapa de aprovação para sempre.
+ */
+export async function onAgencyApproval(scope: AgencyScope, pieceId: string): Promise<Task | undefined> {
+  const task = await findTaskBySource(scope, pieceId);
+  if (!task) return undefined;
+  return applyPieceDecision(scope, task, "aprovado", undefined, "agencia");
 }
 
 /**
