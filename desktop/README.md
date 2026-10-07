@@ -27,7 +27,11 @@ npm run check    # sintaxe + testes das regras de segurança (node --test)
 ```
 
 Para apontar para outro endereço sem mexer em nada: `npx electron . --url=https://preview-xyz.vercel.app`
-(ou a variável `BLACKBERRY_URL`). `http` só é aceito em `localhost`.
+(ou a variável `BLACKBERRY_URL`). `http` só é aceito em `localhost`. **Só vale
+fora do app empacotado** — o instalado ignora os dois e abre sempre
+`blackberry.url` do `package.json` (`resolveAppOriginForEnvironment` em
+`policy.js`), senão um atalho `blackberry.exe --url=https://golpe` abriria um
+site de fora com microfone, câmera e tela liberados.
 
 ## Gerando o instalador
 

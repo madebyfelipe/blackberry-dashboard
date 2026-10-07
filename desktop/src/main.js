@@ -35,15 +35,20 @@ const {
   allowsPermission,
   canOpenExternally,
   isAppUrl,
-  resolveAppOrigin,
+  resolveAppOriginForEnvironment,
 } = require("./policy");
 const { escolherFonte } = require("./screen-picker");
 const { normalizarQualidade } = require("./share-quality");
 const pkg = require("../package.json");
 
-/** `--url=` na linha de comando (o `npm run dev`) ou `BLACKBERRY_URL`. */
+/**
+ * `--url=` na linha de comando (o `npm run dev`) ou `BLACKBERRY_URL`. Só
+ * valem fora do app empacotado — instalado, a origem é sempre a de produção
+ * do `package.json` (ver `resolveAppOriginForEnvironment` em `policy.js`).
+ */
 const URL_ARG = process.argv.find((a) => a.startsWith("--url="))?.slice("--url=".length);
-const APP_ORIGIN = resolveAppOrigin(
+const APP_ORIGIN = resolveAppOriginForEnvironment(
+  app.isPackaged,
   URL_ARG || process.env.BLACKBERRY_URL,
   pkg.blackberry?.url,
 );
