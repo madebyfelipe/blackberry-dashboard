@@ -23,6 +23,12 @@ on:
       - .github/workflows/desktop-release.yml
   workflow_dispatch:
 
+# Por padrão só lê: um PR roda código e dependências de fora e não pode
+# carregar um token que grava no repositório. Só o job que publica o
+# release (depois do build, só em push na main) ganha `contents: write`.
+permissions:
+  contents: read
+
 concurrency:
   group: desktop-${{ github.ref }}
   cancel-in-progress: true
@@ -31,8 +37,8 @@ jobs:
   windows:
     name: Instalador do Windows
     runs-on: windows-latest
-    permissions:
-      contents: write
+    outputs:
+      versao: ${{ steps.versao.outputs.v }}
     defaults:
       run:
         working-directory: desktop
@@ -69,11 +75,28 @@ jobs:
           path: desktop/dist/blackberry-${{ steps.versao.outputs.v }}-win-x64.exe
           if-no-files-found: error
 
+  publicar:
+    name: Publicar o release
+    needs: windows
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Baixar o código
+        uses: actions/checkout@v4
+
+      - name: Baixar o instalador
+        uses: actions/download-artifact@v4
+        with:
+          name: blackberry-${{ needs.windows.outputs.versao }}-win-x64
+          path: dist
+
       - name: Publicar o release
-        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
         env:
           GH_TOKEN: ${{ github.token }}
-          V: ${{ steps.versao.outputs.v }}
+          V: ${{ needs.windows.outputs.versao }}
         run: |
           if gh release view "v$V" > /dev/null 2>&1; then
             echo "O release v$V já existe — nada a publicar."
@@ -82,4 +105,4 @@ jobs:
           gh release create "v$V" "dist/blackberry-$V-win-x64.exe" \
             --target "$GITHUB_SHA" \
             --title "black berry desktop $V" \
-            --notes-file RELEASE_NOTES.md
+            --notes-file desktop/RELEASE_NOTES.md

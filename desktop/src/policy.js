@@ -33,6 +33,17 @@ function resolveAppOrigin(envUrl, configUrl) {
   return null;
 }
 
+/**
+ * Qual endereço vale, dado se o app está empacotado (instalado) ou não.
+ * `--url=`/`BLACKBERRY_URL` só valem fora do empacotado (dev, `npm run dev`,
+ * ou apontar para um preview) — senão um atalho `blackberry.exe
+ * --url=https://golpe` abriria um site de fora dentro da janela confiável,
+ * com microfone, câmera e tela liberados por `allowsPermission`.
+ */
+function resolveAppOriginForEnvironment(isPackaged, custom, configUrl) {
+  return resolveAppOrigin(isPackaged ? undefined : custom, configUrl);
+}
+
 /** O endereço é do próprio black berry (mesma origem, byte a byte)? */
 function isAppUrl(raw, appOrigin) {
   try {
@@ -75,4 +86,10 @@ function allowsPermission(permission, requestingUrl, appOrigin) {
   return PERMISSOES.has(permission) && isAppUrl(requestingUrl, appOrigin);
 }
 
-module.exports = { resolveAppOrigin, isAppUrl, canOpenExternally, allowsPermission };
+module.exports = {
+  resolveAppOrigin,
+  resolveAppOriginForEnvironment,
+  isAppUrl,
+  canOpenExternally,
+  allowsPermission,
+};

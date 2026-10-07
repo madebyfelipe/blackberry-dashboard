@@ -10,6 +10,10 @@ on:
   push:
   pull_request:
 
+# Só lê o repositório — tipos, testes e build não gravam nada.
+permissions:
+  contents: read
+
 # Um push novo no mesmo branch cancela a execução anterior.
 concurrency:
   group: ci-${{ github.ref }}

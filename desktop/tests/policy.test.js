@@ -7,6 +7,7 @@ const {
   canOpenExternally,
   isAppUrl,
   resolveAppOrigin,
+  resolveAppOriginForEnvironment,
 } = require("../src/policy");
 const fs = require("node:fs");
 const path = require("node:path");
@@ -25,6 +26,14 @@ test("endereço do app: http só em localhost, e nada que não seja web", () => 
   assert.equal(resolveAppOrigin("http://app.exemplo.com.br"), null);
   assert.equal(resolveAppOrigin("file:///etc/passwd"), null);
   assert.equal(resolveAppOrigin("não é url"), null);
+});
+
+test("endereço do app: empacotado ignora --url/BLACKBERRY_URL, só vale o do package.json", () => {
+  const PROD = "https://ragick-xi.vercel.app";
+  assert.equal(resolveAppOriginForEnvironment(true, "https://golpe.com", PROD), PROD);
+  assert.equal(resolveAppOriginForEnvironment(true, "http://localhost:3000", PROD), PROD);
+  assert.equal(resolveAppOriginForEnvironment(false, "http://localhost:3000", PROD), "http://localhost:3000");
+  assert.equal(resolveAppOriginForEnvironment(false, undefined, PROD), PROD);
 });
 
 test("origem do app: igual byte a byte, sem subdomínio nem porta diferente", () => {
