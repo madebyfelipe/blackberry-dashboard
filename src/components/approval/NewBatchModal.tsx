@@ -158,6 +158,7 @@ export function NewBatchModal({
                   }
                   if (e.key === "Escape") {
                     e.preventDefault();
+                    e.stopPropagation();
                     setPeriod("");
                     setPeriodOpen(false);
                   }

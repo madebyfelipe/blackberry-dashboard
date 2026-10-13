@@ -166,10 +166,27 @@ export function FlowsView({
 
   const byId = (id: string) => team.find((p) => p.id === id);
 
-  /** Grava o fluxo; a tela já mostra o novo, e volta atrás se o servidor recusar. */
+  /** Último PATCH enviado por fluxo — só a resposta dele pinta a tela. */
+  const lastSave = useRef(new Map<string, number>());
+  /** A última versão de cada fluxo que o servidor devolveu. */
+  const confirmed = useRef(new Map<string, Flow>());
+
+  /**
+   * Grava o fluxo; a tela já mostra o novo, e volta atrás se o servidor recusar.
+   *
+   * Duas edições seguidas (ligar duas automações, por exemplo) viram dois
+   * PATCHs em voo. A resposta do mais velho chegando por último pintava a
+   * tela com o fluxo de antes da segunda edição, e a falha dele voltava atrás
+   * também a edição mais nova. Só a resposta do último pedido vale.
+   */
   async function save(id: string, patch: Partial<Pick<Flow, "name" | "status" | "steps" | "startStepId">>) {
     const before = flows.find((f) => f.id === id);
     if (!before) return;
+    const seq = (lastSave.current.get(id) ?? 0) + 1;
+    lastSave.current.set(id, seq);
+    const latest = () => lastSave.current.get(id) === seq;
+    // No primeiro pedido, o que está na tela é o que veio do servidor.
+    if (!confirmed.current.has(id)) confirmed.current.set(id, before);
     setFlows((all) => all.map((f) => (f.id === id ? { ...f, ...patch } : f)));
     try {
       const res = await fetch(`/api/flows/${id}`, {
@@ -179,9 +196,13 @@ export function FlowsView({
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data?.error ?? "Não foi possível salvar o fluxo.");
-      setFlows((all) => all.map((f) => (f.id === id ? data.flow : f)));
+      confirmed.current.set(id, data.flow);
+      if (latest()) setFlows((all) => all.map((f) => (f.id === id ? data.flow : f)));
     } catch (err) {
-      setFlows((all) => all.map((f) => (f.id === id ? before : f)));
+      // Volta ao último que o servidor confirmou, não ao retrato deste
+      // pedido — ele pode carregar a edição de um pedido anterior que falhou.
+      const back = confirmed.current.get(id) ?? before;
+      if (latest()) setFlows((all) => all.map((f) => (f.id === id ? back : f)));
       toast(err instanceof Error ? err.message : "Não foi possível salvar o fluxo.", "error");
     }
   }
@@ -507,7 +528,11 @@ export function FlowsView({
             </div>
 
             {step && (
+              // A `key` remonta o painel ao trocar de etapa: os campos de
+              // transição são não controlados, e sem ela o texto digitado
+              // numa etapa era gravado na outra.
               <StepDetails
+                key={`${flow.id}:${step.id}`}
                 flow={flow}
                 step={step}
                 team={team}

@@ -410,6 +410,7 @@ function ServicesChip({
             } else if (e.key === "Backspace" && !draft && services.length) {
               onChange(services.slice(0, -1));
             } else if (e.key === "Escape") {
+              e.stopPropagation();
               setDraft("");
               setOpen(false);
             }
@@ -479,6 +480,7 @@ function BillingChip({
               e.preventDefault();
               commit();
             } else if (e.key === "Escape") {
+              e.stopPropagation();
               setDraft(value === null ? "" : String(value));
               setOpen(false);
             }
@@ -537,6 +539,7 @@ function NpsChip({ value, onChange }: { value: number | null; onChange: (v: numb
               e.preventDefault();
               commit();
             } else if (e.key === "Escape") {
+              e.stopPropagation();
               setDraft(show(value));
               setOpen(false);
             }
@@ -598,6 +601,7 @@ function ChipField({
               e.preventDefault();
               commit();
             } else if (e.key === "Escape") {
+              e.stopPropagation();
               setDraft(value);
               setOpen(false);
             }

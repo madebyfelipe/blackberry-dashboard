@@ -379,6 +379,7 @@ function LabelsChip({
             } else if (e.key === "Backspace" && !draft && labels.length) {
               onChange(labels.slice(0, -1));
             } else if (e.key === "Escape") {
+              e.stopPropagation();
               setDraft("");
               setOpen(false);
             }
@@ -433,7 +434,11 @@ function DueChip({
             onChange(e.target.value ? new Date(e.target.value).toISOString() : null)
           }
           onBlur={() => setOpen(false)}
-          onKeyDown={(e) => e.key === "Escape" && setOpen(false)}
+          onKeyDown={(e) => {
+            if (e.key !== "Escape") return;
+            e.stopPropagation();
+            setOpen(false);
+          }}
           className="bg-transparent text-[13px] text-fg-soft focus:outline-none [color-scheme:dark]"
         />
         {value && (
@@ -514,6 +519,7 @@ function ChipField({
               e.preventDefault();
               commit();
             } else if (e.key === "Escape") {
+              e.stopPropagation();
               setDraft(value);
               setOpen(false);
             }
