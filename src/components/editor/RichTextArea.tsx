@@ -100,6 +100,8 @@ export function RichTextArea({
   const [lineH, setLineH] = useState(21);
   /** Seleção a devolver ao DOM depois de um comando reescrever o texto. */
   const pending = useRef<Selection | null>(null);
+  /** Esc pediu para sair sem gravar: o próximo blur não chama `onCommit`. */
+  const cancelled = useRef(false);
   const team = useTeam();
 
   useEffect(() => setDraft(value), [value]);
@@ -258,7 +260,9 @@ export function RichTextArea({
         return;
       }
       if (e.key === "Escape") {
+        // Fecha o menu, não o modal em volta.
         e.preventDefault();
+        e.stopPropagation();
         setTrigger(null);
         return;
       }
@@ -306,6 +310,10 @@ export function RichTextArea({
     }
 
     if (e.key === "Escape") {
+      // O blur que vem em seguida ainda enxerga o rascunho velho e o
+      // gravaria: Esc salvava em vez de cancelar.
+      e.stopPropagation();
+      cancelled.current = true;
       change(value);
       e.currentTarget.blur();
     }
@@ -371,7 +379,8 @@ export function RichTextArea({
         onBlur={() => {
           setFocused(false);
           setTrigger(null);
-          onCommit(draft.trim());
+          if (cancelled.current) cancelled.current = false;
+          else onCommit(draft.trim());
         }}
         onKeyDown={onKeyDown}
         className={cn(
@@ -448,8 +457,11 @@ export function RichTextArea({
             onBulletList={() => apply(toggleBlock(draft, sel, "bullet"))}
             onDuplicate={() => apply(duplicateSelection(draft, sel))}
             onSend={() => {
-              onCommit(draft.trim());
-              ref.current?.blur();
+              // Com o campo em foco, o próprio blur grava; gravar aqui também
+              // mandava o texto duas vezes.
+              const el = ref.current;
+              if (el && document.activeElement === el) el.blur();
+              else onCommit(draft.trim());
             }}
           />,
           document.body,

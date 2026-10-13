@@ -46,6 +46,7 @@ import { FilterMenu } from "./FilterMenu";
 import { DisplayMenu } from "./DisplayMenu";
 import { Popover } from "@/components/ui/Popover";
 import { apiCreateTask, apiDeleteTask, apiUpdateTask } from "./api";
+import { reinsert } from "@/lib/ui/reinsert";
 
 type StatusTab = TaskStatus | "todas";
 type OpenMenu = "filtros" | "visualizacao" | null;
@@ -171,7 +172,6 @@ export function TasksView({
   // ---- mutations (otimistas) ----
 
   async function changeStatus(task: Task, status: TaskStatus) {
-    const prev = tasks;
     setTasks((ts) => ts.map((t) => (t.id === task.id ? { ...t, status } : t)));
     try {
       // A resposta manda: tarefa de fluxo marcada como concluída anda para a
@@ -182,7 +182,8 @@ export function TasksView({
         toast(`Etapa concluída — a tarefa seguiu para ${updated.assignee !== "—" ? updated.assignee : "a próxima etapa"}.`);
       }
     } catch (e) {
-      setTasks(prev);
+      // Volta só esta tarefa: o resto da lista pode ter mudado nesse meio tempo.
+      setTasks((ts) => ts.map((t) => (t.id === task.id ? task : t)));
       toast(errMsg(e), "error");
     }
   }
@@ -201,12 +202,12 @@ export function TasksView({
     let undone = false;
     const timer = setTimeout(async () => {
       if (undone) return;
-      try {
-        await Promise.all(doomed.map((t) => apiDeleteTask(t.id)));
-      } catch (e) {
-        setTasks(before);
-        toast(errMsg(e), "error");
-      }
+      // Só volta o que o servidor recusou — o resto já saiu de verdade.
+      const results = await Promise.allSettled(doomed.map((t) => apiDeleteTask(t.id)));
+      const failed = doomed.filter((_, i) => results[i].status === "rejected");
+      const error = results.find((r) => r.status === "rejected");
+      if (failed.length > 0) setTasks((ts) => reinsert(ts, before, failed));
+      if (error) toast(errMsg(error.reason), "error");
     }, 4200);
 
     toast(
@@ -221,7 +222,7 @@ export function TasksView({
           onClick: () => {
             undone = true;
             clearTimeout(timer);
-            setTasks(before);
+            setTasks((ts) => reinsert(ts, before, doomed));
           },
         },
       },

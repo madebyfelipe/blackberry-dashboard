@@ -33,6 +33,7 @@ export function useMenuKeys(open: boolean, close: () => void) {
   function onKeyDown(e: React.KeyboardEvent) {
     if (e.key === "Escape") {
       e.preventDefault();
+      e.stopPropagation();
       close();
       triggerRef.current?.focus();
       return;

@@ -82,7 +82,12 @@ export function TaskDetail({ task: initial, flow }: { task: Task; flow: Flow | n
       const updated = await apiUpdateTask(task.id, values);
       if (sent === lastSent.current) setTask(updated);
     } catch (e) {
-      setTask(before);
+      // Desfaz só os campos deste PATCH: outro campo editado enquanto este
+      // estava no ar não pode voltar junto.
+      const undo = Object.fromEntries(
+        Object.keys(values).map((k) => [k, before[k as keyof Task]]),
+      );
+      setTask((t) => ({ ...t, ...undo }) as Task);
       toast(errMsg(e), "error");
     } finally {
       pending.current -= 1;
@@ -459,6 +464,40 @@ function PropertyRow({
 /* ---------------------------------------------------------------- campos */
 
 /**
+ * O "salva no blur, Esc cancela" dos campos que se editam no lugar.
+ *
+ * O Esc não pode só devolver o rascunho e tirar o foco: o `setDraft` ainda não
+ * valeu quando o blur roda logo em seguida, e o blur gravava o texto digitado
+ * — Esc no responsável salvava e notificava a pessoa. A marca `cancelled` faz
+ * esse blur não gravar nada. E blur sem mudança também não grava: o campo
+ * vazio de "Sem responsável" mandava `""` no lugar de `"—"` a cada clique.
+ */
+function useCommitOnBlur(
+  value: string,
+  draft: string,
+  setDraft: (v: string) => void,
+  onCommit: (v: string) => void,
+) {
+  const cancelled = useRef(false);
+  return {
+    onBlur() {
+      if (cancelled.current) {
+        cancelled.current = false;
+        return;
+      }
+      const next = draft.trim();
+      if (next !== value.trim()) onCommit(next);
+    },
+    cancel(e: React.KeyboardEvent<HTMLInputElement | HTMLTextAreaElement>) {
+      e.stopPropagation();
+      cancelled.current = true;
+      setDraft(value);
+      e.currentTarget.blur();
+    },
+  };
+}
+
+/**
  * Texto que se edita no lugar: parece rótulo, vira campo ao clicar. Salva no
  * blur e no Enter; Esc devolve o valor anterior.
  */
@@ -475,6 +514,7 @@ function InlineText({
   className?: string;
 } & Omit<React.InputHTMLAttributes<HTMLInputElement>, "value" | "onChange">) {
   const [draft, setDraft] = useState(value);
+  const commit = useCommitOnBlur(value, draft, setDraft, onCommit);
   useEffect(() => setDraft(value), [value]);
 
   return (
@@ -482,14 +522,13 @@ function InlineText({
       value={draft}
       placeholder={placeholder}
       onChange={(e) => setDraft(e.target.value)}
-      onBlur={() => onCommit(draft.trim())}
+      onBlur={commit.onBlur}
       onKeyDown={(e) => {
         if (e.key === "Enter") {
           e.preventDefault();
           e.currentTarget.blur();
         } else if (e.key === "Escape") {
-          setDraft(value);
-          e.currentTarget.blur();
+          commit.cancel(e);
         }
       }}
       className={cn(
@@ -521,6 +560,7 @@ function AutoTextarea({
   "value" | "onChange" | "ref"
 >) {
   const [draft, setDraft] = useState(value);
+  const commit = useCommitOnBlur(value, draft, setDraft, onCommit);
   const inner = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => setDraft(value), [value]);
@@ -544,12 +584,9 @@ function AutoTextarea({
       value={draft}
       placeholder={placeholder}
       onChange={(e) => setDraft(e.target.value)}
-      onBlur={() => onCommit(draft.trim())}
+      onBlur={commit.onBlur}
       onKeyDown={(e) => {
-        if (e.key === "Escape") {
-          setDraft(value);
-          e.currentTarget.blur();
-        }
+        if (e.key === "Escape") commit.cancel(e);
       }}
       className={cn(
         "w-full resize-none overflow-hidden rounded-mark bg-transparent px-1 py-0.5 -mx-1",
@@ -718,6 +755,29 @@ function DueSelect({
   onChange: (v: string | null) => void;
 }) {
   const [editing, setEditing] = useState(false);
+  /*
+   * O prazo se firma no blur ou no Enter, não a cada `onChange`: digitando no
+   * `datetime-local`, cada segmento (dia, mês, hora…) dispara um change — eram
+   * um PATCH e uma releitura por tecla, e o segmento apagado no meio do
+   * caminho chegava a gravar "sem prazo".
+   */
+  const [draft, setDraft] = useState("");
+  const cancelled = useRef(false);
+  const current = value ? toDatetimeLocal(value) : "";
+
+  function open() {
+    cancelled.current = false;
+    setDraft(current);
+    setEditing(true);
+  }
+
+  function finish(input: HTMLInputElement) {
+    setEditing(false);
+    if (cancelled.current) return;
+    // Data pela metade (um segmento vazio) não vira "sem prazo".
+    if (input.validity.badInput || draft === current) return;
+    onChange(draft ? new Date(draft).toISOString() : null);
+  }
 
   if (editing) {
     return (
@@ -726,12 +786,19 @@ function DueSelect({
         <input
           autoFocus
           type="datetime-local"
-          value={value ? toDatetimeLocal(value) : ""}
-          onChange={(e) =>
-            onChange(e.target.value ? new Date(e.target.value).toISOString() : null)
-          }
-          onBlur={() => setEditing(false)}
-          onKeyDown={(e) => e.key === "Escape" && setEditing(false)}
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          onBlur={(e) => finish(e.currentTarget)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              e.preventDefault();
+              e.currentTarget.blur();
+            } else if (e.key === "Escape") {
+              e.stopPropagation();
+              cancelled.current = true;
+              e.currentTarget.blur();
+            }
+          }}
           className="bg-transparent text-[13px] text-fg-soft focus:outline-none [color-scheme:dark]"
         />
         {value && (
@@ -739,7 +806,11 @@ function DueSelect({
             type="button"
             aria-label="Limpar prazo"
             onMouseDown={(e) => e.preventDefault()}
-            onClick={() => onChange(null)}
+            onClick={() => {
+              cancelled.current = true;
+              setEditing(false);
+              onChange(null);
+            }}
             className="text-muted transition-colors hover:text-fg-soft"
           >
             <XIcon size={13} />
@@ -752,7 +823,7 @@ function DueSelect({
   return (
     <button
       type="button"
-      onClick={() => setEditing(true)}
+      onClick={open}
       className="tap flex items-center gap-2 rounded-mark px-1 py-0.5 -mx-1 transition-colors hover:bg-surface-2"
     >
       <CalendarIcon size={15} className="text-muted" />

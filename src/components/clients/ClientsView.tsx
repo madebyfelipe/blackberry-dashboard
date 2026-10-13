@@ -53,6 +53,7 @@ import { ClientGrid } from "./ClientGrid";
 import { ClientModal, type ClientModalState, type ClientModalValues } from "./ClientModal";
 import { ClientDisplayMenu, ClientFilterMenu } from "./ClientMenus";
 import { apiCreateClient, apiDeleteClient, apiUpdateClient } from "./api";
+import { reinsert } from "@/lib/ui/reinsert";
 
 type StatusTab = ClientStatus | "todos";
 type OpenMenu = "filtros" | "visualizacao" | null;
@@ -182,12 +183,12 @@ export function ClientsView({ initialClients }: { initialClients: Client[] }) {
     let undone = false;
     const timer = setTimeout(async () => {
       if (undone) return;
-      try {
-        await Promise.all(doomed.map((c) => apiDeleteClient(c.id)));
-      } catch (e) {
-        setClients(before);
-        toast(errMsg(e), "error");
-      }
+      // Só volta o que o servidor recusou — o resto já saiu de verdade.
+      const results = await Promise.allSettled(doomed.map((c) => apiDeleteClient(c.id)));
+      const failed = doomed.filter((_, i) => results[i].status === "rejected");
+      const error = results.find((r) => r.status === "rejected");
+      if (failed.length > 0) setClients((cs) => reinsert(cs, before, failed));
+      if (error) toast(errMsg(error.reason), "error");
     }, 4200);
 
     toast(
@@ -202,7 +203,7 @@ export function ClientsView({ initialClients }: { initialClients: Client[] }) {
           onClick: () => {
             undone = true;
             clearTimeout(timer);
-            setClients(before);
+            setClients((cs) => reinsert(cs, before, doomed));
           },
         },
       },
