@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getMedia, presignMediaUrl, readMedia } from "@/lib/media/store";
+import { redirectMaxAge } from "@/lib/media/signed-cache";
 
 export const dynamic = "force-dynamic";
 
@@ -15,7 +16,7 @@ type Ctx = { params: Promise<{ id: string }> };
  * ninguém abre a arte só de ter a `blobUrl`.
  *
  * Quando a arte está no Blob, aqui vai um **redirect** para uma URL assinada
- * de 5 minutos, em vez dos bytes. Não é otimização: a resposta de uma função
+ * de 30 minutos, em vez dos bytes. Não é otimização: a resposta de uma função
  * na Vercel tem o mesmo teto de 4,5 MB que o corpo da requisição, então
  * devolver uma arte de 9 MB por aqui daria `413` — a imagem subiria e não
  * apareceria. No redirect o navegador pega os bytes direto do CDN do Blob,
@@ -26,9 +27,16 @@ export async function GET(_req: Request, { params }: Ctx) {
 
   const stored = await getMedia(id);
   if (stored?.blobPathname) {
-    // 307: o id não muda de arte, mas a URL assinada muda a cada pedido.
-    const url = await presignMediaUrl(stored.blobPathname);
-    return NextResponse.redirect(url, 307);
+    // 307: o id não muda de arte, mas a URL assinada muda quando vence.
+    // Enquanto ela vale, o navegador guarda o redirect — e, pedindo sempre a
+    // mesma URL, reusa a imagem que já baixou em vez de baixar de novo.
+    const signed = await presignMediaUrl(stored.blobPathname);
+    const res = NextResponse.redirect(signed.url, 307);
+    res.headers.set(
+      "cache-control",
+      `private, max-age=${redirectMaxAge(signed, 5 * 60 * 1000)}`,
+    );
+    return res;
   }
 
   // Disco ou memória (dev local sem Blob): arquivos pequenos, cabem no corpo.

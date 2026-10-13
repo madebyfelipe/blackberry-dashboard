@@ -15,6 +15,10 @@ import {
 } from "./constants";
 import type { MediaAsset } from "./types";
 import { hasUploadGrant, releaseUploadGrant, type UploadGrantOwner } from "./upload-grants";
+import { createSignedUrlCache } from "./signed-cache";
+
+/** Validade da URL assinada que `GET /api/media/<id>` entrega. */
+const SIGNED_URL_TTL_MS = 30 * 60 * 1000;
 
 /*
  * Armazenamento das artes.
@@ -89,13 +93,19 @@ async function deleteBlob(url: string): Promise<void> {
  * Substitui o antigo redirect para a `blobUrl` pública (issue #39): o store
  * não serve mais nada sem assinatura, então quem quer os bytes — o link
  * público do cliente, sem sessão — precisa desta URL, que expira sozinha.
- * `issueSignedToken` + `presignUrl` não fazem chamada de rede: a assinatura é
- * HMAC local com o token do servidor, então isto é barato de chamar por
- * requisição.
+ *
+ * `issueSignedToken` **é** uma chamada de rede (POST `/signed-token` na API do
+ * Blob; só o `presignUrl` é HMAC local). Por isso a URL de cada pathname é
+ * reaproveitada enquanto vale — ver `signed-cache.ts`.
  */
-export async function presignMediaUrl(pathname: string): Promise<string> {
+export const presignMediaUrl = createSignedUrlCache(signBlobGet, {
+  ttlMs: SIGNED_URL_TTL_MS,
+  minRemainingMs: 10 * 60 * 1000,
+  maxEntries: 2000,
+});
+
+async function signBlobGet(pathname: string, validUntil: number): Promise<string> {
   const { issueSignedToken, presignUrl } = await import("@vercel/blob");
-  const validUntil = Date.now() + 5 * 60 * 1000; // 5 minutos bastam para o navegador buscar a arte.
   const signed = await issueSignedToken({
     pathname,
     operations: ["get"],
