@@ -1,6 +1,7 @@
 import { cn } from "@/lib/cn";
 import { EntityMark } from "./Mark";
 import { FieldLabel } from "./Screen";
+import { clickableProps } from "@/lib/ui/clickable";
 
 /*
  * O card do design v3 — o mesmo objeto no Quadro de tarefas e na Grade de
@@ -35,11 +36,13 @@ export function EntityCard({
   return (
     <div
       onClick={onClick}
+      {...clickableProps(onClick)}
       style={{ ["--d" as string]: index }}
       className={cn(
         "stagger-item group flex h-fit w-full flex-col gap-3.5 rounded-tile border border-border bg-surface-2 p-4",
         "transition-[transform,border-color] duration-200",
-        onClick && "cursor-pointer hover:-translate-y-0.5 hover:border-border-strong",
+        onClick &&
+          "cursor-pointer hover:-translate-y-0.5 hover:border-border-strong focus-visible:outline-none focus-visible:border-border-strong focus-visible:ring-1 focus-visible:ring-border-strong",
         className,
       )}
       {...rest}

@@ -168,9 +168,29 @@ export function CreativeComposer({
     }
   }
 
-  /** Grava o criativo aberto. Devolve se havia algo para gravar e deu certo. */
-  async function saveDraft(): Promise<boolean> {
-    if (!name.trim() && !caption.trim() && !briefing.trim() && !composerId) return false;
+  /**
+   * O criativo aberto já está gravado do jeito que está na tela? Trocar de
+   * criativo, "Novo" e "Salvar lote" passam todos por `saveDraft` — sem esta
+   * conferência, cada clique numa peça da lista esperava um PATCH que não
+   * mudava nada antes de abrir a próxima.
+   */
+  function upToDate(piece: Piece): boolean {
+    return (
+      (name.trim() || piece.name) === piece.name &&
+      format === pieceFormat(piece) &&
+      caption === (piece.caption ?? "") &&
+      briefing === (piece.briefing ?? "")
+    );
+  }
+
+  /**
+   * Grava o criativo aberto. "vazio" é não haver o que gravar (espaço novo em
+   * branco); "falhou" segura quem chamou — seguir adiante com a falha trocava
+   * de criativo (ou fechava o lote) e o texto digitado se perdia.
+   */
+  async function saveDraft(): Promise<"vazio" | "salvo" | "falhou"> {
+    if (!name.trim() && !caption.trim() && !briefing.trim() && !composerId) return "vazio";
+    if (composerPiece && upToDate(composerPiece)) return "salvo";
     setSaving(true);
     try {
       const defaultName = composerPiece
@@ -189,10 +209,10 @@ export function CreativeComposer({
       });
       if (!res.ok) throw new Error((await res.json()).error ?? "Falha ao salvar.");
       applyResult((await res.json()) as { batch: Batch; piece: Piece });
-      return true;
+      return "salvo";
     } catch (e) {
       toast(e instanceof Error ? e.message : "Falha ao salvar.", "error");
-      return false;
+      return "falhou";
     } finally {
       setSaving(false);
     }
@@ -200,7 +220,7 @@ export function CreativeComposer({
 
   /** "Salvar criativo": grava e já abre um espaço novo para o próximo. */
   async function saveCreative() {
-    if (await saveDraft()) {
+    if ((await saveDraft()) === "salvo") {
       toast("Criativo salvo — pode montar o próximo.");
       reset();
     }
@@ -212,7 +232,7 @@ export function CreativeComposer({
    */
   async function saveBatch() {
     if (saving) return;
-    await saveDraft();
+    if ((await saveDraft()) === "falhou") return;
     setSaving(true);
     try {
       const res = await fetch(`/api/batches/${batch.id}/send`, { method: "POST" });
@@ -228,13 +248,13 @@ export function CreativeComposer({
   }
 
   async function startNew() {
-    await saveDraft();
+    if ((await saveDraft()) === "falhou") return;
     reset();
   }
 
   async function openPiece(p: Piece) {
     if (p.id === composerId) return;
-    await saveDraft();
+    if ((await saveDraft()) === "falhou") return;
     setComposerId(p.id);
     setName(p.name);
     setFormat(pieceFormat(p));

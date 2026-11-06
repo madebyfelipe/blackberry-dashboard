@@ -10,6 +10,7 @@ import {
   type ColumnSpec,
 } from "@/lib/ui/columns";
 import type { ColumnWidthsApi } from "./useColumnWidths";
+import { clickableProps } from "@/lib/ui/clickable";
 
 /*
  * A lista do design system v3 — a mesma nas Tarefas e nos Clientes.
@@ -81,10 +82,11 @@ export function TableRow({
   return (
     <div
       onClick={onClick}
+      {...clickableProps(onClick)}
       style={{ ["--d" as string]: index }}
       className={cn(
         "stagger-item group flex h-11 w-full shrink-0 items-center gap-4 border-b border-rule-soft px-4 transition-colors",
-        onClick && "cursor-pointer",
+        onClick && "cursor-pointer focus-visible:outline-none focus-visible:bg-row-raised focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-border-strong",
         selected ? "bg-row-raised" : "hover:bg-row-raised",
       )}
     >
