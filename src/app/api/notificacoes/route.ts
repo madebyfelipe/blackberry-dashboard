@@ -1,8 +1,7 @@
 import { NextResponse } from "next/server";
 import { unauthorized } from "@/lib/auth/session";
 import { currentInboxSession } from "@/lib/inbox/viewer";
-import { listNotifications, markNotifications } from "@/lib/notifications/repository";
-import { unreadTotal } from "@/lib/notifications/view";
+import { listNotifications, markNotifications, unreadNotifications } from "@/lib/notifications/repository";
 
 export const dynamic = "force-dynamic";
 
@@ -14,8 +13,12 @@ export const dynamic = "force-dynamic";
 export async function GET(req: Request) {
   const session = await currentInboxSession();
   if (!session) return unauthorized();
-  const all = await listNotifications(session.scope, session.me.id);
-  const unread = unreadTotal(all);
+  // O total conta todas as não lidas guardadas; a lista para nas 100 mais
+  // recentes, e contar só por ela travava o número da lateral em 100.
+  const [all, unread] = await Promise.all([
+    listNotifications(session.scope, session.me.id),
+    unreadNotifications(session.scope, session.me.id),
+  ]);
   if (new URL(req.url).searchParams.get("resumo")) {
     return NextResponse.json({ unread, latest: all.filter((n) => !n.readAt).slice(0, 20) });
   }

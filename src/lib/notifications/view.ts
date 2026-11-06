@@ -83,7 +83,9 @@ export function trimPerRecipient(list: AppNotification[], keep = KEEP_PER_RECIPI
   const byRecipient = new Map<string, AppNotification[]>();
   for (const n of list) {
     const key = `${n.agencyId}|${n.recipientId}`;
-    byRecipient.set(key, [...(byRecipient.get(key) ?? []), n]);
+    const items = byRecipient.get(key);
+    if (items) items.push(n);
+    else byRecipient.set(key, [n]);
   }
   const drop = new Set<string>();
   for (const items of byRecipient.values()) {

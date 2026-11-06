@@ -177,13 +177,23 @@ export function PlanningCalendar({ batch: initialBatch, clientSlug }: { batch: B
     setSaving(true);
     try {
       let id = draft.pieceId;
+      const n = batch.pieces.length + (id ? 0 : 1);
       if (!id) {
         const res = await fetch(`/api/batches/${batch.id}/pieces`, { method: "POST" });
         const data = await res.json().catch(() => ({}));
         if (!res.ok) throw new Error(data?.error ?? "Falha ao criar o criativo.");
-        id = (data.piece as Piece).id;
+        const created = data.piece as Piece;
+        id = created.id;
+        /*
+         * O criativo (e a tarefa dele) já existe no servidor: entra na tela e
+         * no rascunho agora, antes do PATCH. Se o PATCH falhar, a nova
+         * tentativa grava neste mesmo criativo — antes ele ficava órfão, fora
+         * da tela, e o "Criar" de novo fazia um segundo criativo e uma
+         * segunda tarefa.
+         */
+        upsert(created);
+        setDraft((cur) => (cur ? { ...cur, pieceId: created.id } : cur));
       }
-      const n = batch.pieces.length + (draft.pieceId ? 0 : 1);
       const res = await fetch(`/api/batches/${batch.id}/pieces/${id}`, {
         method: "PATCH",
         headers: { "content-type": "application/json" },
